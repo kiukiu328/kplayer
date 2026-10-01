@@ -1,6 +1,6 @@
 # KPlayer
 
-A minimal Qt Quick application that plays `dummy.mp4` inside a 960 × 540
+A minimal Qt Quick application that plays `assets/dummy.mp4` inside a 960 × 540
 window using libmpv. The video starts automatically and loops until the window
 is closed. Resizing the window preserves the video's aspect ratio.
 
@@ -20,10 +20,10 @@ Generate the silent 10-second, 960 × 540, 30 fps H.264 test video from the
 project directory:
 
 ```sh
-ffmpeg -hide_banner -y -f lavfi -i testsrc2=size=960x540:rate=30 -t 10 -c:v libx264 -pix_fmt yuv420p -movflags +faststart dummy.mp4
+ffmpeg -hide_banner -y -f lavfi -i testsrc2=size=960x540:rate=30 -t 10 -c:v libx264 -pix_fmt yuv420p -movflags +faststart assets/dummy.mp4
 ```
 
-This command overwrites `dummy.mp4`. The generated video is ignored by Git;
+This command overwrites `assets/dummy.mp4`. The generated video is ignored by Git;
 regenerate it after cloning the project. If it is missing, the window displays
 a playback error.
 
@@ -41,7 +41,7 @@ You can also open `CMakeLists.txt` in Qt Creator and select a Qt 6.11.2+ kit.
 On Windows the executable is `build/KPlayer.exe`; on macOS it is
 `build/KPlayer.app/Contents/MacOS/KPlayer`.
 
-The build records the source directory's absolute path to `dummy.mp4`, so
+The build records the source directory's absolute path to `assets/dummy.mp4`, so
 launching from Qt Creator or another working directory also works. Reconfigure
 if you move the project. The video remains an external file, not an embedded resource.
 Playback requires an OpenGL-capable Qt platform; the application explicitly
@@ -56,7 +56,7 @@ through `qmlpreview`. Start a development session with:
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build && cmake --build build --target KPlayer_qmlpreview
 ```
 
-Save changes to `Main.qml` to update the running window. Ordinary property and
+Save changes to `qml/Main.qml` to update the running window. Ordinary property and
 binding edits preserve state; structural edits can recreate components or require
 a restart. C++ changes still require stopping the preview and rerunning the command.
 The normal run command above does not watch files.
@@ -68,11 +68,25 @@ builds for distribution. In Qt Creator, the equivalent action is **Build > QML P
 
 ## Structure
 
-- `CMakeLists.txt`: Qt executable, libmpv linkage, and embedded QML module.
-- `main.cpp`: OpenGL setup, sample video location, and QML loading via `loadFromModule`.
-- `Main.qml`: the video window and playback error message.
-- `MpvVideo.h` / `MpvVideo.cpp`: QML video item using libmpv's OpenGL render API.
-- `dummy.mp4`: generated test video (ignored by Git).
+```text
+KPlayer/
+├── CMakeLists.txt          # Build configuration and QML module
+├── README.md
+├── src/
+│   ├── main.cpp            # Application startup and QML loading
+│   └── playback/
+│       ├── MpvVideo.h      # QML video item interface
+│       └── MpvVideo.cpp    # libmpv playback and OpenGL rendering
+├── qml/
+│   └── Main.qml            # Video window and playback error message
+└── assets/
+    └── dummy.mp4           # Generated sample video (ignored by Git)
+```
+
+C++ implementation files live in `src/`, with headers beside their sources.
+The interface lives in `qml/`, and external media lives in `assets/`.
+Build output stays in the ignored `build/` directory. The embedded QML module
+remains `KPlayer`, with `Main` as its entry point.
 
 The video item uses a [Qt Quick framebuffer object](https://doc.qt.io/qt-6/qquickframebufferobject.html)
 to integrate [libmpv rendering](https://github.com/mpv-player/mpv/blob/master/libmpv/render_gl.h)

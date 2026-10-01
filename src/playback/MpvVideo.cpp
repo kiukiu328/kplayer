@@ -180,7 +180,7 @@ void MpvVideo::processEvents()
         if (event->event_id == MPV_EVENT_END_FILE) {
             const auto *end = static_cast<mpv_event_end_file *>(event->data);
             if (end->reason == MPV_END_FILE_REASON_ERROR)
-                setError(QStringLiteral("Cannot play %1: %2. Generate dummy.mp4 using the README command.")
+                setError(QStringLiteral("Cannot play %1: %2. Generate assets/dummy.mp4 using the README command.")
                              .arg(m_source.toDisplayString(),
                                   QString::fromUtf8(mpv_error_string(end->error))));
         }
