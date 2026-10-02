@@ -1,5 +1,7 @@
 #include <QGuiApplication>
 #include <QFontDatabase>
+#include <QDir>
+#include <QFileInfo>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
 
@@ -27,6 +29,13 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("KPlayer"));
 
     QQmlApplicationEngine engine;
+    // Keep the preview idle until Play is pressed. Accept a file or URL as argv[1].
+    const QString mediaArgument = app.arguments().value(1);
+    const QString samplePath = QDir::current().filePath(QStringLiteral("assets/dummy.mp4"));
+    const QUrl mediaSource = !mediaArgument.isEmpty()
+        ? QUrl::fromUserInput(mediaArgument, QDir::currentPath(), QUrl::AssumeLocalFile)
+        : (QFileInfo::exists(samplePath) ? QUrl::fromLocalFile(samplePath) : QUrl{});
+    engine.setInitialProperties({{QStringLiteral("mediaSource"), mediaSource}});
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(EXIT_FAILURE); },
                      Qt::QueuedConnection);

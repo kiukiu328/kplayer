@@ -2,6 +2,13 @@ pragma ComponentBehavior: Bound
 import QtQuick
 
 Rectangle {
+    id: root
+    property bool maximized: false
+    property bool fullscreen: false
+    signal minimizeRequested()
+    signal maximizeRequested()
+    signal fullscreenRequested()
+    signal closeRequested()
     height: Theme.titleHeight
     color: Theme.chromeBackground
 
@@ -45,18 +52,29 @@ Rectangle {
             model: [
                 { icon: "pin", label: qsTr("Always on top") },
                 { icon: "minimize", label: qsTr("Minimize") },
-                { icon: "maximize", label: qsTr("Maximize") },
-                { icon: "fullscreen", label: qsTr("Full screen") },
+                { icon: root.maximized ? "restore" : "maximize",
+                  label: root.maximized ? qsTr("Restore") : qsTr("Maximize") },
+                { icon: root.fullscreen ? "exitFullscreen" : "fullscreen",
+                  label: root.fullscreen ? qsTr("Exit full screen") : qsTr("Full screen") },
                 { icon: "close", label: qsTr("Close") }
             ]
             IconButton {
                 required property var modelData
+                required property int index
                 width: Theme.windowButtonWidth
                 height: windowControls.height
                 iconName: modelData.icon
                 label: modelData.label
                 iconColor: Theme.iconMuted
                 iconSize: 20
+                onClicked: {
+                    switch (index) {
+                    case 1: root.minimizeRequested(); break;
+                    case 2: root.maximizeRequested(); break;
+                    case 3: root.fullscreenRequested(); break;
+                    case 4: root.closeRequested(); break;
+                    }
+                }
             }
         }
     }

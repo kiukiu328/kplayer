@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 
 Window {
     id: window
@@ -10,8 +11,37 @@ Window {
     title: "KPlayer"
     color: Theme.border
     flags: Qt.Window | Qt.FramelessWindowHint
+    property url mediaSource
+    property int visibilityBeforeFullscreen: Window.Windowed
 
-    // Visual shell only: media and window actions are intentionally unconnected.
+    function toggleFullscreen() {
+        if (visibility === Window.FullScreen) {
+            if (visibilityBeforeFullscreen === Window.Maximized)
+                showMaximized()
+            else
+                showNormal()
+        } else {
+            visibilityBeforeFullscreen = visibility
+            showFullScreen()
+        }
+    }
+
+    function togglePlayback() {
+        if (videoStage.source.toString().length === 0)
+            mediaDialog.open()
+        else
+            videoStage.togglePause()
+    }
+
+    FileDialog {
+        id: mediaDialog
+        title: qsTr("Open media")
+        onAccepted: {
+            window.mediaSource = selectedFile
+            videoStage.play()
+        }
+    }
+
     Item {
         anchors.fill: parent
         anchors.margins: Theme.windowBorder
@@ -20,6 +50,17 @@ Window {
             id: titleBar
             anchors.top: parent.top
             width: parent.width
+            maximized: window.visibility === Window.Maximized
+            fullscreen: window.visibility === Window.FullScreen
+            onMinimizeRequested: window.showMinimized()
+            onMaximizeRequested: {
+                if (window.visibility === Window.Maximized)
+                    window.showNormal()
+                else
+                    window.showMaximized()
+            }
+            onFullscreenRequested: window.toggleFullscreen()
+            onCloseRequested: window.close()
         }
 
         Item {
@@ -36,15 +77,27 @@ Window {
                 anchors.rightMargin: Theme.panelDivider
 
                 VideoStage {
+                    id: videoStage
+                    source: window.mediaSource
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: playback.top
+                    onMoveRequested: {
+                        if (window.visibility !== Window.FullScreen)
+                            window.startSystemMove()
+                    }
+                    onFullscreenRequested: window.toggleFullscreen()
+                    onPlayPauseRequested: window.togglePlayback()
                 }
                 PlaybackBar {
                     id: playback
                     anchors.bottom: parent.bottom
                     width: parent.width
+                    playing: videoStage.playing
+                    onPlayPauseRequested: window.togglePlayback()
+                    onStopRequested: videoStage.stop()
+                    onOpenRequested: mediaDialog.open()
                 }
             }
 

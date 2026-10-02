@@ -12,6 +12,7 @@ Item {
     // Shared 24 x 24 vector paths stay crisp at any display scale.
     readonly property var filledPaths: ({
         "play": "M6 3 L21 12 L6 21 Z",
+        "pause": "M5 4 H10 V20 H5 Z M14 4 H19 V20 H14 Z",
         "stop": "M5 5 H19 V19 H5 Z",
         "previous": "M5 5 H8 V19 H5 Z M19 5 V19 L9 12 Z",
         "next": "M16 5 H19 V19 H16 Z M5 5 L15 12 L5 19 Z",
@@ -28,6 +29,8 @@ Item {
         "chevronRight": "M9 5 L16 12 L9 19",
         "minimize": "M4 19 H20",
         "maximize": "M5 5 H19 V19 H5 Z M5 7 H19",
+        "restore": "M5 8 H16 V19 H5 Z M8 8 V5 H19 V16 H16",
+        "exitFullscreen": "M9 4 V9 H4 M20 9 H15 V4 M15 20 V15 H20 M4 15 H9 V20",
         "fullscreen": "M4 9 V4 H9 M15 4 H20 V9 M20 15 V20 H15 M9 20 H4 V15",
         "close": "M5 5 L19 19 M19 5 L5 19",
         "menu": "M3 5 H21 M3 12 H21 M3 19 H21",

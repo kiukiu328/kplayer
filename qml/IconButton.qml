@@ -9,15 +9,20 @@ Rectangle {
     property color hoverColor: Theme.chromeHover
     property int iconSize: Theme.iconSize
     property bool rightDivider: false
+    signal clicked()
     implicitWidth: Theme.toolButtonWidth
     implicitHeight: Theme.transportHeight
     color: hover.hovered ? hoverColor : backgroundColor
     radius: Theme.controlRadius
     Accessible.role: Accessible.Button
     Accessible.name: label
-    Accessible.description: qsTr("Visual preview; action is not connected yet.")
+    Accessible.onPressAction: root.clicked()
+    activeFocusOnTab: true
+    Keys.onSpacePressed: root.clicked()
+    Keys.onReturnPressed: root.clicked()
 
     HoverHandler { id: hover }
+    TapHandler { onTapped: root.clicked() }
     PlayerIcon {
         anchors.centerIn: parent
         width: root.iconSize

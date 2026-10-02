@@ -3,6 +3,10 @@ import QtQuick
 
 Rectangle {
     id: root
+    property bool playing: false
+    signal playPauseRequested()
+    signal stopRequested()
+    signal openRequested()
     height: Theme.seekHeight + Theme.transportHeight
     color: Theme.chromeBackground
     Rectangle {
@@ -74,7 +78,8 @@ Rectangle {
         height: Theme.transportHeight - Theme.dividerWidth
         Repeater {
             model: [
-                { icon: "play", label: qsTr("Play") },
+                { icon: root.playing ? "pause" : "play",
+                  label: root.playing ? qsTr("Pause") : qsTr("Play") },
                 { icon: "stop", label: qsTr("Stop") },
                 { icon: "previous", label: qsTr("Previous track") },
                 { icon: "next", label: qsTr("Next track") },
@@ -82,12 +87,20 @@ Rectangle {
             ]
             IconButton {
                 required property var modelData
+                required property int index
                 width: Math.min(Theme.transportButtonWidth, root.width / 12)
                 height: transport.height
                 iconName: modelData.icon
                 label: modelData.label
                 iconSize: 20
                 rightDivider: true
+                onClicked: {
+                    switch (index) {
+                    case 0: root.playPauseRequested(); break;
+                    case 1: root.stopRequested(); break;
+                    case 4: root.openRequested(); break;
+                    }
+                }
             }
         }
     }

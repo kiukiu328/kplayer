@@ -3,8 +3,9 @@
 A Qt Quick media-player UI based on the supplied KPlayer reference. The
 1225 × 824 frameless window includes the title bar, empty video surface,
 transport controls, seek and volume tracks, timestamps, media tools, playlist
-tabs, ordering buttons, and search surface. The controls are visual only;
-playback, search, tabs, and window actions are not connected yet.
+tabs, ordering buttons, and search surface. Window controls and play/pause/stop
+are connected; search, playlist tabs, track navigation, and the remaining tools
+are still visual previews.
 
 ## UI organization
 
@@ -13,12 +14,25 @@ shared typography and sizing. Change these properties to restyle the interface.
 `PlayerIcon.qml` contains scalable vector icons; `IconButton.qml` and
 `PlaylistTab.qml` are reusable controls. Each major region has its own component:
 `TitleBar.qml`, `VideoStage.qml`, `PlaybackBar.qml`, and `PlaylistPanel.qml`.
-`Main.qml` only assembles the window. Buttons have hover styling and accessible
-labels, with no click handlers or media commands.
+`Main.qml` assembles the window and connects component signals to window and
+playback actions. Buttons have hover styling, accessible labels, and mouse and
+keyboard activation.
 
-The original libmpv backend remains available in `src/playback/` for future
-integration, but the UI does not instantiate it or start the sample video.
-The operating system's close shortcut can close the preview window.
+The libmpv backend in `src/playback/` renders media in the play area. The player
+starts idle. If `assets/dummy.mp4` exists in the working directory, Play starts
+that sample; otherwise Play opens a file picker. Open Media can select another
+file, and a file path or URL can also be supplied as the first command-line
+argument.
+
+- Top-right Close, Minimize, Maximize/Restore, and Full Screen/Exit Full Screen
+  buttons control the window. Exiting fullscreen restores its prior normal or
+  maximized state.
+- Hold the left mouse button and drag the play area to move the window.
+- Play toggles play/pause. Stop clears playback; pressing Play again restarts
+  the selected media from the beginning.
+- A middle click in the play area toggles fullscreen. A middle double-click
+  toggles play/pause. The single-click action waits for the system double-click
+  interval so the two actions do not overlap.
 
 ## Requirements
 
@@ -33,8 +47,8 @@ The operating system's close shortcut can close the preview window.
 
 ## Build and run
 
-No media file is needed for the UI preview. To optionally prepare the silent
-10-second H.264 test video for future playback work, run:
+No media file is needed to open the player. To optionally prepare a silent
+10-second H.264 test video, run:
 
 ```sh
 ffmpeg -hide_banner -y -f lavfi -i testsrc2=size=960x540:rate=30 -t 10 -c:v libx264 -pix_fmt yuv420p -movflags +faststart assets/dummy.mp4
@@ -58,8 +72,7 @@ On Windows the executable is `build/KPlayer.exe`; on macOS it is
 `build/KPlayer.app/Contents/MacOS/KPlayer`.
 
 The optional video remains an external file, not an embedded resource.
-The application selects Qt Quick's OpenGL backend, ready for future libmpv
-integration.
+The application selects Qt Quick's OpenGL backend for libmpv rendering.
 
 ### WSL title displays as squares
 
@@ -120,7 +133,7 @@ KPlayer/
 │   ├── IconButton.qml      # Reusable visual button
 │   ├── PlaylistTab.qml     # Reusable visual tab
 │   ├── TitleBar.qml        # App menu and window control icons
-│   ├── VideoStage.qml      # Empty video surface and watermark
+│   ├── VideoStage.qml      # Video rendering, watermark, and mouse actions
 │   ├── PlaybackBar.qml     # Tracks, transport, time, and tools
 │   └── PlaylistPanel.qml   # Playlist headers, tabs, and footer
 └── assets/

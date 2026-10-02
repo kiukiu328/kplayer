@@ -28,8 +28,11 @@ public:
 
     void synchronize(QQuickFramebufferObject *item) override
     {
-        // Qt blocks the GUI thread here, so reading the item's source is safe.
-        m_source = static_cast<MpvVideo *>(item)->source();
+        // Qt blocks the GUI thread here, so reading playback state is safe.
+        const auto *video = static_cast<MpvVideo *>(item);
+        m_source = video->source();
+        m_loadRevision = video->loadRevision();
+        m_stopped = video->stopped();
     }
 
     void render() override
@@ -61,15 +64,15 @@ public:
         }
 
         if (m_context) {
-            if (m_source != m_loadedSource) {
-                m_loadedSource = m_source;
+            if (m_loadRevision != m_loadedRevision) {
+                m_loadedRevision = m_loadRevision;
                 const QByteArray path = (m_source.isLocalFile() ? m_source.toLocalFile()
                                                                : m_source.toString()).toUtf8();
                 const char *load[] = {"loadfile", path.constData(), nullptr};
                 const char *stop[] = {"stop", nullptr};
                 // Async commands are safe on the render thread; synchronous ones can deadlock.
                 const int result = mpv_command_async(m_mpv.get(), 0,
-                                                     path.isEmpty() ? stop : load);
+                                                     m_stopped || path.isEmpty() ? stop : load);
                 if (result < 0)
                     emit failed(QString::fromUtf8(mpv_error_string(result)));
             }
@@ -99,7 +102,9 @@ private:
     mpv_render_context *m_context = nullptr;
     bool m_initialized = false;
     QUrl m_source;
-    QUrl m_loadedSource;
+    bool m_stopped = true;
+    quint64 m_loadRevision = 0;
+    quint64 m_loadedRevision = 0;
 };
 
 MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
@@ -132,6 +137,7 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
         auto *video = static_cast<MpvVideo *>(ctx);
         QMetaObject::invokeMethod(video, &MpvVideo::processEvents, Qt::QueuedConnection);
     }, this);
+    mpv_observe_property(m_mpv.get(), 0, "pause", MPV_FORMAT_FLAG);
 }
 
 MpvVideo::~MpvVideo()
@@ -153,11 +159,73 @@ void MpvVideo::setSource(const QUrl &source)
 {
     if (m_source == source)
         return;
+    stop();
     m_source = source;
     if (m_mpv)
         setError({});
     emit sourceChanged();
     update();
+}
+
+void MpvVideo::setPlaybackState(bool stopped, bool paused)
+{
+    if (m_stopped == stopped && m_paused == paused)
+        return;
+    m_stopped = stopped;
+    m_paused = paused;
+    emit playbackStateChanged();
+}
+
+bool MpvVideo::setPaused(bool paused)
+{
+    if (!m_mpv)
+        return false;
+    int value = paused ? 1 : 0;
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "pause", MPV_FORMAT_FLAG, &value);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return false;
+    }
+    setPlaybackState(m_stopped, paused);
+    return true;
+}
+
+void MpvVideo::play()
+{
+    if (!m_mpv || m_source.isEmpty())
+        return;
+    setError({});
+    if (!setPaused(false))
+        return;
+    if (m_stopped) {
+        setPlaybackState(false, false);
+        // A revision also reloads the same source after Stop.
+        ++m_loadRevision;
+        update();
+    }
+}
+
+void MpvVideo::stop()
+{
+    if (m_stopped)
+        return;
+    if (m_mpv) {
+        const char *command[] = {"stop", nullptr};
+        const int result = mpv_command_async(m_mpv.get(), 0, command);
+        if (result < 0)
+            setError(QString::fromUtf8(mpv_error_string(result)));
+    }
+    setPlaybackState(true, false);
+    ++m_loadRevision;
+    update();
+}
+
+void MpvVideo::togglePause()
+{
+    if (m_stopped || m_paused)
+        play();
+    else
+        setPaused(true);
 }
 
 void MpvVideo::setError(const QString &message)
@@ -172,17 +240,29 @@ void MpvVideo::setError(const QString &message)
 
 void MpvVideo::processEvents()
 {
+    if (!m_mpv)
+        return;
     while (const auto *event = mpv_wait_event(m_mpv.get(), 0)) {
         if (event->event_id == MPV_EVENT_NONE)
             break;
-        if (event->event_id == MPV_EVENT_COMMAND_REPLY && event->error < 0)
+        if ((event->event_id == MPV_EVENT_COMMAND_REPLY
+             || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY) && event->error < 0)
             setError(QString::fromUtf8(mpv_error_string(event->error)));
+        if (event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
+            const auto *property = static_cast<mpv_event_property *>(event->data);
+            if (property->format == MPV_FORMAT_FLAG && property->data)
+                setPlaybackState(m_stopped, *static_cast<int *>(property->data) != 0);
+        }
         if (event->event_id == MPV_EVENT_END_FILE) {
             const auto *end = static_cast<mpv_event_end_file *>(event->data);
-            if (end->reason == MPV_END_FILE_REASON_ERROR)
-                setError(QStringLiteral("Cannot play %1: %2. Generate assets/dummy.mp4 using the README command.")
+            if (end->reason == MPV_END_FILE_REASON_ERROR) {
+                setPlaybackState(true, false);
+                setError(QStringLiteral("Cannot play %1: %2")
                              .arg(m_source.toDisplayString(),
                                   QString::fromUtf8(mpv_error_string(end->error))));
+            } else if (end->reason == MPV_END_FILE_REASON_EOF) {
+                setPlaybackState(true, false);
+            }
         }
     }
 }
