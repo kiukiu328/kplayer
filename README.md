@@ -3,20 +3,21 @@
 A Qt Quick media-player UI based on the supplied KPlayer reference. The
 1225 × 824 frameless window includes the title bar, empty video surface,
 transport controls, seek and volume tracks, timestamps, media tools, playlist
-tabs, ordering buttons, and search surface. Window controls and play/pause/stop
-are connected; search, playlist tabs, track navigation, and the remaining tools
-are still visual previews.
+tabs, ordering buttons, and search surface. Window controls, playback, playlist
+file drops, seeking, mute, volume, and track navigation are connected. Search,
+playlist tabs, ordering buttons, and the remaining tools are still visual previews.
 
 ## UI organization
 
 All colors are declared as named QML properties in `qml/Theme.qml`, along with
 shared typography and sizing. Change these properties to restyle the interface.
-`PlayerIcon.qml` contains scalable vector icons; `IconButton.qml` and
-`PlaylistTab.qml` are reusable controls. Each major region has its own component:
+`PlayerIcon.qml` renders the embedded SVG assets in `assets/icons/` with the
+theme's icon colors; `IconButton.qml`, `PlayerSlider.qml`, and `PlaylistTab.qml`
+are reusable controls. Each major region has its own component:
 `TitleBar.qml`, `VideoStage.qml`, `PlaybackBar.qml`, and `PlaylistPanel.qml`.
 `Main.qml` assembles the window and connects component signals to window and
 playback actions. Buttons have hover styling, accessible labels, and mouse and
-keyboard activation.
+keyboard activation. Buttons and controls show hover tooltips.
 
 The libmpv backend in `src/playback/` renders media in the play area. The player
 starts idle. If `assets/dummy.mp4` exists in the working directory, Play starts
@@ -28,15 +29,27 @@ argument.
   buttons control the window. Exiting fullscreen restores its prior normal or
   maximized state.
 - Hold the left mouse button and drag the play area to move the window.
+- Drag one or more files onto the playlist to append them in drop order.
+  Double-click a playlist entry, or select it and press Enter, to play it.
+  Dropping files queues them without interrupting playback; directories and
+  missing files are ignored. Open Media supports selecting multiple files and
+  starts the first new entry.
 - Play toggles play/pause. Stop clears playback; pressing Play again restarts
   the selected media from the beginning.
+- Click the audio button to mute or unmute without changing the saved volume.
+  The volume slider controls 0–100%; adjusting it above zero also unmutes audio.
+- Left-click Previous/Next to rewind/fast-forward 10 seconds. Right-click them
+  to play the previous/next playlist entry. Navigation stops at the playlist
+  boundaries, and reaching the end of a file automatically plays the next entry.
+- The seek slider and elapsed/total timestamps follow the actual playback state.
+  Drag or click the seek slider to seek; it is disabled for unseekable media.
 - A middle click in the play area toggles fullscreen. A middle double-click
   toggles play/pause. The single-click action waits for the system double-click
   interval so the two actions do not overlap.
 
 ## Requirements
 
-- Qt 6.11.2 or newer with Qt Quick, Qt OpenGL, and its development tools
+- Qt 6.11.2 or newer with Qt Quick, Qt OpenGL, Qt SVG, and its development tools
 - libmpv development headers and library, discoverable as `mpv` through pkg-config
 - pkg-config
 - FFmpeg with the `libx264` encoder (optional, to generate a future playback sample)
@@ -125,18 +138,22 @@ KPlayer/
 │   ├── main.cpp            # Application startup and QML loading
 │   └── playback/
 │       ├── MpvVideo.h      # QML video item interface
-│       └── MpvVideo.cpp    # libmpv playback and OpenGL rendering
+│       ├── MpvVideo.cpp    # libmpv playback and OpenGL rendering
+│       ├── PlaylistModel.h # Playlist interface
+│       └── PlaylistModel.cpp # Ordered file queue and current track
 ├── qml/
 │   ├── Main.qml            # Window composition
 │   ├── Theme.qml           # Singleton colors, typography, and sizing
 │   ├── PlayerIcon.qml      # Vector icon library
 │   ├── IconButton.qml      # Reusable visual button
+│   ├── PlayerSlider.qml    # Seek and volume slider with tooltip
 │   ├── PlaylistTab.qml     # Reusable visual tab
 │   ├── TitleBar.qml        # App menu and window control icons
 │   ├── VideoStage.qml      # Video rendering, watermark, and mouse actions
 │   ├── PlaybackBar.qml     # Tracks, transport, time, and tools
 │   └── PlaylistPanel.qml   # Playlist headers, tabs, and footer
 └── assets/
+    ├── icons/              # Embedded SVG icons
     └── dummy.mp4           # Generated sample video (ignored by Git)
 ```
 
@@ -151,3 +168,18 @@ with the Qt scene graph.
 
 The project follows Qt's [CMake setup for QML applications](https://doc.qt.io/qt-6/cmake-build-qml-application.html).
 To check QML with Qt's linter, run `cmake --build build --target all_qmllint`.
+
+## Tests
+
+The optional tests require Qt Test and generate their own temporary WAV files.
+They exercise multi-file drops, playlist validation, mute, volume, seeking,
+left/right-click transport actions, and automatic advancement at end-of-file:
+
+```sh
+cmake -S . -B build -DKPLAYER_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The playback tests require an OpenGL-capable display (WSLg works). On a headless
+Linux system, run CTest through an X server with OpenGL support, such as Xvfb.

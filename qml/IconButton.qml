@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
@@ -9,7 +10,10 @@ Rectangle {
     property color hoverColor: Theme.chromeHover
     property int iconSize: Theme.iconSize
     property bool rightDivider: false
+    property bool acceptsRightClick: false
+    property string tooltipText: label
     signal clicked()
+    signal rightClicked()
     implicitWidth: Theme.toolButtonWidth
     implicitHeight: Theme.transportHeight
     color: hover.hovered ? hoverColor : backgroundColor
@@ -17,12 +21,24 @@ Rectangle {
     Accessible.role: Accessible.Button
     Accessible.name: label
     Accessible.onPressAction: root.clicked()
+    ToolTip.text: tooltipText
+    ToolTip.visible: hover.hovered || activeFocus
+    ToolTip.delay: 600
+    ToolTip.timeout: 5000
     activeFocusOnTab: true
     Keys.onSpacePressed: root.clicked()
     Keys.onReturnPressed: root.clicked()
 
     HoverHandler { id: hover }
-    TapHandler { onTapped: root.clicked() }
+    TapHandler {
+        acceptedButtons: Qt.LeftButton
+        onTapped: root.clicked()
+    }
+    TapHandler {
+        enabled: root.acceptsRightClick
+        acceptedButtons: Qt.RightButton
+        onTapped: root.rightClicked()
+    }
     PlayerIcon {
         anchors.centerIn: parent
         width: root.iconSize

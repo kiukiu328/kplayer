@@ -4,18 +4,28 @@ Rectangle {
     id: root
     property alias source: video.source
     property alias playing: video.playing
+    property alias stopped: video.stopped
+    property alias position: video.position
+    property alias duration: video.duration
+    property alias seekable: video.seekable
+    property alias muted: video.muted
+    property alias volume: video.volume
     signal moveRequested()
     signal fullscreenRequested()
     signal playPauseRequested()
+    signal endOfFile()
 
     function togglePause() { video.togglePause() }
     function play() { video.play() }
     function stop() { video.stop() }
+    function seek(seconds: real) { video.seek(seconds) }
+    function seekRelative(seconds: real) { video.seekRelative(seconds) }
 
     color: Theme.videoBackground
     MpvVideo {
         id: video
         anchors.fill: parent
+        onEndOfFile: root.endOfFile()
     }
     Row {
         visible: video.stopped

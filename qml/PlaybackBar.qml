@@ -4,9 +4,29 @@ import QtQuick
 Rectangle {
     id: root
     property bool playing: false
+    property real position: 0
+    property real duration: 0
+    property bool seekable: false
+    property bool muted: false
+    property real volume: 100
     signal playPauseRequested()
     signal stopRequested()
     signal openRequested()
+    signal muteRequested()
+    signal volumeRequested(real value)
+    signal seekRequested(real seconds)
+    signal seekRelativeRequested(real seconds)
+    signal previousRequested()
+    signal nextRequested()
+
+    function formatTime(seconds: real): string {
+        const total = Math.floor(Math.max(0, seconds))
+        const hours = Math.floor(total / 3600)
+        const minutes = Math.floor(total / 60) % 60
+        return hours.toString().padStart(2, "0") + ":"
+            + minutes.toString().padStart(2, "0") + ":"
+            + (total % 60).toString().padStart(2, "0")
+    }
     height: Theme.seekHeight + Theme.transportHeight
     color: Theme.chromeBackground
     Rectangle {
@@ -18,15 +38,33 @@ Rectangle {
         id: seekBar
         width: parent.width
         height: Theme.seekHeight
-        Rectangle {
+        PlayerSlider {
+            id: positionSlider
+            objectName: "positionSlider"
             anchors.left: parent.left
             anchors.leftMargin: 8
             anchors.right: volume.left
             anchors.rightMargin: 14
             anchors.verticalCenter: parent.verticalCenter
-            height: 3
-            color: Theme.border
-            Accessible.role: Accessible.Slider
+            height: parent.height
+            from: 0
+            to: Math.max(1, root.duration)
+            stepSize: 1
+            enabled: root.seekable && root.duration > 0
+            // Commit one exact seek on release; playback updates never fight a drag.
+            live: false
+            backendValue: root.position
+            onMoved: {
+                if (!pressed)
+                    root.seekRequested(value)
+            }
+            onPressedChanged: {
+                if (!pressed)
+                    root.seekRequested(value)
+            }
+            tooltipText: qsTr("Seek: %1 / %2")
+                .arg(root.formatTime(pressed ? valueAt(position) : value))
+                .arg(root.formatTime(root.duration))
             Accessible.name: qsTr("Playback position")
         }
         Item {
@@ -35,33 +73,34 @@ Rectangle {
             anchors.rightMargin: 16
             height: parent.height
             width: 132
-            PlayerIcon {
+            IconButton {
+                objectName: "muteButton"
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                height: 20
-                name: "volume"
-                color: Theme.iconMuted
+                width: 26
+                height: parent.height
+                iconSize: 20
+                iconName: root.muted || root.volume === 0 ? "volumeMuted" : "volume"
+                iconColor: root.muted || root.volume === 0 ? Theme.iconMuted : Theme.iconPrimary
+                label: root.muted ? qsTr("Unmute audio") : qsTr("Mute audio")
+                onClicked: root.muteRequested()
             }
-            Rectangle {
+            PlayerSlider {
+                id: volumeSlider
+                objectName: "volumeSlider"
                 anchors.left: parent.left
                 anchors.leftMargin: 28
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                height: 2
-                color: Theme.accent
-                Accessible.role: Accessible.Slider
+                height: parent.height
+                from: 0
+                to: 100
+                stepSize: 1
+                backendValue: root.volume
+                onMoved: root.volumeRequested(value)
+                tooltipText: qsTr("Volume: %1%2").arg(Math.round(value))
+                    .arg(root.muted ? qsTr("% (muted)") : "%")
                 Accessible.name: qsTr("Volume")
-                Rectangle {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 12
-                    height: 12
-                    radius: 6
-                    color: Theme.textPrimary
-                    border.width: 1
-                    border.color: Theme.iconMuted
-                }
             }
         }
     }
@@ -81,8 +120,8 @@ Rectangle {
                 { icon: root.playing ? "pause" : "play",
                   label: root.playing ? qsTr("Pause") : qsTr("Play") },
                 { icon: "stop", label: qsTr("Stop") },
-                { icon: "previous", label: qsTr("Previous track") },
-                { icon: "next", label: qsTr("Next track") },
+                { icon: "previous", label: qsTr("Rewind 10 seconds") },
+                { icon: "next", label: qsTr("Fast forward 10 seconds") },
                 { icon: "eject", label: qsTr("Open media") }
             ]
             IconButton {
@@ -91,15 +130,30 @@ Rectangle {
                 width: Math.min(Theme.transportButtonWidth, root.width / 12)
                 height: transport.height
                 iconName: modelData.icon
+                objectName: modelData.icon + "Button"
                 label: modelData.label
                 iconSize: 20
                 rightDivider: true
+                acceptsRightClick: index === 2 || index === 3
+                tooltipText: index === 2
+                    ? qsTr("Left click: rewind 10 seconds\nRight click: previous track")
+                    : index === 3
+                        ? qsTr("Left click: fast forward 10 seconds\nRight click: next track")
+                        : label
                 onClicked: {
                     switch (index) {
                     case 0: root.playPauseRequested(); break;
                     case 1: root.stopRequested(); break;
+                    case 2: root.seekRelativeRequested(-10); break;
+                    case 3: root.seekRelativeRequested(10); break;
                     case 4: root.openRequested(); break;
                     }
+                }
+                onRightClicked: {
+                    if (index === 2)
+                        root.previousRequested()
+                    else if (index === 3)
+                        root.nextRequested()
                 }
             }
         }
@@ -110,7 +164,7 @@ Rectangle {
         anchors.verticalCenter: transport.verticalCenter
         spacing: 8
         Text {
-            text: "00:00:00"
+            text: root.formatTime(root.position)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.smallFontSize
             color: Theme.textPrimary
@@ -122,7 +176,7 @@ Rectangle {
             color: Theme.textMuted
         }
         Text {
-            text: "00:00:00"
+            text: root.formatTime(root.duration)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.smallFontSize
             color: Theme.textMuted

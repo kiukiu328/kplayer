@@ -9,6 +9,9 @@
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <utility>
 
 class MpvRenderer : public QObject, public QQuickFramebufferObject::Renderer
@@ -117,7 +120,6 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
     m_mpv = {handle, mpv_terminate_destroy};
     for (const auto &[name, value] : {
              std::pair{"vo", "libmpv"},
-             std::pair{"loop-file", "inf"},
              std::pair{"terminal", "no"}}) {
         const int result = mpv_set_option_string(m_mpv.get(), name, value);
         if (result < 0) {
@@ -138,6 +140,11 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
         QMetaObject::invokeMethod(video, &MpvVideo::processEvents, Qt::QueuedConnection);
     }, this);
     mpv_observe_property(m_mpv.get(), 0, "pause", MPV_FORMAT_FLAG);
+    mpv_observe_property(m_mpv.get(), 0, "time-pos", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(m_mpv.get(), 0, "duration", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(m_mpv.get(), 0, "seekable", MPV_FORMAT_FLAG);
+    mpv_observe_property(m_mpv.get(), 0, "mute", MPV_FORMAT_FLAG);
+    mpv_observe_property(m_mpv.get(), 0, "volume", MPV_FORMAT_DOUBLE);
 }
 
 MpvVideo::~MpvVideo()
@@ -161,6 +168,9 @@ void MpvVideo::setSource(const QUrl &source)
         return;
     stop();
     m_source = source;
+    setPosition(0);
+    setDuration(0);
+    setSeekable(false);
     if (m_mpv)
         setError({});
     emit sourceChanged();
@@ -198,6 +208,7 @@ void MpvVideo::play()
     if (!setPaused(false))
         return;
     if (m_stopped) {
+        setPosition(0);
         setPlaybackState(false, false);
         // A revision also reloads the same source after Stop.
         ++m_loadRevision;
@@ -216,6 +227,8 @@ void MpvVideo::stop()
             setError(QString::fromUtf8(mpv_error_string(result)));
     }
     setPlaybackState(true, false);
+    setPosition(0);
+    setSeekable(false);
     ++m_loadRevision;
     update();
 }
@@ -226,6 +239,82 @@ void MpvVideo::togglePause()
         play();
     else
         setPaused(true);
+}
+
+void MpvVideo::setMuted(bool muted)
+{
+    if (!m_mpv || m_muted == muted)
+        return;
+    int value = muted ? 1 : 0;
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "mute", MPV_FORMAT_FLAG, &value);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    m_muted = muted;
+    emit mutedChanged();
+}
+
+void MpvVideo::setVolume(double volume)
+{
+    if (!m_mpv || !std::isfinite(volume))
+        return;
+    volume = std::clamp(volume, 0.0, 100.0);
+    if (m_volume == volume)
+        return;
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "volume", MPV_FORMAT_DOUBLE, &volume);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    m_volume = volume;
+    emit volumeChanged();
+}
+
+void MpvVideo::seek(double seconds)
+{
+    if (!m_mpv || m_stopped || !m_seekable || !std::isfinite(seconds))
+        return;
+    seconds = std::max(0.0, seconds);
+    if (m_duration > 0)
+        seconds = std::min(seconds, m_duration);
+    const QByteArray value = QByteArray::number(seconds, 'f', 3);
+    const char *command[] = {"seek", value.constData(), "absolute+exact", nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 0, command);
+    if (result < 0)
+        setError(QString::fromUtf8(mpv_error_string(result)));
+}
+
+void MpvVideo::seekRelative(double seconds)
+{
+    if (std::isfinite(seconds))
+        seek(m_position + seconds);
+}
+
+void MpvVideo::setPosition(double seconds)
+{
+    seconds = std::isfinite(seconds) ? std::max(0.0, seconds) : 0;
+    if (m_position == seconds)
+        return;
+    m_position = seconds;
+    emit positionChanged();
+}
+
+void MpvVideo::setDuration(double seconds)
+{
+    seconds = std::isfinite(seconds) ? std::max(0.0, seconds) : 0;
+    if (m_duration == seconds)
+        return;
+    m_duration = seconds;
+    emit durationChanged();
+}
+
+void MpvVideo::setSeekable(bool seekable)
+{
+    if (m_seekable == seekable)
+        return;
+    m_seekable = seekable;
+    emit seekableChanged();
 }
 
 void MpvVideo::setError(const QString &message)
@@ -250,18 +339,44 @@ void MpvVideo::processEvents()
             setError(QString::fromUtf8(mpv_error_string(event->error)));
         if (event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
             const auto *property = static_cast<mpv_event_property *>(event->data);
-            if (property->format == MPV_FORMAT_FLAG && property->data)
-                setPlaybackState(m_stopped, *static_cast<int *>(property->data) != 0);
+            if (!property->data)
+                continue;
+            if (property->format == MPV_FORMAT_FLAG) {
+                const bool value = *static_cast<int *>(property->data) != 0;
+                if (std::strcmp(property->name, "pause") == 0)
+                    setPlaybackState(m_stopped, value);
+                else if (std::strcmp(property->name, "seekable") == 0)
+                    setSeekable(!m_stopped && value);
+                else if (std::strcmp(property->name, "mute") == 0 && m_muted != value) {
+                    m_muted = value;
+                    emit mutedChanged();
+                }
+            } else if (property->format == MPV_FORMAT_DOUBLE) {
+                const double value = *static_cast<double *>(property->data);
+                if (std::strcmp(property->name, "time-pos") == 0 && !m_stopped)
+                    setPosition(value);
+                else if (std::strcmp(property->name, "duration") == 0 && !m_stopped)
+                    setDuration(value);
+                else if (std::strcmp(property->name, "volume") == 0 && m_volume != value) {
+                    m_volume = value;
+                    emit volumeChanged();
+                }
+            }
         }
         if (event->event_id == MPV_EVENT_END_FILE) {
             const auto *end = static_cast<mpv_event_end_file *>(event->data);
             if (end->reason == MPV_END_FILE_REASON_ERROR) {
                 setPlaybackState(true, false);
+                setPosition(0);
+                setDuration(0);
+                setSeekable(false);
                 setError(QStringLiteral("Cannot play %1: %2")
                              .arg(m_source.toDisplayString(),
                                   QString::fromUtf8(mpv_error_string(end->error))));
             } else if (end->reason == MPV_END_FILE_REASON_EOF) {
                 setPlaybackState(true, false);
+                setSeekable(false);
+                emit endOfFile();
             }
         }
     }

@@ -27,18 +27,38 @@ Window {
     }
 
     function togglePlayback() {
-        if (videoStage.source.toString().length === 0)
+        if (mediaPlaylist.count === 0)
             mediaDialog.open()
         else
             videoStage.togglePause()
     }
 
+    function playTrack(index: int) {
+        if (index < 0 || index >= mediaPlaylist.count)
+            return
+        videoStage.stop()
+        mediaPlaylist.currentIndex = index
+        videoStage.play()
+    }
+
+    function skipTrack(offset: int) {
+        playTrack(mediaPlaylist.currentIndex + offset)
+    }
+
+    PlaylistModel { id: mediaPlaylist; objectName: "playlistModel" }
+    Component.onCompleted: {
+        if (mediaSource.toString().length > 0)
+            mediaPlaylist.appendUrls([mediaSource])
+    }
+
     FileDialog {
         id: mediaDialog
         title: qsTr("Open media")
+        fileMode: FileDialog.OpenFiles
         onAccepted: {
-            window.mediaSource = selectedFile
-            videoStage.play()
+            const firstIndex = mediaPlaylist.count
+            if (mediaPlaylist.appendUrls(selectedFiles) > 0)
+                window.playTrack(firstIndex)
         }
     }
 
@@ -78,7 +98,7 @@ Window {
 
                 VideoStage {
                     id: videoStage
-                    source: window.mediaSource
+                    source: mediaPlaylist.currentSource
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -89,12 +109,29 @@ Window {
                     }
                     onFullscreenRequested: window.toggleFullscreen()
                     onPlayPauseRequested: window.togglePlayback()
+                    onEndOfFile: window.skipTrack(1)
                 }
                 PlaybackBar {
                     id: playback
+                    objectName: "playbackBar"
                     anchors.bottom: parent.bottom
                     width: parent.width
                     playing: videoStage.playing
+                    position: videoStage.position
+                    duration: videoStage.duration
+                    seekable: videoStage.seekable
+                    muted: videoStage.muted
+                    volume: videoStage.volume
+                    onMuteRequested: videoStage.muted = !videoStage.muted
+                    onVolumeRequested: (value) => {
+                        videoStage.volume = value
+                        if (value > 0)
+                            videoStage.muted = false
+                    }
+                    onSeekRequested: (seconds) => videoStage.seek(seconds)
+                    onSeekRelativeRequested: (seconds) => videoStage.seekRelative(seconds)
+                    onPreviousRequested: window.skipTrack(-1)
+                    onNextRequested: window.skipTrack(1)
                     onPlayPauseRequested: window.togglePlayback()
                     onStopRequested: videoStage.stop()
                     onOpenRequested: mediaDialog.open()
@@ -107,6 +144,8 @@ Window {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 width: Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio)
+                playlistModel: mediaPlaylist
+                onTrackRequested: (index) => window.playTrack(index)
             }
         }
     }

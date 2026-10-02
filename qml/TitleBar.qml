@@ -33,7 +33,6 @@ Rectangle {
             height: 14
             name: "chevronDown"
             color: Theme.iconMuted
-            strokeWidth: 1
         }
         Rectangle {
             anchors.right: parent.right

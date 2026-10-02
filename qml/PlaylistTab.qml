@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
@@ -8,6 +9,11 @@ Rectangle {
     color: selected ? Theme.panelBackground : Theme.tabBackground
     Accessible.role: Accessible.PageTab
     Accessible.name: label
+    HoverHandler { id: hover }
+    ToolTip.text: label
+    ToolTip.visible: hover.hovered
+    ToolTip.delay: 600
+    ToolTip.timeout: 5000
     Text {
         anchors.fill: parent
         anchors.margins: 8

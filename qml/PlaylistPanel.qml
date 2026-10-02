@@ -1,7 +1,12 @@
+pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
+    objectName: "playlistPanel"
+    required property PlaylistModel playlistModel
+    signal trackRequested(int index)
     color: Theme.panelBackground
     Row {
         id: header
@@ -90,14 +95,111 @@ Rectangle {
             }
         }
     }
-    // Empty playlist surface, ready for a media model later.
-    Item {
+    ListView {
+        id: trackList
+        objectName: "trackList"
         anchors.top: tabs.bottom
         anchors.bottom: footer.top
         width: parent.width
         clip: true
+        model: root.playlistModel
+        currentIndex: root.playlistModel.currentIndex
+        boundsBehavior: Flickable.StopAtBounds
+        activeFocusOnTab: true
+        Keys.onReturnPressed: root.trackRequested(currentIndex)
+        Keys.onEnterPressed: root.trackRequested(currentIndex)
+        Keys.onSpacePressed: root.trackRequested(currentIndex)
         Accessible.role: Accessible.List
         Accessible.name: qsTr("Playlist items")
+        ScrollBar.vertical: ScrollBar {}
+
+        Connections {
+            target: root.playlistModel
+            function onCurrentIndexChanged() {
+                trackList.currentIndex = root.playlistModel.currentIndex
+                trackList.positionViewAtIndex(trackList.currentIndex, ListView.Contain)
+            }
+        }
+        delegate: Rectangle {
+            id: track
+            objectName: "track" + index
+            required property int index
+            required property string title
+            required property url source
+            readonly property bool current: index === root.playlistModel.currentIndex
+            width: trackList.width
+            height: 42
+            color: trackList.currentIndex === index || trackHover.hovered
+                ? Theme.chromeHover : Theme.transparent
+            Accessible.role: Accessible.ListItem
+            Accessible.name: title
+            Accessible.onPressAction: root.trackRequested(track.index)
+            ToolTip.text: qsTr("%1\nDouble click to play").arg(source.toString())
+            ToolTip.visible: trackHover.hovered
+            ToolTip.delay: 600
+            ToolTip.timeout: 5000
+            HoverHandler { id: trackHover }
+            PlayerIcon {
+                anchors.left: parent.left
+                anchors.leftMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                width: 14
+                height: 14
+                name: "play"
+                color: Theme.accent
+                visible: track.current
+            }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 34
+                anchors.right: parent.right
+                anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                text: track.title
+                elide: Text.ElideRight
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.smallFontSize
+                color: track.current ? Theme.accent : Theme.textPrimary
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    trackList.currentIndex = track.index
+                    trackList.forceActiveFocus()
+                }
+                onDoubleClicked: root.trackRequested(track.index)
+            }
+        }
+        Text {
+            anchors.centerIn: parent
+            width: parent.width - 32
+            horizontalAlignment: Text.AlignHCenter
+            text: qsTr("Drag files here to add to playlist")
+            wrapMode: Text.Wrap
+            visible: root.playlistModel.count === 0
+            color: Theme.textMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.smallFontSize
+        }
+    }
+    DropArea {
+        anchors.fill: parent
+        onEntered: (drag) => { drag.accepted = drag.hasUrls }
+        onDropped: (drop) => {
+            if (drop.hasUrls && root.playlistModel.appendUrls(drop.urls) > 0)
+                drop.acceptProposedAction()
+            else
+                drop.accepted = false
+        }
+        Rectangle {
+            anchors.fill: parent
+            anchors.topMargin: header.height + tabs.height
+            anchors.bottomMargin: footer.height
+            visible: parent.containsDrag
+            color: Theme.transparent
+            border.color: Theme.accent
+            border.width: 2
+        }
     }
     Rectangle {
         id: footer
@@ -148,6 +250,10 @@ Rectangle {
                     Accessible.role: Accessible.Button
                     Accessible.name: modelData
                     HoverHandler { id: hover }
+                    ToolTip.text: modelData
+                    ToolTip.visible: hover.hovered
+                    ToolTip.delay: 600
+                    ToolTip.timeout: 5000
                     Text {
                         anchors.centerIn: parent
                         text: textButton.modelData
@@ -169,6 +275,11 @@ Rectangle {
             color: Theme.searchBackground
             Accessible.role: Accessible.EditableText
             Accessible.name: qsTr("Search playlist")
+            HoverHandler { id: searchHover }
+            ToolTip.text: qsTr("Search playlist")
+            ToolTip.visible: searchHover.hovered
+            ToolTip.delay: 600
+            ToolTip.timeout: 5000
             PlayerIcon {
                 anchors.right: parent.right
                 anchors.rightMargin: 8
@@ -176,7 +287,6 @@ Rectangle {
                 name: "search"
                 width: 25
                 height: 25
-                strokeWidth: 3
                 color: Theme.iconMuted
             }
         }
