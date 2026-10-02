@@ -15,15 +15,28 @@ qt_add_executable(KPlayer
     src/main.cpp
 )
 
-# Keep Main at the QML module root when storing the source in qml/.
-set_source_files_properties(qml/Main.qml PROPERTIES
-    QT_RESOURCE_ALIAS Main.qml
+# Keep reusable UI types at the QML module root.
+set(KPLAYER_QML_FILES
+    qml/Main.qml
+    qml/Theme.qml
+    qml/PlayerIcon.qml
+    qml/IconButton.qml
+    qml/TitleBar.qml
+    qml/VideoStage.qml
+    qml/PlaybackBar.qml
+    qml/PlaylistTab.qml
+    qml/PlaylistPanel.qml
 )
+foreach(qml_file IN LISTS KPLAYER_QML_FILES)
+    get_filename_component(qml_name "${qml_file}" NAME)
+    set_source_files_properties("${qml_file}" PROPERTIES QT_RESOURCE_ALIAS "${qml_name}")
+endforeach()
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(KPlayer
     URI KPlayer
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/KPlayer
-    QML_FILES qml/Main.qml
+    QML_FILES ${KPLAYER_QML_FILES}
     SOURCES
         src/playback/MpvVideo.h
         src/playback/MpvVideo.cpp
@@ -33,7 +46,6 @@ target_include_directories(KPlayer PRIVATE src/playback)
 target_link_libraries(KPlayer PRIVATE Qt6::Quick Qt6::OpenGL PkgConfig::MPV)
 
 target_compile_definitions(KPlayer PRIVATE
-    KPLAYER_DUMMY_VIDEO_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/dummy.mp4"
     $<$<CONFIG:Debug>:QT_QML_DEBUG>
 )
 

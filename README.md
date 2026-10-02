@@ -1,15 +1,31 @@
 # KPlayer
 
-A minimal Qt Quick application that plays `assets/dummy.mp4` inside a 960 × 540
-window using libmpv. The video starts automatically and loops until the window
-is closed. Resizing the window preserves the video's aspect ratio.
+A Qt Quick media-player UI based on the supplied KPlayer reference. The
+1225 × 824 frameless window includes the title bar, empty video surface,
+transport controls, seek and volume tracks, timestamps, media tools, playlist
+tabs, ordering buttons, and search surface. The controls are visual only;
+playback, search, tabs, and window actions are not connected yet.
+
+## UI organization
+
+All colors are declared as named QML properties in `qml/Theme.qml`, along with
+shared typography and sizing. Change these properties to restyle the interface.
+`PlayerIcon.qml` contains scalable vector icons; `IconButton.qml` and
+`PlaylistTab.qml` are reusable controls. Each major region has its own component:
+`TitleBar.qml`, `VideoStage.qml`, `PlaybackBar.qml`, and `PlaylistPanel.qml`.
+`Main.qml` only assembles the window. Buttons have hover styling and accessible
+labels, with no click handlers or media commands.
+
+The original libmpv backend remains available in `src/playback/` for future
+integration, but the UI does not instantiate it or start the sample video.
+The operating system's close shortcut can close the preview window.
 
 ## Requirements
 
 - Qt 6.11.2 or newer with Qt Quick, Qt OpenGL, and its development tools
 - libmpv development headers and library, discoverable as `mpv` through pkg-config
 - pkg-config
-- FFmpeg with the `libx264` encoder (to generate the sample video)
+- FFmpeg with the `libx264` encoder (optional, to generate a future playback sample)
 - CMake 3.24 or newer
 - A C++20 compiler
 - Ninja
@@ -17,16 +33,15 @@ is closed. Resizing the window preserves the video's aspect ratio.
 
 ## Build and run
 
-Generate the silent 10-second, 960 × 540, 30 fps H.264 test video from the
-project directory:
+No media file is needed for the UI preview. To optionally prepare the silent
+10-second H.264 test video for future playback work, run:
 
 ```sh
 ffmpeg -hide_banner -y -f lavfi -i testsrc2=size=960x540:rate=30 -t 10 -c:v libx264 -pix_fmt yuv420p -movflags +faststart assets/dummy.mp4
 ```
 
 This command overwrites `assets/dummy.mp4`. The generated video is ignored by Git;
-regenerate it after cloning the project. If it is missing, the window displays
-a playback error.
+regenerate it when needed after cloning the project.
 
 From the project directory (Linux):
 
@@ -42,13 +57,16 @@ You can also open `CMakeLists.txt` in Qt Creator and select a Qt 6.11.2+ kit.
 On Windows the executable is `build/KPlayer.exe`; on macOS it is
 `build/KPlayer.app/Contents/MacOS/KPlayer`.
 
-The build records the source directory's absolute path to `assets/dummy.mp4`, so
-launching from Qt Creator or another working directory also works. Reconfigure
-if you move the project. The video remains an external file, not an embedded resource.
-Playback requires an OpenGL-capable Qt platform; the application explicitly
-selects Qt Quick's OpenGL backend for libmpv's render API.
+The optional video remains an external file, not an embedded resource.
+The application selects Qt Quick's OpenGL backend, ready for future libmpv
+integration.
 
 ### WSL title displays as squares
+
+For Chinese labels, the application reuses Windows' installed Microsoft
+JhengHei font when running in WSL without a Traditional Chinese system font.
+This fallback requires the usual `/mnt/c/Windows/Fonts/msjh.ttc` mount. On other
+Linux systems, install a CJK font such as Noto Sans CJK to display these labels.
 
 Minimal WSL distributions may have no fonts installed. Qt's Wayland title bar
 then displays square boxes instead of `KPlayer`; QML text can be affected too.
@@ -74,7 +92,7 @@ through `qmlpreview`. Start a development session with:
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build && cmake --build build --target KPlayer_qmlpreview
 ```
 
-Save changes to `qml/Main.qml` to update the running window. Ordinary property and
+Save changes to files in `qml/` to update the running window. Ordinary property and
 binding edits preserve state; structural edits can recreate components or require
 a restart. C++ changes still require stopping the preview and rerunning the command.
 The normal run command above does not watch files.
@@ -96,7 +114,15 @@ KPlayer/
 │       ├── MpvVideo.h      # QML video item interface
 │       └── MpvVideo.cpp    # libmpv playback and OpenGL rendering
 ├── qml/
-│   └── Main.qml            # Video window and playback error message
+│   ├── Main.qml            # Window composition
+│   ├── Theme.qml           # Singleton colors, typography, and sizing
+│   ├── PlayerIcon.qml      # Vector icon library
+│   ├── IconButton.qml      # Reusable visual button
+│   ├── PlaylistTab.qml     # Reusable visual tab
+│   ├── TitleBar.qml        # App menu and window control icons
+│   ├── VideoStage.qml      # Empty video surface and watermark
+│   ├── PlaybackBar.qml     # Tracks, transport, time, and tools
+│   └── PlaylistPanel.qml   # Playlist headers, tabs, and footer
 └── assets/
     └── dummy.mp4           # Generated sample video (ignored by Git)
 ```
