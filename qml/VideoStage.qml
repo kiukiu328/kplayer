@@ -2,6 +2,7 @@ import QtQuick
 
 Rectangle {
     id: root
+    objectName: "videoStage"
     property alias source: video.source
     property alias playing: video.playing
     property alias stopped: video.stopped
@@ -74,8 +75,11 @@ Rectangle {
     }
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.MiddleButton
-        onClicked: middleClick.restart()
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.MiddleButton)
+                middleClick.restart()
+        }
         onDoubleClicked: (mouse) => {
             mouse.accepted = true
             middleClick.stop()

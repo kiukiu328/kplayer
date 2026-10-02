@@ -29,6 +29,11 @@ argument.
   buttons control the window. Exiting fullscreen restores its prior normal or
   maximized state.
 - Hold the left mouse button and drag the play area to move the window.
+- Double-click the play area with the left mouse button to play or pause.
+- Drag any window edge or corner to resize. Resizing is available in the normal
+  window state and respects the minimum window size.
+- Click the Playlist button to hide or show the playlist. Hiding it expands the
+  play area and keeps the queue and current selection.
 - Drag one or more files onto the playlist to append them in drop order.
   Double-click a playlist entry, or select it and press Enter, to play it.
   Dropping files queues them without interrupting playback; directories and
@@ -43,6 +48,10 @@ argument.
   boundaries, and reaching the end of a file automatically plays the next entry.
 - The seek slider and elapsed/total timestamps follow the actual playback state.
   Drag or click the seek slider to seek; it is disabled for unseekable media.
+- Hover over the seek slider to preview the frame and timestamp at that point;
+  dragging also shows the target frame. Preview decoding uses a separate silent
+  libmpv instance and does not seek or pause the playing media. Audio-only files
+  show the timestamp with an unavailable-preview message.
 - A middle click in the play area toggles fullscreen. A middle double-click
   toggles play/pause. The single-click action waits for the system double-click
   interval so the two actions do not overlap.
@@ -139,6 +148,8 @@ KPlayer/
 │   └── playback/
 │       ├── MpvVideo.h      # QML video item interface
 │       ├── MpvVideo.cpp    # libmpv playback and OpenGL rendering
+│       ├── MpvPreview.h    # Timeline preview interface
+│       ├── MpvPreview.cpp  # Independent silent frame decoder
 │       ├── PlaylistModel.h # Playlist interface
 │       └── PlaylistModel.cpp # Ordered file queue and current track
 ├── qml/
@@ -150,6 +161,7 @@ KPlayer/
 │   ├── PlaylistTab.qml     # Reusable visual tab
 │   ├── TitleBar.qml        # App menu and window control icons
 │   ├── VideoStage.qml      # Video rendering, watermark, and mouse actions
+│   ├── WindowResizeFrame.qml # Window edge and corner resize handles
 │   ├── PlaybackBar.qml     # Tracks, transport, time, and tools
 │   └── PlaylistPanel.qml   # Playlist headers, tabs, and footer
 └── assets/
@@ -171,8 +183,9 @@ To check QML with Qt's linter, run `cmake --build build --target all_qmllint`.
 
 ## Tests
 
-The optional tests require Qt Test and generate their own temporary WAV files.
-They exercise multi-file drops, playlist validation, mute, volume, seeking,
+The optional tests require Qt Test and generate their own temporary WAV and Y4M files.
+They exercise multi-file drops, playlist validation, playlist visibility, resize
+handle states, double-click playback, timeline hover, mute, volume, seeking,
 left/right-click transport actions, and automatic advancement at end-of-file:
 
 ```sh

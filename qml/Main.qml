@@ -13,6 +13,7 @@ Window {
     flags: Qt.Window | Qt.FramelessWindowHint
     property url mediaSource
     property int visibilityBeforeFullscreen: Window.Windowed
+    property bool playlistVisible: true
 
     function toggleFullscreen() {
         if (visibility === Window.FullScreen) {
@@ -94,7 +95,7 @@ Window {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.right: playlist.left
-                anchors.rightMargin: Theme.panelDivider
+                anchors.rightMargin: window.playlistVisible ? Theme.panelDivider : 0
 
                 VideoStage {
                     id: videoStage
@@ -122,6 +123,9 @@ Window {
                     seekable: videoStage.seekable
                     muted: videoStage.muted
                     volume: videoStage.volume
+                    mediaSource: mediaPlaylist.currentSource
+                    playlistVisible: window.playlistVisible
+                    onPlaylistRequested: window.playlistVisible = !window.playlistVisible
                     onMuteRequested: videoStage.muted = !videoStage.muted
                     onVolumeRequested: (value) => {
                         videoStage.volume = value
@@ -143,10 +147,18 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                width: Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio)
+                visible: window.playlistVisible
+                width: window.playlistVisible
+                    ? Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio) : 0
                 playlistModel: mediaPlaylist
                 onTrackRequested: (index) => window.playTrack(index)
             }
         }
+    }
+
+    WindowResizeFrame {
+        anchors.fill: parent
+        enabled: window.visibility === Window.Windowed
+        onResizeRequested: (edges) => window.startSystemResize(edges)
     }
 }

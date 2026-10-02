@@ -9,6 +9,8 @@ Rectangle {
     property bool seekable: false
     property bool muted: false
     property real volume: 100
+    property url mediaSource
+    property bool playlistVisible: true
     signal playPauseRequested()
     signal stopRequested()
     signal openRequested()
@@ -18,6 +20,7 @@ Rectangle {
     signal seekRelativeRequested(real seconds)
     signal previousRequested()
     signal nextRequested()
+    signal playlistRequested()
 
     function formatTime(seconds: real): string {
         const total = Math.floor(Math.max(0, seconds))
@@ -54,6 +57,7 @@ Rectangle {
             // Commit one exact seek on release; playback updates never fight a drag.
             live: false
             backendValue: root.position
+            previewEnabled: true
             onMoved: {
                 if (!pressed)
                     root.seekRequested(value)
@@ -66,6 +70,62 @@ Rectangle {
                 .arg(root.formatTime(pressed ? valueAt(position) : value))
                 .arg(root.formatTime(root.duration))
             Accessible.name: qsTr("Playback position")
+        }
+        Rectangle {
+            id: timelinePreview
+            objectName: "timelinePreview"
+            visible: positionSlider.previewVisible
+            x: Math.max(8, Math.min(root.width - width - 8,
+                positionSlider.x + positionSlider.previewX - width / 2))
+            y: -height - 8
+            width: 224
+            height: 156
+            radius: Theme.controlRadius
+            color: Theme.chromeBackground
+            border.width: 1
+            border.color: Theme.iconMuted
+            z: 10
+
+            MpvPreview {
+                id: previewVideo
+                objectName: "previewVideo"
+                x: 4
+                y: 4
+                width: parent.width - 8
+                height: 122
+                source: root.mediaSource
+                active: timelinePreview.visible
+                position: positionSlider.previewTime
+            }
+            Rectangle {
+                x: previewVideo.x
+                y: previewVideo.y
+                width: previewVideo.width
+                height: previewVideo.height
+                visible: !previewVideo.ready
+                color: Theme.videoBackground
+                Text {
+                    anchors.centerIn: parent
+                    width: parent.width - 16
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    text: previewVideo.errorString.length > 0
+                        ? qsTr("Preview unavailable") : qsTr("Loading preview…")
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.smallFontSize
+                    color: Theme.textMuted
+                }
+            }
+            Text {
+                objectName: "previewTimestamp"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 5
+                text: root.formatTime(positionSlider.previewTime)
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.smallFontSize
+                color: Theme.textPrimary
+            }
         }
         Item {
             id: volume
@@ -196,12 +256,15 @@ Rectangle {
             iconSize: 26
         }
         IconButton {
+            objectName: "playlistButton"
             height: tools.height
             width: Math.min(Theme.toolButtonWidth, root.width * 0.0645)
             iconName: "list"
-            label: qsTr("Playlist")
-            iconColor: Theme.accent
+            label: root.playlistVisible ? qsTr("Hide playlist") : qsTr("Show playlist")
+            iconColor: root.playlistVisible ? Theme.accent : Theme.iconMuted
+            backgroundColor: root.playlistVisible ? Theme.chromeHover : Theme.transparent
             iconSize: 22
+            onClicked: root.playlistRequested()
         }
         IconButton {
             height: tools.height

@@ -24,6 +24,7 @@ set(KPLAYER_QML_FILES
     qml/PlayerSlider.qml
     qml/TitleBar.qml
     qml/VideoStage.qml
+    qml/WindowResizeFrame.qml
     qml/PlaybackBar.qml
     qml/PlaylistTab.qml
     qml/PlaylistPanel.qml
@@ -54,6 +55,8 @@ qt_add_qml_module(KPlayer
     SOURCES
         src/playback/MpvVideo.h
         src/playback/MpvVideo.cpp
+        src/playback/MpvPreview.h
+        src/playback/MpvPreview.cpp
         src/playback/PlaylistModel.h
         src/playback/PlaylistModel.cpp
 )
@@ -82,6 +85,7 @@ if(KPLAYER_BUILD_TESTS)
         RESOURCES ${KPLAYER_ICON_FILES}
         SOURCES
             src/playback/MpvVideo.h src/playback/MpvVideo.cpp
+            src/playback/MpvPreview.h src/playback/MpvPreview.cpp
             src/playback/PlaylistModel.h src/playback/PlaylistModel.cpp
     )
     target_include_directories(KPlayerTests PRIVATE src/playback)
