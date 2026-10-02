@@ -13,6 +13,7 @@ is closed. Resizing the window preserves the video's aspect ratio.
 - CMake 3.24 or newer
 - A C++20 compiler
 - Ninja
+- A system font available to fontconfig on Linux (for example, DejaVu Sans)
 
 ## Build and run
 
@@ -46,6 +47,23 @@ launching from Qt Creator or another working directory also works. Reconfigure
 if you move the project. The video remains an external file, not an embedded resource.
 Playback requires an OpenGL-capable Qt platform; the application explicitly
 selects Qt Quick's OpenGL backend for libmpv's render API.
+
+### WSL title displays as squares
+
+Minimal WSL distributions may have no fonts installed. Qt's Wayland title bar
+then displays square boxes instead of `KPlayer`; QML text can be affected too.
+Check that `fc-list` lists fonts and `fc-match sans-serif` returns a usable font.
+
+On Arch Linux, install a font and refresh the cache:
+
+```sh
+sudo pacman -S --needed ttf-dejavu
+fc-cache -f
+```
+
+On Ubuntu or Debian, use `sudo apt install fonts-dejavu-core` followed by
+`fc-cache -f`. Close and reopen KPlayer after installing fonts. No rebuild is
+needed.
 
 ## Hot reload
 
