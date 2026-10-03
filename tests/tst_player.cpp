@@ -13,8 +13,11 @@
 #include <QImage>
 #include <QMimeData>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQuickWindow>
+#include <QScopedPointer>
 #include <QSignalSpy>
+#include <QStyleHints>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -811,6 +814,49 @@ private slots:
         }
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
                  ? QString{} : warnings.first().toString()));
+    }
+
+    void middleClickFullscreenIsImmediate()
+    {
+        // Isolate input from native window resizing so a double click stays at
+        // the same coordinates and the test measures dispatch, not the driver.
+        QQmlApplicationEngine engine;
+        QQmlComponent component(&engine);
+        component.setData(R"(
+            import QtQuick
+            import KPlayer
+            Window {
+                width: 640; height: 360; visible: true
+                VideoStage { anchors.fill: parent }
+            }
+        )", QUrl());
+        QScopedPointer<QObject> root(component.create());
+        QVERIFY2(root, qPrintable(component.errorString()));
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(exposeWindow(window));
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        QVERIFY(stage);
+        QSignalSpy fullscreenRequests(stage, SIGNAL(fullscreenRequested()));
+        QSignalSpy playRequests(stage, SIGNAL(playPauseRequested()));
+        QVERIFY(fullscreenRequests.isValid() && playRequests.isValid());
+        const QPoint point(320, 180);
+
+        QTest::mouseClick(window, Qt::MiddleButton, Qt::NoModifier, point, 10);
+        // No event-loop wait: the request must arrive on the first release.
+        QCOMPARE(fullscreenRequests.count(), 1);
+        QCOMPARE(playRequests.count(), 0);
+        QTest::mouseClick(window, Qt::MiddleButton, Qt::NoModifier, point, 10);
+        QCOMPARE(fullscreenRequests.count(), 1);
+        QCOMPARE(playRequests.count(), 0);
+
+        QTest::mouseDClick(window, Qt::LeftButton, Qt::NoModifier, point);
+        QCOMPARE(playRequests.count(), 1);
+        QTest::qWait(QGuiApplication::styleHints()->mouseDoubleClickInterval() + 50);
+        QCOMPARE(fullscreenRequests.count(), 1);
+        QCOMPARE(playRequests.count(), 1);
+
+        QTest::mouseClick(window, Qt::MiddleButton, Qt::NoModifier, point);
+        QCOMPARE(fullscreenRequests.count(), 2);
     }
 
     void openMediaShortcutsOpenDialog()

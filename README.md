@@ -85,9 +85,9 @@ argument.
   dragging also shows the target frame. Preview decoding uses a separate silent
   libmpv instance and does not seek or pause the playing media. Audio-only files
   show the timestamp with an unavailable-preview message.
-- A middle click in the play area toggles fullscreen. A middle double-click
-  toggles play/pause. The single-click action waits for the system double-click
-  interval so the two actions do not overlap.
+- A middle click in the play area toggles fullscreen immediately. A middle
+  double-click counts as one fullscreen toggle. Left double-click toggles
+  play/pause.
 
 ## Requirements
 

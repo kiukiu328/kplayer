@@ -84,24 +84,16 @@ Rectangle {
                 return
             }
             if (mouse.button === Qt.MiddleButton)
-                middleClick.restart()
+                root.fullscreenRequested()
         }
         onDoubleClicked: (mouse) => {
-            if (mouse.button === Qt.RightButton)
+            mouse.accepted = true
+            // Middle clicks switch fullscreen immediately; their second click
+            // must not undo that switch or also change playback.
+            if (mouse.button !== Qt.LeftButton)
                 return
             root.forceActiveFocus()
-            mouse.accepted = true
-            middleClick.stop()
             root.playPauseRequested()
         }
-    }
-    Timer {
-        id: middleClick
-        // Wait for the OS double-click interval before treating a click as single.
-        // Qt exposes styleHints as QObject to qmllint, but this is a QStyleHints property.
-        // qmllint disable missing-property
-        interval: Qt.styleHints.mouseDoubleClickInterval
-        // qmllint enable missing-property
-        onTriggered: root.fullscreenRequested()
     }
 }
