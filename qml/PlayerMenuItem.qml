@@ -4,6 +4,7 @@ import QtQuick.Controls.Basic
 MenuItem {
     id: root
     property string shortcutLabel: action && action.shortcut ? action.shortcut.toString() : ""
+    property bool radioIndicator: false
     readonly property color textColor: !enabled ? Theme.menuDisabledText
         : highlighted ? Theme.accent : Theme.menuText
     implicitWidth: Theme.menuWidth - 2
@@ -40,13 +41,22 @@ MenuItem {
     indicator: Rectangle {
         x: 6
         y: (root.height - height) / 2
-        width: 13
-        height: 13
-        radius: 2
+        width: root.radioIndicator ? 11 : 13
+        height: width
+        radius: root.radioIndicator ? width / 2 : 2
         visible: root.checked
-        color: Theme.menuCheckBackground
+        color: root.radioIndicator ? Theme.menuRadioBackground : Theme.menuCheckBackground
+        Rectangle {
+            anchors.centerIn: parent
+            width: 5
+            height: width
+            radius: width / 2
+            visible: root.radioIndicator
+            color: Theme.menuRadioAccent
+        }
         Text {
             anchors.centerIn: parent
+            visible: !root.radioIndicator
             text: "✓"
             font.pixelSize: 12
             color: Theme.textPrimary

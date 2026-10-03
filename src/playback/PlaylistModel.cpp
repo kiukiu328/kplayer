@@ -163,6 +163,102 @@ void PlaylistModel::clear()
     emit currentSourceChanged();
 }
 
+PlaylistCollection::PlaylistCollection(QObject *parent) : QAbstractListModel(parent)
+{
+    auto *playlist = new PlaylistModel(this);
+    playlist->setObjectName(QStringLiteral("playlistModel"));
+    m_playlists.append({tr("預設"), playlist});
+}
+
+int PlaylistCollection::rowCount(const QModelIndex &parent) const
+{
+    return parent.isValid() ? 0 : count();
+}
+
+QVariant PlaylistCollection::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid() || index.row() < 0 || index.row() >= count())
+        return {};
+    return role == Qt::DisplayRole || role == NameRole
+        ? QVariant(m_playlists.at(index.row()).name) : QVariant{};
+}
+
+QHash<int, QByteArray> PlaylistCollection::roleNames() const
+{
+    return {{NameRole, "name"}};
+}
+
+void PlaylistCollection::setCurrentIndex(int index)
+{
+    if (index < 0 || index >= count() || index == m_currentIndex)
+        return;
+    m_currentIndex = index;
+    emit currentIndexChanged();
+    emit currentPlaylistChanged();
+    emit currentNameChanged();
+}
+
+bool PlaylistCollection::nameAvailable(const QString &name, int exceptIndex) const
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty())
+        return false;
+    for (int index = 0; index < count(); ++index) {
+        if (index != exceptIndex
+            && m_playlists.at(index).name.compare(trimmed, Qt::CaseInsensitive) == 0)
+            return false;
+    }
+    return true;
+}
+
+int PlaylistCollection::addPlaylist(const QString &name)
+{
+    if (!nameAvailable(name))
+        return -1;
+    const int index = count();
+    beginInsertRows({}, index, index);
+    m_playlists.append({name.trimmed(), new PlaylistModel(this)});
+    endInsertRows();
+    emit countChanged();
+    setCurrentIndex(index);
+    return index;
+}
+
+bool PlaylistCollection::renamePlaylist(int index, const QString &name)
+{
+    if (index <= 0 || index >= count() || !nameAvailable(name, index))
+        return false;
+    const QString trimmed = name.trimmed();
+    if (m_playlists.at(index).name == trimmed)
+        return true;
+    m_playlists[index].name = trimmed;
+    emit dataChanged(this->index(index), this->index(index), {Qt::DisplayRole, NameRole});
+    if (m_currentIndex == index)
+        emit currentNameChanged();
+    return true;
+}
+
+bool PlaylistCollection::removePlaylist(int index)
+{
+    if (index <= 0 || index >= count())
+        return false;
+    // Rebind QML consumers before releasing the selected queue.
+    if (index == m_currentIndex)
+        setCurrentIndex(index - 1);
+    auto *removed = m_playlists.at(index).model;
+    const bool shifted = index < m_currentIndex;
+    beginRemoveRows({}, index, index);
+    m_playlists.removeAt(index);
+    if (shifted)
+        --m_currentIndex;
+    endRemoveRows();
+    emit countChanged();
+    if (shifted)
+        emit currentIndexChanged();
+    removed->deleteLater();
+    return true;
+}
+
 PlaylistFilterModel::PlaylistFilterModel(QObject *parent) : QSortFilterProxyModel(parent)
 {
     setFilterRole(PlaylistModel::TitleRole);

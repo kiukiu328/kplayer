@@ -14,6 +14,7 @@ Window {
     flags: Qt.Window | Qt.FramelessWindowHint
         | (alwaysOnTop ? Qt.WindowStaysOnTopHint : 0)
     property url mediaSource
+    readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
     property int visibilityBeforeFullscreen: Window.Windowed
     property bool playlistVisible: true
     property bool controlsVisible: true
@@ -32,8 +33,8 @@ Window {
         const item = window.activeFocusItem
         return item !== null && (item instanceof TextInput || item instanceof TextEdit
             || item instanceof Slider || item instanceof AbstractButton
-            || item instanceof IconButton || item.objectName === "trackList"
-            || item.objectName === "appMenuButton" || item.objectName === "addMediaTab")
+            || item instanceof IconButton || item instanceof PlaylistTab
+            || item.objectName === "trackList" || item.objectName === "appMenuButton")
     }
 
     function openMedia(playAdded: bool) {
@@ -163,7 +164,11 @@ Window {
             playTrack(0)
     }
 
-    PlaylistModel { id: mediaPlaylist; objectName: "playlistModel" }
+    PlaylistCollection { id: playlists; objectName: "playlistCollection" }
+    Connections {
+        target: playlists
+        function onCurrentPlaylistChanged() { videoStage.stop() }
+    }
     Component.onCompleted: {
         if (mediaSource.toString().length > 0)
             mediaPlaylist.appendUrls([mediaSource])
@@ -176,8 +181,8 @@ Window {
         title: playAdded ? qsTr("Open media") : qsTr("Add media to playlist")
         fileMode: FileDialog.OpenFiles
         onAccepted: {
-            const firstIndex = mediaPlaylist.count
-            if (mediaPlaylist.appendUrls(selectedFiles) > 0 && playAdded)
+            const firstIndex = window.mediaPlaylist.count
+            if (window.mediaPlaylist.appendUrls(selectedFiles) > 0 && playAdded)
                 window.playTrack(firstIndex)
         }
     }
@@ -221,7 +226,7 @@ Window {
         id: closeMediaAction
         text: qsTr("關閉檔案")
         shortcut: "F4"
-        enabled: mediaPlaylist.count > 0
+        enabled: window.mediaPlaylist.count > 0
         onTriggered: videoStage.stop()
     }
     Action {
@@ -250,7 +255,7 @@ Window {
         id: mediaInfoAction
         text: qsTr("媒體資訊…")
         shortcut: "Ctrl+F1"
-        enabled: mediaPlaylist.count > 0
+        enabled: window.mediaPlaylist.count > 0
         onTriggered: window.showInformation(false)
     }
     Action {
@@ -280,7 +285,7 @@ Window {
         aboutAction: aboutAction
         exitAction: exitAction
         searchAction: searchPlaylistAction
-        hasMedia: mediaPlaylist.count > 0
+        hasMedia: window.mediaPlaylist.count > 0
         playing: videoStage.playing
         seekable: videoStage.seekable
         muted: videoStage.muted
@@ -462,7 +467,7 @@ Window {
 
                 VideoStage {
                     id: videoStage
-                    source: mediaPlaylist.currentSource
+                    source: window.mediaPlaylist.currentSource
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -492,7 +497,7 @@ Window {
                     seekable: videoStage.seekable
                     muted: videoStage.muted
                     volume: videoStage.volume
-                    mediaSource: mediaPlaylist.currentSource
+                    mediaSource: window.mediaPlaylist.currentSource
                     playlistVisible: window.playlistVisible
                     onPlaylistRequested: window.playlistVisible = !window.playlistVisible
                     onSearchRequested: window.focusPlaylistSearch()
@@ -522,7 +527,8 @@ Window {
                 visible: window.playlistVisible
                 width: window.playlistVisible
                     ? Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio) : 0
-                playlistModel: mediaPlaylist
+                playlistModel: window.mediaPlaylist
+                playlistCollection: playlists
                 onTrackRequested: (index) => window.playTrack(index)
                 onAddRequested: window.openMedia(false)
                 onClearRequested: window.clearPlaylist()

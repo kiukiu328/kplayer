@@ -2,4 +2,4 @@
 /build-*/
 /CMakeUserPresets.json
 *.user
-/assets/dummy.mp4
+tmp

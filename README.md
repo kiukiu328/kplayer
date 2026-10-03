@@ -6,7 +6,7 @@ transport controls, seek and volume tracks, timestamps, media tools, playlist
 tabs, ordering buttons, and search surface. Window controls, playback, playlist
 file drops, seeking, mute, volume, and track navigation are connected. Playlist
 search, queue editing, ordering, application menus, repeat modes, and always-on-top
-window pinning are functional. The player currently uses a single default queue.
+window pinning are functional. Named playlists keep separate queues during the session.
 
 ## UI organization
 
@@ -53,6 +53,11 @@ argument.
   or playback order. Enter plays the selected matching entry; Escape clears the
   search. The Search Media button or Ctrl+F reveals the playlist and focuses
   search. The arrow above the queue reveals the current track.
+- The down arrow above the queue opens a compact playlist selector. Its blue
+  radio marker identifies the active playlist. Use **+** to create a named
+  playlist, **編輯專輯** to rename it, and **刪除專輯** to delete it. The default
+  playlist (預設) cannot be renamed or deleted. Switching playlists stops playback
+  and restores that playlist's queue and current track; tabs also switch playlists.
 - Click the top-left KPlayer button, right-click it or the video area, or use the
   bottom Menu button to open the reference-style Traditional Chinese menu.
   It includes shortcut labels, checked states, separators, and nested menus;

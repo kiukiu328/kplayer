@@ -5,6 +5,7 @@ Rectangle {
     id: root
     required property string label
     property bool selected: false
+    implicitWidth: Math.max(63, tabLabel.implicitWidth + 16)
     implicitHeight: Theme.playlistTabsHeight
     color: selected ? Theme.panelBackground : Theme.tabBackground
     Accessible.role: Accessible.PageTab
@@ -15,6 +16,7 @@ Rectangle {
     ToolTip.delay: 600
     ToolTip.timeout: 5000
     Text {
+        id: tabLabel
         anchors.fill: parent
         anchors.margins: 8
         text: root.label

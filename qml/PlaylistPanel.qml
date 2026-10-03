@@ -6,11 +6,13 @@ Rectangle {
     id: root
     objectName: "playlistPanel"
     required property PlaylistModel playlistModel
+    required property PlaylistCollection playlistCollection
     signal trackRequested(int index)
     signal addRequested()
     signal clearRequested()
     readonly property bool editingSearch: search.activeFocus
     readonly property bool menuOpen: playlistOptions.visible || sortOptions.visible
+        || playlistNameDialog.visible
     property int mappingRevision: 0
     readonly property int selectedSourceIndex: {
         mappingRevision
@@ -51,6 +53,20 @@ Rectangle {
         selectSource(playlistModel.sortByTitle(ascending, selectedSourceIndex))
     }
 
+    function editPlaylistName(create: bool) {
+        playlistNameDialog.editIndex = create ? -1 : playlistCollection.currentIndex
+        if (create) {
+            let number = 1
+            let name = qsTr("播放清單 %1").arg(number)
+            while (!playlistCollection.nameAvailable(name))
+                name = qsTr("播放清單 %1").arg(++number)
+            playlistName.text = name
+        } else {
+            playlistName.text = playlistCollection.currentName
+        }
+        playlistNameDialog.open()
+    }
+
     PlaylistFilterModel {
         id: filteredTracks
         objectName: "filteredPlaylist"
@@ -68,6 +84,14 @@ Rectangle {
         target: root.playlistModel
         function onCurrentIndexChanged() { root.selectSource(root.playlistModel.currentIndex) }
         function onCurrentSourceChanged() { root.selectSource(root.playlistModel.currentIndex) }
+    }
+    Connections {
+        target: root.playlistCollection
+        function onCurrentPlaylistChanged() {
+            search.clear()
+            root.mappingRevision++
+            Qt.callLater(() => root.selectSource(root.playlistModel.currentIndex))
+        }
     }
 
     color: Theme.panelBackground
@@ -123,10 +147,32 @@ Rectangle {
         anchors.top: header.bottom
         width: parent.width
         height: Theme.playlistTabsHeight
-        Row {
+        ListView {
+            id: playlistTabs
+            objectName: "playlistTabs"
             width: parent.width - tabNavigation.width
             height: parent.height
-            PlaylistTab { label: "預設"; selected: true; width: 63 }
+            clip: true
+            orientation: ListView.Horizontal
+            boundsBehavior: Flickable.StopAtBounds
+            model: root.playlistCollection
+            currentIndex: root.playlistCollection.currentIndex
+            onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+            delegate: PlaylistTab {
+                id: playlistTab
+                required property int index
+                required property string name
+                objectName: "playlistTab" + index
+                label: name
+                selected: index === root.playlistCollection.currentIndex
+                width: Math.min(180, implicitWidth)
+                height: playlistTabs.height
+                activeFocusOnTab: true
+                Accessible.onPressAction: root.playlistCollection.currentIndex = index
+                Keys.onReturnPressed: root.playlistCollection.currentIndex = index
+                Keys.onSpacePressed: root.playlistCollection.currentIndex = index
+                TapHandler { onTapped: root.playlistCollection.currentIndex = playlistTab.index }
+            }
         }
         Rectangle {
             id: tabNavigation
@@ -156,12 +202,12 @@ Rectangle {
                     width: 27
                     height: Theme.compactButtonHeight
                     iconName: "chevronDown"
-                    label: qsTr("Playlist options")
+                    label: qsTr("Select playlist")
                     backgroundColor: Theme.buttonBackground
                     hoverColor: Theme.buttonHover
                     iconColor: Theme.textMuted
                     iconSize: 20
-                    onClicked: playlistOptions.popup()
+                    onClicked: playlistOptions.open()
                 }
             }
             Rectangle {
@@ -441,35 +487,110 @@ Rectangle {
         }
     }
 
-    Menu {
+    PlayerMenu {
         id: playlistOptions
         objectName: "playlistOptionsMenu"
-        popupType: Popup.Item
-        palette.window: Theme.chromeBackground
-        palette.text: Theme.textPrimary
-        palette.highlight: Theme.chromeHover
-        palette.highlightedText: Theme.accent
-        background: Rectangle {
-            implicitWidth: 220
-            color: Theme.chromeBackground
-            border.color: Theme.iconMuted
+        parent: root
+        width: Theme.playlistMenuWidth
+        x: root.width - width - 8
+        y: header.height + tabs.height
+        onOpened: currentIndex = -1
+        Instantiator {
+            model: root.playlistCollection
+            delegate: PlayerMenuItem {
+                required property int index
+                required property string name
+                objectName: "selectPlaylistMenuItem" + index
+                text: name
+                checkable: true
+                autoExclusive: true
+                radioIndicator: true
+                checked: index === root.playlistCollection.currentIndex
+                onTriggered: root.playlistCollection.currentIndex = index
+            }
+            onObjectAdded: (index, object) => playlistOptions.insertItem(index, object)
+            onObjectRemoved: (index, object) => playlistOptions.removeItem(object)
         }
-        MenuItem { text: qsTr("Add media…"); onTriggered: root.addRequested() }
-        MenuItem {
-            text: qsTr("Show current track")
-            enabled: root.playlistModel.count > 0
-            onTriggered: root.showCurrentTrack()
+        PlayerMenuSeparator {}
+        PlayerMenuItem {
+            objectName: "addNamedPlaylistMenuItem"
+            text: "+"
+            Accessible.name: qsTr("新增播放清單")
+            onTriggered: root.editPlaylistName(true)
         }
-        MenuSeparator {}
-        MenuItem {
-            text: qsTr("Remove selected track")
-            enabled: root.selectedSourceIndex >= 0
-            onTriggered: root.removeSelected()
+        PlayerMenuItem {
+            objectName: "deleteNamedPlaylistMenuItem"
+            text: qsTr("刪除專輯")
+            enabled: root.playlistCollection.currentIndex > 0
+            onTriggered: root.playlistCollection.removePlaylist(root.playlistCollection.currentIndex)
         }
-        MenuItem {
-            text: qsTr("Clear playlist")
-            enabled: root.playlistModel.count > 0
-            onTriggered: root.clearRequested()
+        PlayerMenuItem {
+            objectName: "editNamedPlaylistMenuItem"
+            text: qsTr("編輯專輯")
+            enabled: root.playlistCollection.currentIndex > 0
+            onTriggered: root.editPlaylistName(false)
+        }
+    }
+    Dialog {
+        id: playlistNameDialog
+        objectName: "playlistNameDialog"
+        property int editIndex: -1
+        readonly property bool validName: root.playlistCollection.nameAvailable(
+            playlistName.text, editIndex)
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: 320
+        modal: true
+        title: editIndex < 0 ? qsTr("新增播放清單") : qsTr("編輯專輯")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        palette.window: Theme.menuBackground
+        palette.windowText: Theme.menuText
+        palette.text: Theme.menuText
+        palette.button: Theme.buttonBackground
+        palette.buttonText: Theme.textPrimary
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.menuFontSize
+        onOpened: {
+            standardButton(Dialog.Ok).enabled = Qt.binding(() => validName)
+            playlistName.forceActiveFocus()
+            playlistName.selectAll()
+        }
+        onAccepted: {
+            if (editIndex < 0)
+                root.playlistCollection.addPlaylist(playlistName.text)
+            else
+                root.playlistCollection.renamePlaylist(editIndex, playlistName.text)
+        }
+        contentItem: Column {
+            spacing: 8
+            Label {
+                text: qsTr("名稱")
+                color: Theme.menuText
+            }
+            TextField {
+                id: playlistName
+                objectName: "playlistNameField"
+                width: parent.width
+                color: Theme.textPrimary
+                selectionColor: Theme.menuRadioAccent
+                selectedTextColor: Theme.textPrimary
+                Accessible.name: qsTr("播放清單名稱")
+                background: Rectangle {
+                    color: Theme.searchBackground
+                    border.color: playlistName.activeFocus ? Theme.menuRadioAccent : Theme.border
+                }
+                onAccepted: {
+                    if (playlistNameDialog.validName)
+                        playlistNameDialog.accept()
+                }
+            }
+            Label {
+                visible: !playlistNameDialog.validName
+                text: playlistName.text.trim().length === 0
+                    ? qsTr("請輸入名稱") : qsTr("此名稱已存在")
+                color: Theme.menuText
+                font.pixelSize: Theme.menuFontSize
+            }
         }
     }
     Menu {

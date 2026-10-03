@@ -4,7 +4,7 @@ import QtQuick
 QtObject {
     // All colors are centralized here; components use theme tokens exclusively.
     readonly property color border: "#050505"
-    readonly property color videoBackground: "#111111"
+    readonly property color videoBackground: "#101010"
     readonly property color chromeBackground: "#1e1e1e"
     readonly property color panelBackground: "#393939"
     readonly property color tabBackground: "#303030"
@@ -25,6 +25,8 @@ QtObject {
     readonly property color menuDisabledText: "#858585"
     readonly property color menuSeparator: "#292929"
     readonly property color menuCheckBackground: "#626672"
+    readonly property color menuRadioBackground: "#171e28"
+    readonly property color menuRadioAccent: "#2489ee"
     readonly property color transparent: "transparent"
 
     readonly property string fontFamily: Qt.platform.os === "windows" ? "Segoe UI" : "Noto Sans"
@@ -33,6 +35,7 @@ QtObject {
     readonly property int menuFontSize: 13
     readonly property int menuShortcutFontSize: 12
     readonly property int menuWidth: 193
+    readonly property int playlistMenuWidth: 220
     readonly property int menuRowHeight: 22
     readonly property int watermarkFontSize: 42
     readonly property int windowBorder: 3

@@ -112,6 +112,154 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void namedPlaylistsKeepIndependentQueues()
+    {
+        PlaylistCollection playlists;
+        QAbstractItemModelTester modelTester(&playlists,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        auto *defaultQueue = playlists.currentPlaylist();
+        const QUrl first("https://example.com/first.mp4");
+        const QUrl second("https://example.com/second.mp4");
+        QCOMPARE(defaultQueue->appendUrls({first, second}), 2);
+        defaultQueue->setCurrentIndex(1);
+        QVERIFY(!playlists.removePlaylist(0));
+        QVERIFY(!playlists.renamePlaylist(0, "Changed"));
+        QCOMPARE(playlists.addPlaylist("  "), -1);
+        QCOMPARE(playlists.addPlaylist(playlists.currentName()), -1);
+        QCOMPARE(playlists.addPlaylist("  Music  "), 1);
+        auto *musicQueue = playlists.currentPlaylist();
+        QVERIFY(musicQueue != defaultQueue);
+        QCOMPARE(playlists.currentName(), QStringLiteral("Music"));
+        QCOMPARE(musicQueue->count(), 0);
+        QCOMPARE(musicQueue->appendUrls({first}), 1);
+        QCOMPARE(playlists.addPlaylist("music"), -1);
+        QCOMPARE(playlists.addPlaylist("Films"), 2);
+        auto *filmsQueue = playlists.currentPlaylist();
+        QCOMPARE(filmsQueue->appendUrls({second}), 1);
+        QVERIFY(!playlists.renamePlaylist(2, "MUSIC"));
+        QVERIFY(playlists.renamePlaylist(2, "  Movies  "));
+        QCOMPARE(playlists.currentName(), QStringLiteral("Movies"));
+
+        // Removing an earlier queue keeps the active queue and its media intact.
+        QVERIFY(playlists.removePlaylist(1));
+        QCOMPARE(playlists.currentIndex(), 1);
+        QCOMPARE(playlists.currentPlaylist(), filmsQueue);
+        QCOMPARE(filmsQueue->currentSource(), second);
+        QVERIFY(playlists.removePlaylist(1));
+        QCOMPARE(playlists.currentIndex(), 0);
+        QCOMPARE(playlists.currentPlaylist(), defaultQueue);
+        QCOMPARE(defaultQueue->count(), 2);
+        QCOMPARE(defaultQueue->currentIndex(), 1);
+        QCOMPARE(defaultQueue->currentSource(), second);
+        QCOMPARE(playlists.count(), 1);
+        playlists.setCurrentIndex(-1);
+        playlists.setCurrentIndex(5);
+        QCOMPARE(playlists.currentPlaylist(), defaultQueue);
+        QVERIFY(!playlists.removePlaylist(5));
+        QVERIFY(!playlists.renamePlaylist(-1, "Invalid"));
+    }
+
+    void playlistSelectorManagesNamedQueues()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("first.y4m"));
+        const QUrl second = makeVideo(directory.filePath("second.y4m"), true);
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        auto *menu = window->findChild<QObject *>("playlistOptionsMenu");
+        auto *dialog = window->findChild<QObject *>("playlistNameDialog");
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(playlists && menu && dialog && video);
+        auto *defaultQueue = playlists->currentPlaylist();
+        auto *arrow = item("playlistOptionsButton");
+        QVERIFY(arrow);
+        click(window, arrow);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        auto *remove = item("deleteNamedPlaylistMenuItem");
+        auto *edit = item("editNamedPlaylistMenuItem");
+        auto *add = item("addNamedPlaylistMenuItem");
+        QVERIFY(remove && edit && add);
+        QVERIFY(!remove->isEnabled() && !edit->isEnabled());
+        QVERIFY(menuItemAt(menu, 0)->property("checked").toBool());
+        click(window, add);
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        auto *name = item("playlistNameField");
+        QVERIFY(name);
+        name->setProperty("text", "Music");
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(playlists->count(), 2);
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        auto *musicQueue = playlists->currentPlaylist();
+        QCOMPARE(musicQueue->appendUrls({second}), 1);
+        QTRY_COMPARE(video->source(), second);
+        click(window, item("playButton"));
+        QTRY_VERIFY(video->playing());
+
+        click(window, arrow);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QVERIFY(remove->isEnabled() && edit->isEnabled());
+        click(window, edit);
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        name->setProperty("text", playlists->data(playlists->index(0),
+                                                  PlaylistCollection::NameRole).toString());
+        QTest::keyClick(window, Qt::Key_Return);
+        QVERIFY(dialog->property("visible").toBool());
+        QCOMPARE(playlists->currentName(), QStringLiteral("Music"));
+        name->setProperty("text", "Albums");
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(playlists->currentName(), QStringLiteral("Albums"));
+        QVERIFY(video->playing());
+
+        click(window, arrow);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        click(window, menuItemAt(menu, 0));
+        QTRY_COMPARE(playlists->currentPlaylist(), defaultQueue);
+        QTRY_COMPARE(video->source(), first);
+        QVERIFY(video->stopped());
+        QCOMPARE(defaultQueue->count(), 1);
+        QCOMPARE(musicQueue->currentSource(), second);
+        click(window, arrow);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        const QString capturePath = qEnvironmentVariable("KPLAYER_PLAYLIST_CAPTURE");
+        if (!capturePath.isEmpty())
+            QVERIFY(window->grabWindow().save(capturePath));
+        click(window, menuItemAt(menu, 1));
+        QTRY_COMPARE(playlists->currentPlaylist(), musicQueue);
+        QTRY_COMPARE(video->source(), second);
+        auto *defaultTab = item("playlistTab0");
+        QVERIFY(defaultTab);
+        defaultTab->forceActiveFocus();
+        QTest::keyClick(window, Qt::Key_Space);
+        QTRY_COMPARE(playlists->currentPlaylist(), defaultQueue);
+        QCOMPARE(video->source(), first);
+        QVERIFY(video->stopped());
+        auto *musicTab = item("playlistTab1");
+        QVERIFY(musicTab);
+        click(window, musicTab);
+        QTRY_COMPARE(playlists->currentPlaylist(), musicQueue);
+        click(window, arrow);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        click(window, remove);
+        QTRY_COMPARE(playlists->count(), 1);
+        QTRY_COMPARE(playlists->currentPlaylist(), defaultQueue);
+        QTRY_COMPARE(video->source(), first);
+        click(window, arrow);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QVERIFY(!remove->isEnabled() && !edit->isEnabled());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!menu->property("visible").toBool());
+        QVERIFY2(warnings.isEmpty(), "Playlist management generated QML warnings");
+    }
+
     void playlistEditingPreservesActiveSource()
     {
         PlaylistModel playlist;
