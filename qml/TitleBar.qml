@@ -7,6 +7,7 @@ Rectangle {
     property bool maximized: false
     property bool fullscreen: false
     property bool alwaysOnTop: false
+    property bool menuOpen: false
     signal menuRequested()
     signal pinRequested()
     signal minimizeRequested()
@@ -21,7 +22,7 @@ Rectangle {
         objectName: "appMenuButton"
         width: Theme.titleMenuWidth
         height: parent.height
-        color: appHover.hovered || activeFocus ? Theme.chromeHover : Theme.transparent
+        color: appHover.hovered || activeFocus || root.menuOpen ? Theme.chromeHover : Theme.transparent
         activeFocusOnTab: true
         Accessible.role: Accessible.Button
         Accessible.name: qsTr("Application menu")
@@ -29,11 +30,14 @@ Rectangle {
         Keys.onSpacePressed: root.menuRequested()
         Keys.onReturnPressed: root.menuRequested()
         ToolTip.text: qsTr("Application menu")
-        ToolTip.visible: appHover.hovered || activeFocus
+        ToolTip.visible: !root.menuOpen && (appHover.hovered || activeFocus)
         ToolTip.delay: 600
         ToolTip.timeout: 5000
         HoverHandler { id: appHover }
-        TapHandler { onTapped: root.menuRequested() }
+        TapHandler {
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onTapped: root.menuRequested()
+        }
         Text {
             anchors.left: parent.left
             anchors.leftMargin: 16

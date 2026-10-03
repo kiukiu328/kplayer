@@ -15,6 +15,7 @@ Rectangle {
     signal fullscreenRequested()
     signal playPauseRequested()
     signal endOfFile()
+    signal contextMenuRequested(real x, real y)
 
     function togglePause() { video.togglePause() }
     function play() { video.play() }
@@ -75,13 +76,19 @@ Rectangle {
     }
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
         onClicked: (mouse) => {
             root.forceActiveFocus()
+            if (mouse.button === Qt.RightButton) {
+                root.contextMenuRequested(mouse.x, mouse.y)
+                return
+            }
             if (mouse.button === Qt.MiddleButton)
                 middleClick.restart()
         }
         onDoubleClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton)
+                return
             root.forceActiveFocus()
             mouse.accepted = true
             middleClick.stop()

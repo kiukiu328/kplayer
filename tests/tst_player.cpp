@@ -103,6 +103,14 @@ class PlayerTests : public QObject
         return nullptr;
     }
 
+    static QQuickItem *menuItemAt(QObject *menu, int index)
+    {
+        QQuickItem *item = nullptr;
+        QMetaObject::invokeMethod(menu, "itemAt", Q_RETURN_ARG(QQuickItem *, item),
+                                  Q_ARG(int, index));
+        return item;
+    }
+
 private slots:
     void playlistEditingPreservesActiveSource()
     {
@@ -528,6 +536,133 @@ private slots:
         QCOMPARE(video->source(), second);
     }
 
+    void applicationMenuOpensFromTitleAndVideo()
+    {
+        QQmlApplicationEngine engine;
+        QList<QQmlError> warnings;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&warnings](const QList<QQmlError> &errors) { warnings.append(errors); });
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        auto *menu = window->findChild<QObject *>("appMenu");
+        auto *openSubmenu = window->findChild<QObject *>("openSubmenu");
+        auto *titleButton = item("appMenuButton");
+        auto *stage = item("videoStage");
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(menu && openSubmenu && titleButton && stage && video);
+
+        click(window, titleButton);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QCOMPARE(menu->property("width").toReal(), 193.0);
+        auto *openMedia = item("openMediaMenuItem");
+        auto *closeMedia = item("closeMediaMenuItem");
+        auto *playlistItem = item("playlistMenuItem");
+        QVERIFY(openMedia && closeMedia && playlistItem);
+        QCOMPARE(openMedia->property("text").toString(), QString::fromUtf8("開啟檔案..."));
+        QCOMPARE(closeMedia->property("text").toString(), QString::fromUtf8("關閉檔案"));
+        QCOMPARE(openMedia->height(), 22.0);
+        QVERIFY(playlistItem->property("checked").toBool());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+
+        const QString capturePath = qEnvironmentVariable("KPLAYER_TEST_CAPTURE");
+        if (!capturePath.isEmpty()) {
+            QSignalSpy renderedFrames(window, &QQuickWindow::frameSwapped);
+            window->update();
+            QTRY_VERIFY_WITH_TIMEOUT(!renderedFrames.isEmpty(), 5000);
+            QVERIFY(window->grabWindow().save(capturePath));
+        }
+
+        click(window, playlistItem);
+        QTRY_VERIFY(!window->property("playlistVisible").toBool());
+        QTRY_VERIFY(!menu->property("visible").toBool());
+        click(window, titleButton);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QVERIFY(!playlistItem->property("checked").toBool());
+        click(window, playlistItem);
+        QTRY_VERIFY(window->property("playlistVisible").toBool());
+        QTRY_VERIFY(!menu->property("visible").toBool());
+        click(window, titleButton);
+        QTRY_VERIFY(menu->property("opened").toBool());
+
+        auto *openEntry = menuItemAt(menu, 1);
+        QVERIFY(openEntry && openEntry->isVisible() && openEntry->isEnabled());
+        click(window, openEntry);
+        QTRY_VERIFY(openSubmenu->property("opened").toBool());
+        QTRY_VERIFY(item("clearPlaylistMenuItem") && item("clearPlaylistMenuItem")->isVisible());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!openSubmenu->property("visible").toBool());
+        QTRY_VERIFY(menu->property("visible").toBool());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!menu->property("visible").toBool());
+
+        click(window, titleButton, Qt::RightButton);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        click(window, stage);
+        QTRY_VERIFY(!menu->property("visible").toBool());
+
+        QSignalSpy playRequests(stage, SIGNAL(playPauseRequested()));
+        QSignalSpy fullscreenRequests(stage, SIGNAL(fullscreenRequested()));
+        QVERIFY(playRequests.isValid() && fullscreenRequests.isValid());
+        for (const bool minimumSize : {false, true}) {
+            if (minimumSize) {
+                QSignalSpy resizedFrames(window, &QQuickWindow::frameSwapped);
+                window->resize(window->minimumSize());
+                QTRY_COMPARE(window->size(), window->minimumSize());
+                window->update();
+                QTRY_VERIFY_WITH_TIMEOUT(!resizedFrames.isEmpty(), 5000);
+            }
+            const QPoint point = stage->mapToScene(
+                    {stage->width() - 10, stage->height() - 10}).toPoint();
+            QTest::mouseClick(window, Qt::RightButton, Qt::NoModifier, point);
+            QTRY_VERIFY(menu->property("opened").toBool());
+            const qreal menuX = menu->property("x").toReal();
+            const qreal menuY = menu->property("y").toReal();
+            const qreal menuWidth = menu->property("width").toReal();
+            const qreal menuHeight = menu->property("height").toReal();
+            QVERIFY(menuX >= 0 && menuY >= 0);
+            QVERIFY(menuX + menuWidth <= window->width());
+            QVERIFY(menuY + menuHeight <= window->height());
+            QCOMPARE(playRequests.count(), 0);
+            QCOMPARE(fullscreenRequests.count(), 0);
+            QVERIFY(video->stopped());
+            if (minimumSize && !capturePath.isEmpty()) {
+                QSignalSpy renderedFrames(window, &QQuickWindow::frameSwapped);
+                window->update();
+                QTRY_VERIFY_WITH_TIMEOUT(!renderedFrames.isEmpty(), 5000);
+                QVERIFY(window->grabWindow().save(capturePath + ".minimum.png"));
+            }
+            QTest::keyClick(window, Qt::Key_Escape);
+            QTRY_VERIFY(!menu->property("visible").toBool());
+        }
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
+                 ? QString{} : warnings.first().toString()));
+    }
+
+    void openMediaShortcutsOpenDialog()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        auto *dialog = window->findChild<QObject *>("mediaDialog");
+        QVERIFY(dialog);
+        QTest::keyClick(window, Qt::Key_F3);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        QTest::keyClick(window, Qt::Key_O, Qt::ControlModifier);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+    }
+
     void keyboardShortcutsRespectPlaylistSearch()
     {
         QTemporaryDir directory;
@@ -587,12 +722,22 @@ private slots:
         QTRY_VERIFY(!window->property("playlistVisible").toBool());
         QTest::keyClick(window, Qt::Key_L, Qt::ControlModifier);
         QTRY_VERIFY(window->property("playlistVisible").toBool());
+        QTest::keyClick(window, Qt::Key_F6);
+        QTRY_VERIFY(!window->property("playlistVisible").toBool());
+        QTest::keyClick(window, Qt::Key_F6);
+        QTRY_VERIFY(window->property("playlistVisible").toBool());
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
         QTest::keyClick(window, Qt::Key_F11);
         QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
         QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
         QTRY_VERIFY(search->hasActiveFocus());
         QTest::keyClick(window, Qt::Key_X);
         QCOMPARE(search->property("text").toString(), QStringLiteral("x"));
+        QTest::keyClick(window, Qt::Key_Return);
+        QCOMPARE(window->visibility(), QWindow::FullScreen);
         QTest::keyClick(window, Qt::Key_Escape);
         QTRY_COMPARE(search->property("text").toString(), QString{});
         QCOMPARE(window->visibility(), QWindow::FullScreen);
@@ -608,6 +753,16 @@ private slots:
         QCOMPARE(window->visibility(), QWindow::FullScreen);
         QTest::keyClick(window, Qt::Key_Escape);
         QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        click(window, item("videoStage"));
+        QTest::keyClick(window, Qt::Key_Space);
+        QTRY_VERIFY(video->playing());
+        QTest::keyClick(window, Qt::Key_F4);
+        QTRY_VERIFY(video->stopped());
+        QCOMPARE(playlist->count(), 2);
+        QCOMPARE(playlist->currentIndex(), 0);
+        QCOMPARE(video->source(), first);
+        QTest::keyClick(window, Qt::Key_Space);
+        QTRY_VERIFY_WITH_TIMEOUT(video->playing() && video->seekable(), 10000);
         video->stop();
     }
 
@@ -686,7 +841,12 @@ private slots:
 
         click(window, item("appMenuButton"));
         QTRY_VERIFY(appMenu->property("opened").toBool());
-        QTRY_VERIFY(item("clearPlaylistMenuItem"));
+        auto *openSubmenu = window->findChild<QObject *>("openSubmenu");
+        auto *openEntry = menuItemAt(appMenu, 1);
+        QVERIFY(openSubmenu && openEntry);
+        click(window, openEntry);
+        QTRY_VERIFY(openSubmenu->property("opened").toBool());
+        QTRY_VERIFY(item("clearPlaylistMenuItem") && item("clearPlaylistMenuItem")->isVisible());
         click(window, item("clearPlaylistMenuItem"));
         QTRY_COMPARE(playlist->count(), 0);
         QCOMPARE(playlist->currentIndex(), -1);

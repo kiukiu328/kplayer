@@ -16,12 +16,16 @@ Window {
     property url mediaSource
     property int visibilityBeforeFullscreen: Window.Windowed
     property bool playlistVisible: true
+    property bool controlsVisible: true
     property bool alwaysOnTop: false
+    property bool fullscreenPlus: false
+    property bool playlistBeforeFullscreenPlus: true
+    property bool controlsBeforeFullscreenPlus: true
     // Manual track navigation always respects the queue boundaries.
     property int repeatMode: 0 // 0: off, 1: current track, 2: entire playlist
     readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
         && !playlist.menuOpen
-        && !mediaDialog.visible && !appMenu.visible && !settingsMenu.visible
+        && !mediaDialog.visible && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
         && !hasInteractiveFocus()
 
     function hasInteractiveFocus(): bool {
@@ -51,16 +55,27 @@ Window {
 
     function showAppMenu(fromBottom: bool) {
         settingsMenu.close()
+        if (appMenu.visible) {
+            appMenu.dismiss()
+            return
+        }
         if (fromBottom) {
             const point = playback.mapToItem(window.contentItem,
                 playback.width - appMenu.width - 8, 0)
             appMenu.x = Math.max(8, point.x)
             appMenu.y = Math.max(8, point.y - appMenu.height - 8)
         } else {
-            appMenu.x = Theme.windowBorder + 8
+            appMenu.x = Theme.windowBorder
             appMenu.y = Theme.windowBorder + titleBar.height
         }
         appMenu.open()
+    }
+
+    function showContextMenu(x: real, y: real) {
+        settingsMenu.close()
+        appMenu.dismiss()
+        appMenu.popup(Math.max(8, Math.min(x, window.width - appMenu.width - 8)),
+            Math.max(8, Math.min(y, window.height - appMenu.height - 8)))
     }
 
     function showSettingsMenu() {
@@ -74,6 +89,11 @@ Window {
 
     function toggleFullscreen() {
         if (visibility === Window.FullScreen) {
+            if (fullscreenPlus) {
+                playlistVisible = playlistBeforeFullscreenPlus
+                controlsVisible = controlsBeforeFullscreenPlus
+                fullscreenPlus = false
+            }
             if (visibilityBeforeFullscreen === Window.Maximized)
                 showMaximized()
             else
@@ -82,6 +102,35 @@ Window {
             visibilityBeforeFullscreen = visibility
             showFullScreen()
         }
+    }
+
+    function toggleFullscreenPlus() {
+        if (fullscreenPlus) {
+            toggleFullscreen()
+            return
+        }
+        playlistBeforeFullscreenPlus = playlistVisible
+        controlsBeforeFullscreenPlus = controlsVisible
+        fullscreenPlus = true
+        playlistVisible = false
+        controlsVisible = false
+        if (visibility !== Window.FullScreen)
+            toggleFullscreen()
+    }
+
+    function formatTime(seconds: real): string {
+        const total = Math.max(0, Math.floor(seconds))
+        return [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
+            .map(value => value.toString().padStart(2, "0")).join(":")
+    }
+
+    function showInformation(about: bool) {
+        infoDialog.title = about ? qsTr("程式資訊") : qsTr("媒體資訊")
+        infoText.text = about ? "KPlayer 0.1.0\n" + qsTr("使用 Qt Quick 與 libmpv 的媒體播放器")
+            : qsTr("檔案：") + decodeURIComponent(mediaPlaylist.currentSource.toString())
+              + "\n\n" + qsTr("長度：") + formatTime(videoStage.duration)
+              + "\n" + qsTr("位置：") + formatTime(videoStage.position)
+        infoDialog.open()
     }
 
     function togglePlayback() {
@@ -133,62 +182,29 @@ Window {
         }
     }
 
-    component PlayerMenu: Menu {
-        popupType: Popup.Item
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.smallFontSize
-        palette.text: Theme.textPrimary
-        palette.window: Theme.chromeBackground
-        palette.base: Theme.panelBackground
-        palette.highlight: Theme.chromeHover
-        palette.highlightedText: Theme.textPrimary
-        palette.mid: Theme.border
-        background: Rectangle {
-            implicitWidth: 280
-            color: Theme.chromeBackground
-            border.color: Theme.border
-            border.width: 1
-            radius: Theme.controlRadius
-        }
-    }
-    component PlayerMenuItem: MenuItem {
-        id: menuItem
-        implicitHeight: 34
-        background: Rectangle {
-            color: menuItem.highlighted ? Theme.chromeHover : Theme.transparent
-        }
-    }
-    component PlayerMenuSeparator: MenuSeparator {
-        contentItem: Rectangle {
-            implicitWidth: 220
-            implicitHeight: 1
-            color: Theme.border
-        }
-    }
-
     Action {
         id: openMediaAction
-        text: qsTr("Open media…")
-        shortcut: "Ctrl+O"
+        text: qsTr("開啟檔案…")
+        shortcut: "F3"
         onTriggered: window.openMedia(true)
     }
     Action {
         id: searchPlaylistAction
-        text: qsTr("Search playlist")
+        text: qsTr("搜尋播放清單")
         shortcut: "Ctrl+F"
         onTriggered: window.focusPlaylistSearch()
     }
     Action {
         id: showPlaylistAction
-        text: qsTr("Show playlist")
-        shortcut: "Ctrl+L"
+        text: qsTr("播放清單…")
+        shortcut: "F6"
         checkable: true
         checked: window.playlistVisible
         onTriggered: window.playlistVisible = !window.playlistVisible
     }
     Action {
         id: fullscreenAction
-        text: qsTr("Full screen")
+        text: qsTr("全螢幕")
         shortcut: "F11"
         checkable: true
         checked: window.visibility === Window.FullScreen
@@ -196,44 +212,139 @@ Window {
     }
     Action {
         id: pinAction
-        text: qsTr("Always on top")
+        text: qsTr("最上層顯示")
         checkable: true
         checked: window.alwaysOnTop
         onTriggered: window.alwaysOnTop = !window.alwaysOnTop
     }
-    PlayerMenu {
+    Action {
+        id: closeMediaAction
+        text: qsTr("關閉檔案")
+        shortcut: "F4"
+        enabled: mediaPlaylist.count > 0
+        onTriggered: videoStage.stop()
+    }
+    Action {
+        id: preferencesAction
+        text: qsTr("偏好設定…")
+        shortcut: "F5"
+        onTriggered: window.showSettingsMenu()
+    }
+    Action {
+        id: controlsAction
+        text: qsTr("控制面版…")
+        shortcut: "F7"
+        checkable: true
+        checked: window.controlsVisible
+        onTriggered: window.controlsVisible = !window.controlsVisible
+    }
+    Action {
+        id: fullscreenPlusAction
+        text: qsTr("全螢幕+")
+        shortcut: "Ctrl+Return"
+        checkable: true
+        checked: window.fullscreenPlus
+        onTriggered: window.toggleFullscreenPlus()
+    }
+    Action {
+        id: mediaInfoAction
+        text: qsTr("媒體資訊…")
+        shortcut: "Ctrl+F1"
+        enabled: mediaPlaylist.count > 0
+        onTriggered: window.showInformation(false)
+    }
+    Action {
+        id: aboutAction
+        text: qsTr("程式資訊…")
+        shortcut: "F1"
+        onTriggered: window.showInformation(true)
+    }
+    Action {
+        id: exitAction
+        text: qsTr("結束")
+        shortcut: "Alt+F4"
+        onTriggered: window.close()
+    }
+    AppMenu {
         id: appMenu
-        objectName: "appMenu"
         parent: window.contentItem
-        PlayerMenuItem { action: openMediaAction }
-        PlayerMenuItem {
-            objectName: "addMediaMenuItem"
-            text: qsTr("Add to playlist…")
-            onTriggered: window.openMedia(false)
+        openAction: openMediaAction
+        closeAction: closeMediaAction
+        preferencesAction: preferencesAction
+        playlistAction: showPlaylistAction
+        controlsAction: controlsAction
+        fullscreenAction: fullscreenAction
+        fullscreenPlusAction: fullscreenPlusAction
+        pinAction: pinAction
+        mediaInfoAction: mediaInfoAction
+        aboutAction: aboutAction
+        exitAction: exitAction
+        searchAction: searchPlaylistAction
+        hasMedia: mediaPlaylist.count > 0
+        playing: videoStage.playing
+        seekable: videoStage.seekable
+        muted: videoStage.muted
+        repeatMode: window.repeatMode
+        onAddMediaRequested: window.openMedia(false)
+        onClearPlaylistRequested: window.clearPlaylist()
+        onPlayPauseRequested: window.togglePlayback()
+        onStopRequested: videoStage.stop()
+        onSkipTrackRequested: (offset) => window.skipTrack(offset)
+        onSeekRequested: (seconds) => videoStage.seek(seconds)
+        onMuteRequested: videoStage.muted = !videoStage.muted
+        onVolumeRequested: (offset) => {
+            videoStage.volume = Math.max(0, Math.min(100, videoStage.volume + offset))
+            if (offset > 0)
+                videoStage.muted = false
         }
-        PlayerMenuItem {
-            objectName: "clearPlaylistMenuItem"
-            text: qsTr("Clear playlist")
-            enabled: mediaPlaylist.count > 0
-            onTriggered: window.clearPlaylist()
+        onRepeatRequested: (mode) => window.repeatMode = mode
+        onCopyPositionRequested: {
+            clipboardText.text = window.formatTime(videoStage.position)
+            clipboardText.selectAll()
+            clipboardText.copy()
         }
-        PlayerMenuSeparator {}
-        PlayerMenuItem { action: searchPlaylistAction }
-        PlayerMenuItem { action: showPlaylistAction }
-        PlayerMenuSeparator {}
-        PlayerMenuItem { action: fullscreenAction }
-        PlayerMenuItem { action: pinAction }
-        PlayerMenuSeparator {}
-        PlayerMenuItem { text: qsTr("Exit"); onTriggered: window.close() }
+        onWindowSizeRequested: (maximized) => {
+            if (window.visibility === Window.FullScreen)
+                window.toggleFullscreen()
+            if (maximized) {
+                window.showMaximized()
+            } else {
+                window.showNormal()
+                window.width = 1225
+                window.height = 824
+            }
+        }
+    }
+    TextEdit { id: clipboardText; visible: false }
+    Dialog {
+        id: infoDialog
+        objectName: "informationDialog"
+        parent: window.contentItem
+        anchors.centerIn: parent
+        width: Math.min(420, window.width - 32)
+        modal: true
+        standardButtons: Dialog.Close
+        palette.window: Theme.chromeBackground
+        palette.windowText: Theme.textPrimary
+        palette.text: Theme.textPrimary
+        palette.button: Theme.buttonBackground
+        palette.buttonText: Theme.textPrimary
+        contentItem: Label {
+            id: infoText
+            wrapMode: Text.WrapAnywhere
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.smallFontSize
+            color: Theme.textPrimary
+        }
     }
     PlayerMenu {
         id: settingsMenu
         objectName: "playbackSettingsMenu"
         parent: window.contentItem
-        PlayerMenuItem { text: qsTr("Repeat mode"); enabled: false }
+        PlayerMenuItem { text: qsTr("重複播放"); enabled: false }
         PlayerMenuItem {
             objectName: "repeatOffMenuItem"
-            text: qsTr("Repeat off")
+            text: qsTr("不重複")
             checkable: true
             autoExclusive: true
             checked: window.repeatMode === 0
@@ -241,7 +352,7 @@ Window {
         }
         PlayerMenuItem {
             objectName: "repeatTrackMenuItem"
-            text: qsTr("Repeat current track")
+            text: qsTr("重複目前檔案")
             checkable: true
             autoExclusive: true
             checked: window.repeatMode === 1
@@ -249,7 +360,7 @@ Window {
         }
         PlayerMenuItem {
             objectName: "repeatPlaylistMenuItem"
-            text: qsTr("Repeat playlist")
+            text: qsTr("重複播放清單")
             checkable: true
             autoExclusive: true
             checked: window.repeatMode === 2
@@ -257,11 +368,24 @@ Window {
         }
     }
 
+    Shortcut { sequence: "Ctrl+O"; onActivated: openMediaAction.trigger() }
+    Shortcut { sequence: "Ctrl+L"; onActivated: showPlaylistAction.trigger() }
+    Shortcut {
+        sequence: "Return"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: window.toggleFullscreen()
+    }
+    Shortcut {
+        sequence: "Enter"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: window.toggleFullscreen()
+    }
+
     Shortcut {
         sequence: "Escape"
         enabled: window.visibility === Window.FullScreen
             && !playlist.editingSearch && !playlist.menuOpen
-            && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible
+            && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible && !infoDialog.visible
         onActivated: window.toggleFullscreen()
     }
     Shortcut {
@@ -309,6 +433,7 @@ Window {
             maximized: window.visibility === Window.Maximized
             fullscreen: window.visibility === Window.FullScreen
             alwaysOnTop: window.alwaysOnTop
+            menuOpen: appMenu.visible
             onMenuRequested: window.showAppMenu(false)
             onPinRequested: window.alwaysOnTop = !window.alwaysOnTop
             onMinimizeRequested: window.showMinimized()
@@ -349,12 +474,18 @@ Window {
                     onFullscreenRequested: window.toggleFullscreen()
                     onPlayPauseRequested: window.togglePlayback()
                     onEndOfFile: window.advanceAfterEnd()
+                    onContextMenuRequested: (x, y) => {
+                        const point = videoStage.mapToItem(window.contentItem, x, y)
+                        window.showContextMenu(point.x, point.y)
+                    }
                 }
                 PlaybackBar {
                     id: playback
                     objectName: "playbackBar"
                     anchors.bottom: parent.bottom
                     width: parent.width
+                    visible: window.controlsVisible
+                    height: window.controlsVisible ? Theme.seekHeight + Theme.transportHeight : 0
                     playing: videoStage.playing
                     position: videoStage.position
                     duration: videoStage.duration

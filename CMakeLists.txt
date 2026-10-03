@@ -22,6 +22,10 @@ set(KPLAYER_QML_FILES
     qml/PlayerIcon.qml
     qml/IconButton.qml
     qml/PlayerSlider.qml
+    qml/PlayerMenu.qml
+    qml/PlayerMenuItem.qml
+    qml/PlayerMenuSeparator.qml
+    qml/AppMenu.qml
     qml/TitleBar.qml
     qml/VideoStage.qml
     qml/WindowResizeFrame.qml

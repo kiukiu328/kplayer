@@ -19,11 +19,21 @@ QtObject {
     readonly property color iconMuted: "#737373"
     readonly property color watermark: "#303030"
     readonly property color accent: "#f3df00"
+    readonly property color menuBackground: "#444444"
+    readonly property color menuHover: "#191919"
+    readonly property color menuText: "#c5c5c5"
+    readonly property color menuDisabledText: "#858585"
+    readonly property color menuSeparator: "#292929"
+    readonly property color menuCheckBackground: "#626672"
     readonly property color transparent: "transparent"
 
     readonly property string fontFamily: Qt.platform.os === "windows" ? "Segoe UI" : "Noto Sans"
     readonly property int fontSize: 18
     readonly property int smallFontSize: 16
+    readonly property int menuFontSize: 13
+    readonly property int menuShortcutFontSize: 12
+    readonly property int menuWidth: 193
+    readonly property int menuRowHeight: 22
     readonly property int watermarkFontSize: 42
     readonly property int windowBorder: 3
     readonly property int dividerWidth: 1
