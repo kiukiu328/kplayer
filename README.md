@@ -92,8 +92,9 @@ argument.
 ## Requirements
 
 - Qt 6.11.2 or newer with Qt Quick, Qt OpenGL, Qt SVG, and its development tools
-- libmpv development headers and library, discoverable as `mpv` through pkg-config
-- pkg-config
+- libmpv development headers and library (on Windows, found through CMake;
+  on Linux and macOS, discoverable as `mpv` through pkg-config)
+- pkg-config (Linux and macOS)
 - FFmpeg with the `libx264` encoder (optional, to generate a future playback sample)
 - CMake 3.24 or newer
 - A C++20 compiler
@@ -125,6 +126,49 @@ using your actual Qt installation prefix.
 You can also open `CMakeLists.txt` in Qt Creator and select a Qt 6.11.2+ kit.
 On Windows the executable is `build/KPlayer.exe`; on macOS it is
 `build/KPlayer.app/Contents/MacOS/KPlayer`.
+
+### Native Windows build (MSYS2 UCRT64)
+
+Install [MSYS2](https://www.msys2.org/) and CMake 3.24 or newer. In the MSYS2
+UCRT64 shell, update the installation with `pacman -Syu`. If the update closes
+the shell, reopen it and repeat the command to finish updating. Then install:
+
+```sh
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-declarative mingw-w64-ucrt-x86_64-qt6-svg mingw-w64-ucrt-x86_64-mpv
+```
+
+From the project directory in PowerShell, build and run with:
+
+```powershell
+$env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
+cmake -S . -B build-windows -G Ninja `
+    -DCMAKE_BUILD_TYPE=Release `
+    -DCMAKE_PREFIX_PATH=C:/msys64/ucrt64 `
+    -DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/g++.exe `
+    -DKPLAYER_BUILD_TESTS=ON
+cmake --build build-windows --parallel
+ctest --test-dir build-windows --output-on-failure
+.\build-windows\KPlayer.exe
+```
+
+Adjust the MSYS2 paths if it is installed elsewhere. Use a separate build
+directory from Linux or WSL: CMake caches are specific to their platform and
+compiler. The executable uses Qt and libmpv runtime libraries from the local
+MSYS2 installation, so keep its UCRT64 `bin` directory on `PATH` when launching.
+The tests need a Windows desktop with OpenGL support.
+
+To also smoke-test an existing video (including paths with non-ASCII characters),
+run the optional test from PowerShell:
+
+```powershell
+$env:KPLAYER_TEST_MEDIA = 'C:\path\to\video.mp4'
+.\build-windows\KPlayerTests.exe externalMediaPlayback
+Remove-Item Env:KPLAYER_TEST_MEDIA
+```
+
+The test checks playback, seeking, mute/volume controls, and timeline previews.
+Choose a seekable video longer than three seconds. Without `KPLAYER_TEST_MEDIA`,
+this optional test is skipped and the other tests use generated fixtures.
 
 The optional video remains an external file, not an embedded resource.
 The application selects Qt Quick's OpenGL backend for libmpv rendering.

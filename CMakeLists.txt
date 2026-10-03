@@ -7,8 +7,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 6.11.2 REQUIRED COMPONENTS Quick OpenGL Svg)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+if(WIN32)
+    # Native Windows CMake cannot use MSYS paths from dependency .pc files.
+    find_path(MPV_INCLUDE_DIR NAMES mpv/client.h REQUIRED)
+    find_library(MPV_LIBRARY NAMES mpv REQUIRED)
+    add_library(MPV::MPV UNKNOWN IMPORTED)
+    set_target_properties(MPV::MPV PROPERTIES
+        IMPORTED_LOCATION "${MPV_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${MPV_INCLUDE_DIR}"
+    )
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+    add_library(MPV::MPV ALIAS PkgConfig::MPV)
+endif()
 qt_standard_project_setup(REQUIRES 6.11.2)
 
 qt_add_executable(KPlayer
@@ -66,7 +78,7 @@ qt_add_qml_module(KPlayer
 )
 
 target_include_directories(KPlayer PRIVATE src/playback)
-target_link_libraries(KPlayer PRIVATE Qt6::Quick Qt6::OpenGL Qt6::Svg PkgConfig::MPV)
+target_link_libraries(KPlayer PRIVATE Qt6::Quick Qt6::OpenGL Qt6::Svg MPV::MPV)
 
 target_compile_definitions(KPlayer PRIVATE
     $<$<CONFIG:Debug>:QT_QML_DEBUG>
@@ -94,7 +106,8 @@ if(KPLAYER_BUILD_TESTS)
     )
     target_include_directories(KPlayerTests PRIVATE src/playback)
     target_link_libraries(KPlayerTests PRIVATE
-        Qt6::Quick Qt6::OpenGL Qt6::Svg Qt6::Test PkgConfig::MPV)
-    add_test(NAME player COMMAND KPlayerTests)
+        Qt6::Quick Qt6::OpenGL Qt6::Svg Qt6::Test MPV::MPV)
+    add_test(NAME player COMMAND KPlayerTests
+        -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")
     set_tests_properties(player PROPERTIES TIMEOUT 120)
 endif()

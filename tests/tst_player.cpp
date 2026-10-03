@@ -8,6 +8,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
 #include <QMimeData>
@@ -88,8 +89,25 @@ class PlayerTests : public QObject
     static void click(QQuickWindow *window, QQuickItem *item,
                       Qt::MouseButton button = Qt::LeftButton)
     {
+        // Model changes and popup opening can precede Qt Quick's layout pass.
+        QSignalSpy renderedFrames(window, &QQuickWindow::frameSwapped);
+        window->update();
+        QTRY_VERIFY_WITH_TIMEOUT(!renderedFrames.isEmpty(), 5000);
         QTest::mouseClick(window, button, Qt::NoModifier,
                          item->mapToScene({item->width() / 2, item->height() / 2}).toPoint());
+    }
+
+    static bool exposeWindow(QQuickWindow *window)
+    {
+        if (!window || !QTest::qWaitForWindowExposed(window))
+            return false;
+#ifdef Q_OS_WIN
+        // Shortcuts require an active native window, not just an exposed one.
+        window->requestActivate();
+        return QTest::qWaitForWindowActive(window);
+#else
+        return true;
+#endif
     }
 
     static QQuickItem *findItem(QQuickItem *parent, const QString &name)
@@ -170,7 +188,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto item = [window](const char *name) {
             return findItem(window->contentItem(), QString::fromLatin1(name));
         };
@@ -489,7 +507,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto *panel = window->findChild<QQuickItem *>("playlistPanel");
         auto *playlist = window->findChild<PlaylistModel *>();
         QVERIFY(panel && playlist);
@@ -560,7 +578,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto item = [window](const char *name) {
             return findItem(window->contentItem(), QString::fromLatin1(name));
         };
@@ -619,6 +637,10 @@ private slots:
         QTRY_COMPARE(list->property("count").toInt(), 1);
         QTRY_VERIFY(item("track0"));
         click(window, item("track0"));
+        QTRY_COMPARE(list->property("currentIndex").toInt(), 0);
+        QTRY_VERIFY(list->hasActiveFocus());
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), 0);
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
         QTest::keyClick(window, Qt::Key_Return);
         QTRY_COMPARE(playlist->currentIndex(), 0);
         QTRY_COMPARE(video->source(), gamma);
@@ -649,7 +671,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto *panel = findItem(window->contentItem(), QStringLiteral("playlistPanel"));
         auto *button = findItem(window->contentItem(), QStringLiteral("playlistButton"));
         auto *stage = findItem(window->contentItem(), QStringLiteral("videoStage"));
@@ -693,7 +715,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto item = [window](const char *name) {
             return findItem(window->contentItem(), QString::fromLatin1(name));
         };
@@ -711,7 +733,7 @@ private slots:
         auto *closeMedia = item("closeMediaMenuItem");
         auto *playlistItem = item("playlistMenuItem");
         QVERIFY(openMedia && closeMedia && playlistItem);
-        QCOMPARE(openMedia->property("text").toString(), QString::fromUtf8("開啟檔案..."));
+        QCOMPARE(openMedia->property("text").toString(), QString::fromUtf8("開啟檔案…"));
         QCOMPARE(closeMedia->property("text").toString(), QString::fromUtf8("關閉檔案"));
         QCOMPARE(openMedia->height(), 22.0);
         QVERIFY(playlistItem->property("checked").toBool());
@@ -797,7 +819,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto *dialog = window->findChild<QObject *>("mediaDialog");
         QVERIFY(dialog);
         QTest::keyClick(window, Qt::Key_F3);
@@ -805,10 +827,13 @@ private slots:
         QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
         QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
         QTRY_VERIFY(!dialog->property("visible").toBool());
+        QTRY_VERIFY(QGuiApplication::modalWindow() == nullptr);
+        QVERIFY(exposeWindow(window));
         QTest::keyClick(window, Qt::Key_O, Qt::ControlModifier);
         QTRY_VERIFY(dialog->property("visible").toBool());
         QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
         QTRY_VERIFY(!dialog->property("visible").toBool());
+        QTRY_VERIFY(QGuiApplication::modalWindow() == nullptr);
     }
 
     void keyboardShortcutsRespectPlaylistSearch()
@@ -821,7 +846,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto item = [window](const char *name) {
             return findItem(window->contentItem(), QString::fromLatin1(name));
         };
@@ -927,7 +952,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto item = [window](const char *name) {
             return findItem(window->contentItem(), QString::fromLatin1(name));
         };
@@ -1010,7 +1035,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto *frame = findItem(window->contentItem(), QStringLiteral("windowResizeFrame"));
         QVERIFY(frame && frame->isEnabled());
         const QList<QPair<QString, int>> handles = {
@@ -1073,7 +1098,7 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto item = [window](const char *name) {
             return findItem(window->contentItem(), QString::fromLatin1(name));
         };
@@ -1163,6 +1188,66 @@ private slots:
         video->stop();
     }
 
+    void externalMediaPlayback()
+    {
+        const QString mediaPath = qEnvironmentVariable("KPLAYER_TEST_MEDIA");
+        if (mediaPath.isEmpty())
+            QSKIP("Set KPLAYER_TEST_MEDIA to smoke-test an existing video file.");
+        QVERIFY(QFileInfo(mediaPath).isFile());
+        const QUrl source = QUrl::fromLocalFile(QFileInfo(mediaPath).absoluteFilePath());
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(video);
+        video->play();
+        QTRY_VERIFY_WITH_TIMEOUT(video->seekable() && video->duration() > 3, 15000);
+        QTRY_VERIFY_WITH_TIMEOUT(video->position() > 0, 10000);
+        QCOMPARE(video->errorString(), QString{});
+        video->togglePause();
+        QTRY_VERIFY(!video->playing() && !video->stopped());
+        const double target = video->duration() / 3;
+        video->seek(target);
+        QTRY_VERIFY_WITH_TIMEOUT(qAbs(video->position() - target) < 0.5, 10000);
+        video->setMuted(true);
+        QTRY_VERIFY(video->muted());
+        video->setVolume(45);
+        QTRY_COMPARE(video->volume(), 45.0);
+        video->setMuted(false);
+        QTRY_VERIFY(!video->muted());
+
+        auto *seek = findItem(window->contentItem(), "positionSlider");
+        auto *preview = qobject_cast<MpvPreview *>(
+                findItem(window->contentItem(), "previewVideo"));
+        QVERIFY(seek && preview);
+        QSignalSpy seekRequests(findItem(window->contentItem(), "playbackBar"),
+                                SIGNAL(seekRequested(double)));
+        QVERIFY(seekRequests.isValid());
+        const double pausedPosition = video->position();
+        QTest::mouseMove(window, seek->mapToScene(
+                {seek->width() * 0.65, seek->height() / 2}).toPoint(), 20);
+        QTRY_VERIFY(preview->active());
+        QTRY_VERIFY_WITH_TIMEOUT(preview->ready(), 15000);
+        QCOMPARE(preview->source(), source);
+        QCOMPARE(preview->errorString(), QString{});
+        // Compressed video can settle on a nearby frame after an exact seek.
+        QVERIFY(qAbs(video->position() - pausedPosition) < 0.1);
+        QVERIFY(!video->playing());
+        QCOMPARE(seekRequests.count(), 0);
+        const QImage screenshot = window->grabWindow();
+        QVERIFY(!screenshot.isNull());
+        const QString capturePath = qEnvironmentVariable("KPLAYER_TEST_CAPTURE");
+        if (!capturePath.isEmpty())
+            QVERIFY(screenshot.save(capturePath));
+        qInfo() << "Local media playback verified:" << source
+                << "duration" << video->duration() << "preview" << preview->position();
+        video->stop();
+        QVERIFY(video->stopped());
+    }
+
     void playbackInteractions()
     {
         QTemporaryDir directory;
@@ -1178,7 +1263,7 @@ private slots:
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
         QVERIFY(window);
-        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QVERIFY(exposeWindow(window));
         auto *video = window->findChild<MpvVideo *>();
         auto *playlist = window->findChild<PlaylistModel *>();
         QVERIFY(video && playlist);
@@ -1345,6 +1430,8 @@ private slots:
 
 int main(int argc, char **argv)
 {
+    // Keep dialog interaction in Qt's event loop during automated tests.
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QGuiApplication app(argc, argv);
     std::setlocale(LC_NUMERIC, "C");
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);

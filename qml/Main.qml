@@ -30,11 +30,15 @@ Window {
         && !hasInteractiveFocus()
 
     function hasInteractiveFocus(): bool {
-        const item = window.activeFocusItem
-        return item !== null && (item instanceof TextInput || item instanceof TextEdit
-            || item instanceof Slider || item instanceof AbstractButton
-            || item instanceof IconButton || item instanceof PlaylistTab
-            || item.objectName === "trackList" || item.objectName === "appMenuButton")
+        // Focus scopes can give their delegate or content item the active focus.
+        for (let item = window.activeFocusItem; item !== null; item = item.parent) {
+            if (item instanceof TextInput || item instanceof TextEdit
+                || item instanceof Slider || item instanceof AbstractButton
+                || item instanceof IconButton || item instanceof PlaylistTab
+                || item.objectName === "trackList" || item.objectName === "appMenuButton")
+                return true
+        }
+        return false
     }
 
     function openMedia(playAdded: bool) {

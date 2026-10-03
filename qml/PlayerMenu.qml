@@ -5,7 +5,9 @@ Menu {
     id: root
     popupType: Popup.Item
     width: Theme.menuWidth
-    height: Math.min(implicitHeight, parent ? parent.height - 16 : implicitHeight)
+    // A submenu's visual parent can be its menu row, rather than the window.
+    height: Math.min(implicitHeight, parent && parent.Window.window
+        ? parent.Window.window.height - 16 : implicitHeight)
     padding: 1
     margins: 8
     overlap: 1
