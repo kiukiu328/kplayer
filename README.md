@@ -4,8 +4,9 @@ A Qt Quick media-player UI based on the supplied KPlayer reference. The
 1225 × 824 frameless window includes the title bar, empty video surface,
 transport controls, seek and volume tracks, timestamps, media tools, playlist
 tabs, ordering buttons, and search surface. Window controls, playback, playlist
-file drops, seeking, mute, volume, and track navigation are connected. Search,
-playlist tabs, ordering buttons, and the remaining tools are still visual previews.
+file drops, seeking, mute, volume, and track navigation are connected. Playlist
+search, queue editing, ordering, application menus, repeat modes, and always-on-top
+window pinning are functional. The player currently uses a single default queue.
 
 ## UI organization
 
@@ -39,6 +40,28 @@ argument.
   Dropping files queues them without interrupting playback; directories and
   missing files are ignored. Open Media supports selecting multiple files and
   starts the first new entry.
+- Add (新增), the Browse tab, and **Add to playlist…** queue files without
+  interrupting playback. Remove (移除) or Delete removes the selected entry;
+  removing the current entry selects its next neighbor (or the previous final
+  entry). Playback stops if the media changes. Clear Playlist empties the queue
+  and stops playback.
+- The ordering buttons move the selected entry to the top, up, down, or bottom.
+  Ctrl+Up/Ctrl+Down also reorder a focused playlist selection. Sort (排序)
+  offers natural, case-insensitive title order in either direction. Queue edits
+  preserve the current track without restarting it when its media stays in the queue.
+- Type in the playlist search field to filter titles without changing the queue
+  or playback order. Enter plays the selected matching entry; Escape clears the
+  search. The Search Media button or Ctrl+F reveals the playlist and focuses
+  search. The arrow above the queue reveals the current track.
+- The title menu and bottom Menu button provide media, queue, and window actions.
+  Settings offers repeat off, repeat current track, or repeat the playlist;
+  manual Previous/Next track navigation still stops at the queue boundaries.
+  The pin button toggles Always on Top and highlights while enabled.
+- Keyboard shortcuts: Ctrl+O opens media, Ctrl+L toggles the playlist, F11 toggles
+  fullscreen, and Escape leaves fullscreen. With focus in the video area, Space
+  toggles playback, M toggles mute, Left/Right seek 10 seconds, and Up/Down adjust
+  volume by 5%. Text fields, focused controls, and playlist selection keep their
+  own keyboard behavior.
 - Play toggles play/pause. Stop clears playback; pressing Play again restarts
   the selected media from the beginning.
 - Click the audio button to mute or unmute without changing the saved volume.
@@ -184,7 +207,8 @@ To check QML with Qt's linter, run `cmake --build build --target all_qmllint`.
 ## Tests
 
 The optional tests require Qt Test and generate their own temporary WAV and Y4M files.
-They exercise multi-file drops, playlist validation, playlist visibility, resize
+They exercise multi-file drops, playlist validation, filtering, queue editing,
+active-track preservation, menus, keyboard shortcuts, repeat modes, playlist visibility, resize
 handle states, double-click playback, timeline hover, mute, volume, seeking,
 left/right-click transport actions, and automatic advancement at end-of-file:
 
@@ -196,3 +220,9 @@ ctest --test-dir build --output-on-failure
 
 The playback tests require an OpenGL-capable display (WSLg works). On a headless
 Linux system, run CTest through an X server with OpenGL support, such as Xvfb.
+If WSL's graphics driver stalls, run the tests with software OpenGL and a single
+render thread:
+
+```sh
+QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe QSG_RENDER_LOOP=basic ctest --test-dir build --output-on-failure
+```

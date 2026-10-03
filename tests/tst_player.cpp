@@ -2,6 +2,7 @@
 #include "MpvPreview.h"
 #include "PlaylistModel.h"
 
+#include <QAbstractItemModelTester>
 #include <QDataStream>
 #include <QDebug>
 #include <QDragEnterEvent>
@@ -103,6 +104,226 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void playlistEditingPreservesActiveSource()
+    {
+        PlaylistModel playlist;
+        QAbstractItemModelTester modelTester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        const QUrl gamma("https://example.com/gamma.wav");
+        const QUrl beta("https://example.com/beta.wav");
+        const QUrl alpha("https://example.com/alpha.wav");
+        QCOMPARE(playlist.appendUrls({gamma, beta, alpha}), 3);
+        playlist.setCurrentIndex(2);
+        QSignalSpy indexChanges(&playlist, &PlaylistModel::currentIndexChanged);
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QSignalSpy countChanges(&playlist, &PlaylistModel::countChanged);
+        QSignalSpy rowMoves(&playlist, &QAbstractItemModel::rowsMoved);
+        QSignalSpy rowRemovals(&playlist, &QAbstractItemModel::rowsRemoved);
+
+        QVERIFY(!playlist.removeAt(-1));
+        QVERIFY(!playlist.removeAt(3));
+        QVERIFY(!playlist.moveTrack(-1, 0));
+        QVERIFY(!playlist.moveTrack(0, 3));
+        QVERIFY(!playlist.moveTrack(3, 0));
+        playlist.moveTrack(2, 2);
+        QCOMPARE(playlist.count(), 3);
+        QCOMPARE(indexChanges.count(), 0);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 0);
+        QCOMPARE(rowMoves.count(), 0);
+        QCOMPARE(rowRemovals.count(), 0);
+
+        // Moving another row past the active track changes its row, not its media.
+        QVERIFY(playlist.moveTrack(0, 2));
+        QCOMPARE(playlist.currentIndex(), 1);
+        QCOMPARE(playlist.currentSource(), alpha);
+        QCOMPARE(playlist.data(playlist.index(2), PlaylistModel::SourceRole).toUrl(), gamma);
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(rowMoves.count(), 1);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 0);
+
+        QVERIFY(playlist.moveTrack(1, 0));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), alpha);
+        QCOMPARE(indexChanges.count(), 2);
+        QCOMPARE(rowMoves.count(), 2);
+        QCOMPARE(sourceChanges.count(), 0);
+        QVERIFY(playlist.removeAt(2));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), alpha);
+        QCOMPARE(indexChanges.count(), 2);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 1);
+        QCOMPARE(rowRemovals.count(), 1);
+
+        playlist.setCurrentIndex(1);
+        indexChanges.clear();
+        sourceChanges.clear();
+        QVERIFY(playlist.removeAt(0));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), beta);
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(sourceChanges.count(), 0);
+    }
+
+    void playlistRemovalAndClearChooseValidMedia()
+    {
+        PlaylistModel playlist;
+        QAbstractItemModelTester modelTester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        const QUrl first("https://example.com/first.wav");
+        const QUrl second("https://example.com/second.wav");
+        QCOMPARE(playlist.appendUrls({first, first, second}), 3);
+        QSignalSpy indexChanges(&playlist, &PlaylistModel::currentIndexChanged);
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QSignalSpy countChanges(&playlist, &PlaylistModel::countChanged);
+
+        // Replacing the active entry with a duplicate must not restart playback.
+        QVERIFY(playlist.removeAt(0));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), first);
+        QCOMPARE(indexChanges.count(), 0);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 1);
+        QVERIFY(playlist.removeAt(0));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), second);
+        QCOMPARE(sourceChanges.count(), 1);
+        QVERIFY(playlist.removeAt(0));
+        QCOMPARE(playlist.count(), 0);
+        QCOMPARE(playlist.currentIndex(), -1);
+        QCOMPARE(playlist.currentSource(), QUrl{});
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(sourceChanges.count(), 2);
+        QCOMPARE(countChanges.count(), 3);
+
+        QCOMPARE(playlist.appendUrls({first, second}), 2);
+        playlist.setCurrentIndex(1);
+        indexChanges.clear();
+        sourceChanges.clear();
+        countChanges.clear();
+        // Removing the final active row selects the preceding row.
+        QVERIFY(playlist.removeAt(1));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), first);
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(sourceChanges.count(), 1);
+        indexChanges.clear();
+        sourceChanges.clear();
+        countChanges.clear();
+        QSignalSpy resets(&playlist, &QAbstractItemModel::modelReset);
+        playlist.clear();
+        QCOMPARE(playlist.count(), 0);
+        QCOMPARE(playlist.currentIndex(), -1);
+        QCOMPARE(playlist.currentSource(), QUrl{});
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(sourceChanges.count(), 1);
+        QCOMPARE(countChanges.count(), 1);
+        QCOMPARE(resets.count(), 1);
+        playlist.clear();
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(sourceChanges.count(), 1);
+        QCOMPARE(countChanges.count(), 1);
+        QCOMPARE(resets.count(), 1);
+    }
+
+    void playlistSortPreservesDuplicateIdentity()
+    {
+        PlaylistModel playlist;
+        QAbstractItemModelTester modelTester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        const QUrl betaFirst("https://first.example/Beta.wav");
+        const QUrl alpha("https://example.com/alpha.wav");
+        const QUrl betaSecond("https://second.example/beta.wav");
+        const QUrl gamma("https://example.com/gamma.wav");
+        QCOMPARE(playlist.appendUrls({betaFirst, gamma, betaSecond, alpha}), 4);
+        playlist.setCurrentIndex(2);
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QSignalSpy countChanges(&playlist, &PlaylistModel::countChanged);
+        QCOMPARE(playlist.sortByTitle(true, 0), 1);
+        QCOMPARE(playlist.currentIndex(), 2);
+        QCOMPARE(playlist.currentSource(), betaSecond);
+        const QList<QUrl> ascending{alpha, betaFirst, betaSecond, gamma};
+        for (int row = 0; row < ascending.size(); ++row)
+            QCOMPARE(playlist.data(playlist.index(row), PlaylistModel::SourceRole).toUrl(),
+                     ascending.at(row));
+        QCOMPARE(playlist.sortByTitle(false, 1), 1);
+        QCOMPARE(playlist.currentIndex(), 2);
+        QCOMPARE(playlist.currentSource(), betaSecond);
+        const QList<QUrl> descending{gamma, betaFirst, betaSecond, alpha};
+        for (int row = 0; row < descending.size(); ++row)
+            QCOMPARE(playlist.data(playlist.index(row), PlaylistModel::SourceRole).toUrl(),
+                     descending.at(row));
+        QCOMPARE(playlist.sortByTitle(true, 99), -1);
+        QCOMPARE(playlist.sortByTitle(true), -1);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 0);
+        playlist.setCurrentIndex(3);
+        QCOMPARE(playlist.currentSource(), gamma);
+        sourceChanges.clear();
+        QCOMPARE(playlist.sortByTitle(false, 1), 1);
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), gamma);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 0);
+        playlist.clear();
+        QCOMPARE(playlist.sortByTitle(true, 0), -1);
+    }
+
+    void playlistSearchMapsRowsWithoutChangingQueue()
+    {
+        PlaylistModel playlist;
+        PlaylistFilterModel filter;
+        QAbstractItemModelTester modelTester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        QAbstractItemModelTester filterTester(&filter,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        filter.setPlaylist(&playlist);
+        QCOMPARE(filter.playlist(), &playlist);
+        const QUrl alpha("https://example.com/Alpha.wav");
+        const QUrl beta("https://example.com/beta.wav");
+        const QUrl literal("https://example.com/alpha%5B1%5D.wav");
+        QCOMPARE(playlist.appendUrls({alpha, beta, literal}), 3);
+        playlist.setCurrentIndex(1);
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QSignalSpy countChanges(&playlist, &PlaylistModel::countChanged);
+        filter.setSearchText(QStringLiteral("ALPHA"));
+        QCOMPARE(filter.rowCount(), 2);
+        QCOMPARE(filter.sourceIndex(0), 0);
+        QCOMPARE(filter.sourceIndex(1), 2);
+        QCOMPARE(filter.filteredIndex(1), -1);
+        QCOMPARE(filter.filteredIndex(2), 1);
+        QCOMPARE(filter.sourceIndex(-1), -1);
+        QCOMPARE(filter.sourceIndex(2), -1);
+        QCOMPARE(filter.filteredIndex(-1), -1);
+        QCOMPARE(filter.filteredIndex(3), -1);
+        filter.setSearchText(QStringLiteral("[1]"));
+        QCOMPARE(filter.rowCount(), 1);
+        QCOMPARE(filter.sourceIndex(0), 2);
+        filter.setSearchText(QStringLiteral("missing"));
+        QCOMPARE(filter.rowCount(), 0);
+        QCOMPARE(playlist.currentIndex(), 1);
+        QCOMPARE(playlist.currentSource(), beta);
+        QCOMPARE(playlist.count(), 3);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 0);
+        filter.setSearchText({});
+        QCOMPARE(filter.rowCount(), 3);
+        QVERIFY(playlist.moveTrack(2, 0));
+        QCOMPARE(filter.sourceIndex(0), 0);
+        QCOMPARE(filter.data(filter.index(0, 0), PlaylistModel::SourceRole).toUrl(), literal);
+        filter.setSearchText(QStringLiteral("alpha"));
+        QVERIFY(playlist.removeAt(1));
+        QCOMPARE(filter.rowCount(), 1);
+        QCOMPARE(filter.sourceIndex(0), 0);
+        playlist.clear();
+        QCOMPARE(filter.rowCount(), 0);
+        filter.setPlaylist(nullptr);
+        QCOMPARE(filter.playlist(), nullptr);
+        QCOMPARE(filter.sourceIndex(0), -1);
+    }
+
     void dropFilesIntoPlaylist()
     {
         QTemporaryDir directory;
@@ -168,6 +389,99 @@ private slots:
         QCOMPARE(playlist.appendUrls({QUrl{}, QUrl("not-a-file")}), 0);
     }
 
+    void playlistSearchAndEditingPreservePlayback()
+    {
+        QTemporaryDir directory;
+        const QUrl alpha = makeAudio(directory.filePath("alpha.wav"));
+        const QUrl beta = makeAudio(directory.filePath("beta.wav"));
+        const QUrl gamma = makeAudio(directory.filePath("gamma.wav"));
+        QVERIFY(!alpha.isEmpty() && !beta.isEmpty() && !gamma.isEmpty());
+        QQmlApplicationEngine engine;
+        QList<QQmlError> warnings;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&warnings](const QList<QQmlError> &errors) { warnings.append(errors); });
+        engine.setInitialProperties({{"mediaSource", alpha}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *video = window->findChild<MpvVideo *>();
+        auto *panel = item("playlistPanel");
+        auto *list = item("trackList");
+        auto *search = item("playlistSearch");
+        QVERIFY(playlist && video && panel && list && search);
+        QCOMPARE(playlist->appendUrls({beta, gamma}), 2);
+        click(window, item("playButton"));
+        QTRY_VERIFY_WITH_TIMEOUT(video->playing() && video->seekable(), 10000);
+        QSignalSpy sourceChanges(video, &MpvVideo::sourceChanged);
+        QTRY_VERIFY(item("track2"));
+        click(window, item("track2"));
+        QCOMPARE(list->property("currentIndex").toInt(), 2);
+        QCOMPARE(playlist->currentIndex(), 0);
+        const QList<QPair<const char *, int>> moves = {
+            {"moveTopButton", 0}, {"moveBottomButton", 2},
+            {"moveUpButton", 1}, {"moveDownButton", 2}
+        };
+        for (const auto &[name, selectedRow] : moves) {
+            auto *button = item(name);
+            QVERIFY(button && button->isEnabled());
+            click(window, button);
+            QTRY_COMPARE(list->property("currentIndex").toInt(), selectedRow);
+            QCOMPARE(playlist->data(playlist->index(selectedRow),
+                                   PlaylistModel::SourceRole).toUrl(), gamma);
+            QCOMPARE(video->source(), alpha);
+            QVERIFY(video->playing());
+        }
+        QCOMPARE(sourceChanges.count(), 0);
+        QVERIFY(QMetaObject::invokeMethod(panel, "sortTracks", Q_ARG(bool, false)));
+        QTRY_COMPARE(list->property("currentIndex").toInt(), 0);
+        QCOMPARE(playlist->currentIndex(), 2);
+        QCOMPARE(video->source(), alpha);
+        QVERIFY(video->playing());
+        QCOMPARE(sourceChanges.count(), 0);
+
+        // Filtering and selecting a result never changes the active media.
+        QVERIFY(search->setProperty("text", QStringLiteral("BETA")));
+        QTRY_COMPARE(list->property("count").toInt(), 1);
+        QTRY_VERIFY(item("track0"));
+        click(window, item("track0"));
+        QCOMPARE(playlist->currentSource(), alpha);
+        click(window, item("removePlaylistButton"));
+        QTRY_COMPARE(playlist->count(), 2);
+        QTRY_COMPARE(list->property("count").toInt(), 0);
+        QCOMPARE(playlist->currentIndex(), 1);
+        QCOMPARE(video->source(), alpha);
+        QVERIFY(video->playing());
+        QCOMPARE(sourceChanges.count(), 0);
+
+        // Enter on a filtered result resolves back to the correct queue row.
+        QVERIFY(search->setProperty("text", QStringLiteral("gamma")));
+        QTRY_COMPARE(list->property("count").toInt(), 1);
+        QTRY_VERIFY(item("track0"));
+        click(window, item("track0"));
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(playlist->currentIndex(), 0);
+        QTRY_COMPARE(video->source(), gamma);
+        QTRY_VERIFY_WITH_TIMEOUT(video->playing() && video->seekable(), 10000);
+        QCOMPARE(sourceChanges.count(), 1);
+        click(window, item("removePlaylistButton"));
+        QTRY_COMPARE(playlist->count(), 1);
+        QTRY_COMPARE(video->source(), alpha);
+        QCOMPARE(playlist->currentIndex(), 0);
+        QCOMPARE(sourceChanges.count(), 2);
+        QVERIFY(video->stopped());
+        QVERIFY(search->setProperty("text", QString{}));
+        QTRY_COMPARE(list->property("count").toInt(), 1);
+        QCOMPARE(playlist->currentSource(), alpha);
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
+                 ? QString{} : warnings.first().toString()));
+        video->stop();
+    }
+
     void playlistTogglePreservesQueueAndLayout()
     {
         QTemporaryDir directory;
@@ -212,6 +526,174 @@ private slots:
         QCOMPARE(playlist->count(), 2);
         QCOMPARE(playlist->currentIndex(), 1);
         QCOMPARE(video->source(), second);
+    }
+
+    void keyboardShortcutsRespectPlaylistSearch()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeAudio(directory.filePath("first.wav"));
+        const QUrl second = makeAudio(directory.filePath("second.wav"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        auto *video = window->findChild<MpvVideo *>();
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *search = item("playlistSearch");
+        QVERIFY(video && playlist && search);
+        QCOMPARE(playlist->appendUrls({second}), 1);
+        click(window, item("playButton"));
+        QTRY_VERIFY_WITH_TIMEOUT(video->playing() && video->seekable(), 10000);
+        click(window, item("pauseButton"));
+        QTRY_VERIFY(!video->playing() && !video->stopped());
+        video->seek(6);
+        QTRY_VERIFY(qAbs(video->position() - 6) < 0.1);
+        const double position = video->position();
+        const double volume = video->volume();
+        const bool muted = video->muted();
+        click(window, item("playlistButton"));
+        QTRY_VERIFY(!window->property("playlistVisible").toBool());
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        QTRY_VERIFY(window->property("playlistVisible").toBool());
+        QTRY_VERIFY(search->hasActiveFocus());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QTest::keyClick(window, Qt::Key_M);
+        QTest::keyClick(window, Qt::Key_Space);
+        QTest::keyClick(window, Qt::Key_M);
+        QTest::keyClick(window, Qt::Key_Left);
+        QTest::keyClick(window, Qt::Key_Right);
+        QTest::keyClick(window, Qt::Key_Up);
+        QTest::keyClick(window, Qt::Key_Down);
+        QCOMPARE(search->property("text").toString(), QStringLiteral("m m"));
+        QCOMPARE(video->muted(), muted);
+        QCOMPARE(video->volume(), volume);
+        QVERIFY(qAbs(video->position() - position) < 0.2);
+        QVERIFY(!video->playing() && !video->stopped());
+
+        click(window, item("videoStage"));
+        QTRY_VERIFY(window->property("playbackShortcutsEnabled").toBool());
+        QTest::keyClick(window, Qt::Key_M);
+        QTRY_COMPARE(video->muted(), !muted);
+        QTest::keyClick(window, Qt::Key_Space);
+        QTRY_VERIFY(video->playing());
+        QTest::keyClick(window, Qt::Key_Space);
+        QTRY_VERIFY(!video->playing() && !video->stopped());
+        QTest::keyClick(window, Qt::Key_L, Qt::ControlModifier);
+        QTRY_VERIFY(!window->property("playlistVisible").toBool());
+        QTest::keyClick(window, Qt::Key_L, Qt::ControlModifier);
+        QTRY_VERIFY(window->property("playlistVisible").toBool());
+        QTest::keyClick(window, Qt::Key_F11);
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        QTRY_VERIFY(search->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_X);
+        QCOMPARE(search->property("text").toString(), QStringLiteral("x"));
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_COMPARE(search->property("text").toString(), QString{});
+        QCOMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_VERIFY(item("trackList")->hasActiveFocus());
+
+        auto *sortMenu = window->findChild<QObject *>("playlistSortMenu");
+        QVERIFY(sortMenu);
+        click(window, item("sortPlaylistButton"));
+        QTRY_VERIFY(sortMenu->property("opened").toBool());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!sortMenu->property("visible").toBool());
+        QCOMPARE(window->visibility(), QWindow::FullScreen);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        video->stop();
+    }
+
+    void menusAndRepeatModesControlPlayback()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeAudio(directory.filePath("first.wav"));
+        const QUrl second = makeAudio(directory.filePath("second.wav"));
+        QQmlApplicationEngine engine;
+        QList<QQmlError> warnings;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&warnings](const QList<QQmlError> &errors) { warnings.append(errors); });
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(playlist && video);
+        QCOMPARE(playlist->appendUrls({second}), 1);
+        QCOMPARE(window->property("repeatMode").toInt(), 0);
+        QVERIFY(!window->property("alwaysOnTop").toBool());
+        click(window, item("pinButton"));
+        QTRY_VERIFY(window->property("alwaysOnTop").toBool());
+        QVERIFY(window->flags().testFlag(Qt::WindowStaysOnTopHint));
+        click(window, item("pinButton"));
+        QTRY_VERIFY(!window->property("alwaysOnTop").toBool());
+        QVERIFY(!window->flags().testFlag(Qt::WindowStaysOnTopHint));
+
+        auto *settings = window->findChild<QObject *>("playbackSettingsMenu");
+        auto *appMenu = window->findChild<QObject *>("appMenu");
+        QVERIFY(settings && appMenu);
+        click(window, item("settingsButton"));
+        QTRY_VERIFY(settings->property("opened").toBool());
+        QTRY_VERIFY(item("repeatTrackMenuItem"));
+        click(window, item("repeatTrackMenuItem"));
+        QTRY_COMPARE(window->property("repeatMode").toInt(), 1);
+        QTRY_VERIFY(!settings->property("visible").toBool());
+        click(window, item("playButton"));
+        QTRY_VERIFY_WITH_TIMEOUT(video->playing() && video->seekable(), 10000);
+        QSignalSpy ends(video, &MpvVideo::endOfFile);
+        video->seek(29.5);
+        QTRY_VERIFY(video->position() > 29);
+        QTRY_COMPARE_WITH_TIMEOUT(ends.count(), 1, 5000);
+        QTRY_VERIFY(video->playing() && video->seekable() && video->position() < 2);
+        QCOMPARE(playlist->currentIndex(), 0);
+        QCOMPARE(video->source(), first);
+
+        click(window, item("settingsButton"));
+        QTRY_VERIFY(settings->property("opened").toBool());
+        click(window, item("repeatPlaylistMenuItem"));
+        QTRY_COMPARE(window->property("repeatMode").toInt(), 2);
+        click(window, item("nextButton"), Qt::RightButton);
+        QTRY_COMPARE(playlist->currentIndex(), 1);
+        QTRY_VERIFY(video->playing() && video->seekable());
+        video->seek(29.5);
+        QTRY_VERIFY(video->position() > 29);
+        QTRY_COMPARE_WITH_TIMEOUT(playlist->currentIndex(), 0, 5000);
+        QTRY_VERIFY(video->playing() && video->seekable());
+        QCOMPARE(video->source(), first);
+
+        click(window, item("settingsButton"));
+        QTRY_VERIFY(settings->property("opened").toBool());
+        click(window, item("repeatOffMenuItem"));
+        QTRY_COMPARE(window->property("repeatMode").toInt(), 0);
+        click(window, item("nextButton"), Qt::RightButton);
+        QTRY_COMPARE(playlist->currentIndex(), 1);
+        QTRY_VERIFY(video->playing() && video->seekable());
+        video->seek(29.5);
+        QTRY_VERIFY_WITH_TIMEOUT(video->stopped(), 5000);
+        QCOMPARE(playlist->currentIndex(), 1);
+
+        click(window, item("appMenuButton"));
+        QTRY_VERIFY(appMenu->property("opened").toBool());
+        QTRY_VERIFY(item("clearPlaylistMenuItem"));
+        click(window, item("clearPlaylistMenuItem"));
+        QTRY_COMPARE(playlist->count(), 0);
+        QCOMPARE(playlist->currentIndex(), -1);
+        QCOMPARE(video->source(), QUrl{});
+        QVERIFY(video->stopped());
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
+                 ? QString{} : warnings.first().toString()));
     }
 
     void resizeFrameTracksWindowState()
@@ -417,14 +899,24 @@ private slots:
         const QPoint stageCenter = stage->mapToScene(
                 {stage->width() / 2, stage->height() / 2}).toPoint();
         QTest::mouseDClick(window, Qt::LeftButton, Qt::NoModifier, stageCenter);
+        QTRY_COMPARE(stagePlayPauseRequests.count(), 1);
         QTRY_VERIFY(!video->playing() && !video->stopped());
-        QCOMPARE(stagePlayPauseRequests.count(), 1);
         QTest::mouseDClick(window, Qt::LeftButton, Qt::NoModifier, stageCenter);
+        QTRY_COMPARE(stagePlayPauseRequests.count(), 2);
         QTRY_VERIFY(video->playing());
-        QCOMPARE(stagePlayPauseRequests.count(), 2);
 
-        QVERIFY(item("pauseButton"));
-        click(window, item("pauseButton"));
+        // The transport repeater replaces its delegates when playback resumes.
+        // Wait for that layout to reach the scene before targeting the new button.
+        QSignalSpy renderedFrames(window, &QQuickWindow::frameSwapped);
+        window->update();
+        QTRY_VERIFY_WITH_TIMEOUT(!renderedFrames.isEmpty(), 5000);
+        auto *pauseButton = item("pauseButton");
+        QVERIFY(pauseButton && pauseButton->isEnabled() && pauseButton->isVisible());
+        QVERIFY(pauseButton->width() > 0 && pauseButton->height() > 0);
+        QSignalSpy pauseRequests(item("playbackBar"), SIGNAL(playPauseRequested()));
+        QVERIFY(pauseRequests.isValid());
+        click(window, pauseButton);
+        QCOMPARE(pauseRequests.count(), 1);
         QTRY_VERIFY(!video->playing() && !video->stopped());
         auto *mute = item("muteButton");
         QVERIFY(mute);

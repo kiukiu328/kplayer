@@ -21,6 +21,9 @@ Rectangle {
     signal previousRequested()
     signal nextRequested()
     signal playlistRequested()
+    signal searchRequested()
+    signal settingsRequested()
+    signal menuRequested()
 
     function formatTime(seconds: real): string {
         const total = Math.floor(Math.max(0, seconds))
@@ -248,12 +251,14 @@ Rectangle {
         anchors.bottom: parent.bottom
         height: transport.height
         IconButton {
+            objectName: "searchMediaButton"
             height: tools.height
             width: Math.min(Theme.toolButtonWidth, root.width * 0.0645)
             iconName: "searchList"
             label: qsTr("Search media")
             iconColor: Theme.accent
             iconSize: 26
+            onClicked: root.searchRequested()
         }
         IconButton {
             objectName: "playlistButton"
@@ -269,17 +274,21 @@ Rectangle {
         IconButton {
             height: tools.height
             width: Math.min(56, root.width * 0.0753)
+            objectName: "settingsButton"
             iconName: "settings"
             label: qsTr("Settings")
             iconColor: Theme.iconMuted
             rightDivider: true
+            onClicked: root.settingsRequested()
         }
         IconButton {
+            objectName: "playbackMenuButton"
             height: tools.height
             width: Math.min(Theme.transportButtonWidth, root.width / 12)
             iconName: "menu"
             label: qsTr("Menu")
             iconSize: 24
+            onClicked: root.menuRequested()
         }
     }
 }

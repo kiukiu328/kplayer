@@ -77,10 +77,12 @@ Rectangle {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
         onClicked: (mouse) => {
+            root.forceActiveFocus()
             if (mouse.button === Qt.MiddleButton)
                 middleClick.restart()
         }
         onDoubleClicked: (mouse) => {
+            root.forceActiveFocus()
             mouse.accepted = true
             middleClick.stop()
             root.playPauseRequested()

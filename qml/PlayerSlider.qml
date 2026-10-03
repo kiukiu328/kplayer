@@ -10,7 +10,8 @@ Slider {
     readonly property real previewX: pressed
         ? leftPadding + handle.width / 2 + visualPosition * (availableWidth - handle.width)
         : Math.max(leftPadding, Math.min(width - rightPadding, timelineHover.point.position.x))
-    readonly property real previewTime: valueAt(pressed ? position
+    // valueAt() rounds to stepSize; previews need the exact pointer time.
+    readonly property real previewTime: from + (to - from) * (pressed ? position
         : (mirrored ? 1 - hoverPosition : hoverPosition))
     readonly property real hoverPosition: Math.max(0, Math.min(1,
         (previewX - leftPadding - handle.width / 2) / Math.max(1, availableWidth - handle.width)))

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QSortFilterProxyModel>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
@@ -25,6 +26,10 @@ public:
     void setCurrentIndex(int index);
     QUrl currentSource() const;
     Q_INVOKABLE int appendUrls(const QList<QUrl> &urls);
+    Q_INVOKABLE bool removeAt(int index);
+    Q_INVOKABLE bool moveTrack(int from, int to);
+    Q_INVOKABLE int sortByTitle(bool ascending = true, int selectedIndex = -1);
+    Q_INVOKABLE void clear();
 
 signals:
     void countChanged();
@@ -35,4 +40,29 @@ private:
     struct Track { QUrl source; QString title; };
     QList<Track> m_tracks;
     int m_currentIndex = -1;
+};
+
+// Filtering changes the view only; playback always uses the original queue.
+class PlaylistFilterModel : public QSortFilterProxyModel
+{
+    Q_OBJECT
+    QML_ELEMENT
+    Q_PROPERTY(PlaylistModel *playlist READ playlist WRITE setPlaylist NOTIFY playlistChanged)
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+
+public:
+    explicit PlaylistFilterModel(QObject *parent = nullptr);
+    PlaylistModel *playlist() const;
+    void setPlaylist(PlaylistModel *playlist);
+    QString searchText() const { return m_searchText; }
+    void setSearchText(const QString &text);
+    Q_INVOKABLE int sourceIndex(int filteredRow) const;
+    Q_INVOKABLE int filteredIndex(int sourceRow) const;
+
+signals:
+    void playlistChanged();
+    void searchTextChanged();
+
+private:
+    QString m_searchText;
 };

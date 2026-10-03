@@ -1,10 +1,14 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
     property bool maximized: false
     property bool fullscreen: false
+    property bool alwaysOnTop: false
+    signal menuRequested()
+    signal pinRequested()
     signal minimizeRequested()
     signal maximizeRequested()
     signal fullscreenRequested()
@@ -13,9 +17,23 @@ Rectangle {
     color: Theme.chromeBackground
 
     Rectangle {
+        id: appButton
+        objectName: "appMenuButton"
         width: Theme.titleMenuWidth
         height: parent.height
-        color: Theme.transparent
+        color: appHover.hovered || activeFocus ? Theme.chromeHover : Theme.transparent
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Application menu")
+        Accessible.onPressAction: root.menuRequested()
+        Keys.onSpacePressed: root.menuRequested()
+        Keys.onReturnPressed: root.menuRequested()
+        ToolTip.text: qsTr("Application menu")
+        ToolTip.visible: appHover.hovered || activeFocus
+        ToolTip.delay: 600
+        ToolTip.timeout: 5000
+        HoverHandler { id: appHover }
+        TapHandler { onTapped: root.menuRequested() }
         Text {
             anchors.left: parent.left
             anchors.leftMargin: 16
@@ -49,7 +67,7 @@ Rectangle {
         height: parent.height
         Repeater {
             model: [
-                { icon: "pin", label: qsTr("Always on top") },
+                { icon: "pin", label: root.alwaysOnTop ? qsTr("Disable always on top") : qsTr("Always on top") },
                 { icon: "minimize", label: qsTr("Minimize") },
                 { icon: root.maximized ? "restore" : "maximize",
                   label: root.maximized ? qsTr("Restore") : qsTr("Maximize") },
@@ -63,11 +81,14 @@ Rectangle {
                 width: Theme.windowButtonWidth
                 height: windowControls.height
                 iconName: modelData.icon
+                objectName: index === 0 ? "pinButton" : modelData.icon + "WindowButton"
                 label: modelData.label
-                iconColor: Theme.iconMuted
+                iconColor: index === 0 && root.alwaysOnTop ? Theme.accent : Theme.iconMuted
+                backgroundColor: index === 0 && root.alwaysOnTop ? Theme.chromeHover : Theme.transparent
                 iconSize: 20
                 onClicked: {
                     switch (index) {
+                    case 0: root.pinRequested(); break;
                     case 1: root.minimizeRequested(); break;
                     case 2: root.maximizeRequested(); break;
                     case 3: root.fullscreenRequested(); break;

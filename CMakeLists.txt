@@ -92,5 +92,5 @@ if(KPLAYER_BUILD_TESTS)
     target_link_libraries(KPlayerTests PRIVATE
         Qt6::Quick Qt6::OpenGL Qt6::Svg Qt6::Test PkgConfig::MPV)
     add_test(NAME player COMMAND KPlayerTests)
-    set_tests_properties(player PROPERTIES TIMEOUT 60)
+    set_tests_properties(player PROPERTIES TIMEOUT 120)
 endif()
