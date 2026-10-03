@@ -14,6 +14,10 @@ Window {
     flags: Qt.Window | Qt.FramelessWindowHint
         | (alwaysOnTop ? Qt.WindowStaysOnTopHint : 0)
     property url mediaSource
+    property list<url> startupFiles: []
+    // Desktop startup enables discovery; previews and component tests stay isolated.
+    property bool discoverVideosOnStartup: false
+    property list<url> videoSearchRoots: []
     readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
     property int visibilityBeforeFullscreen: Window.Windowed
     property bool playlistVisible: true
@@ -26,7 +30,8 @@ Window {
     property int repeatMode: 0 // 0: off, 1: current track, 2: entire playlist
     readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
         && !playlist.menuOpen
-        && !mediaDialog.visible && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
+        && !mediaDialog.visible && !videoFolderDialog.visible
+        && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
         && !hasInteractiveFocus()
 
     function hasInteractiveFocus(): bool {
@@ -54,6 +59,8 @@ Window {
     }
 
     function clearPlaylist() {
+        if (mediaPlaylist === playlists.defaultPlaylist)
+            videoLibrary.cancel()
         videoStage.stop()
         mediaPlaylist.clear()
     }
@@ -169,6 +176,8 @@ Window {
     }
 
     PlaylistCollection { id: playlists; objectName: "playlistCollection" }
+    VideoLibrary { id: videoLibrary; objectName: "videoLibrary" }
+    FileAssociations { id: fileAssociations; objectName: "fileAssociations" }
     Connections {
         target: playlists
         function onCurrentPlaylistChanged() { videoStage.stop() }
@@ -176,6 +185,48 @@ Window {
     Component.onCompleted: {
         if (mediaSource.toString().length > 0)
             mediaPlaylist.appendUrls([mediaSource])
+        if (startupFiles.length > 0 && mediaPlaylist.appendUniqueUrls(startupFiles) > 0)
+            Qt.callLater(() => window.playTrack(0))
+        if (discoverVideosOnStartup)
+            Qt.callLater(() => videoLibrary.scan(playlists.defaultPlaylist, videoSearchRoots))
+    }
+
+    FolderDialog {
+        id: videoFolderDialog
+        objectName: "videoFolderDialog"
+        title: qsTr("Find all videos in a folder")
+        onAccepted: videoLibrary.scan(playlists.defaultPlaylist, [selectedFolder])
+    }
+
+    Action {
+        id: findVideosAction
+        text: qsTr("搜尋所有影片")
+        enabled: !videoLibrary.scanning
+        onTriggered: videoLibrary.scan(playlists.defaultPlaylist, window.videoSearchRoots)
+    }
+    Action {
+        id: findFolderVideosAction
+        text: qsTr("搜尋資料夾內的影片…")
+        enabled: !videoLibrary.scanning
+        onTriggered: videoFolderDialog.open()
+    }
+    Action {
+        id: stopVideoSearchAction
+        text: qsTr("停止搜尋影片")
+        enabled: videoLibrary.scanning
+        onTriggered: videoLibrary.cancel()
+    }
+    Action {
+        id: associateVideosAction
+        text: qsTr("設為預設影片播放器…")
+        enabled: fileAssociations.supported
+        onTriggered: {
+            if (!fileAssociations.openDefaultApps()) {
+                infoDialog.title = qsTr("影片檔案關聯")
+                infoText.text = fileAssociations.errorString
+                infoDialog.open()
+            }
+        }
     }
 
     FileDialog {
@@ -289,6 +340,10 @@ Window {
         aboutAction: aboutAction
         exitAction: exitAction
         searchAction: searchPlaylistAction
+        findVideosAction: findVideosAction
+        findFolderVideosAction: findFolderVideosAction
+        stopVideoSearchAction: stopVideoSearchAction
+        associateVideosAction: associateVideosAction
         hasMedia: window.mediaPlaylist.count > 0
         playing: videoStage.playing
         seekable: videoStage.seekable
@@ -375,6 +430,11 @@ Window {
             checked: window.repeatMode === 2
             onTriggered: window.repeatMode = 2
         }
+        PlayerMenuSeparator {}
+        PlayerMenuItem { action: associateVideosAction }
+        PlayerMenuItem { action: findVideosAction }
+        PlayerMenuItem { action: findFolderVideosAction }
+        PlayerMenuItem { action: stopVideoSearchAction }
     }
 
     Shortcut { sequence: "Ctrl+O"; onActivated: openMediaAction.trigger() }
@@ -394,7 +454,8 @@ Window {
         sequence: "Escape"
         enabled: window.visibility === Window.FullScreen
             && !playlist.editingSearch && !playlist.menuOpen
-            && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible && !infoDialog.visible
+            && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible
+            && !videoFolderDialog.visible && !infoDialog.visible
         onActivated: window.toggleFullscreen()
     }
     Shortcut {
@@ -533,6 +594,9 @@ Window {
                     ? Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio) : 0
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
+                discoveryStatus: videoLibrary.status
+                discoveringVideos: videoLibrary.scanning
+                onStopDiscoveryRequested: videoLibrary.cancel()
                 onTrackRequested: (index) => window.playTrack(index)
                 onAddRequested: window.openMedia(false)
                 onClearRequested: window.clearPlaylist()

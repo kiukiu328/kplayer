@@ -75,10 +75,18 @@ qt_add_qml_module(KPlayer
         src/playback/MpvPreview.cpp
         src/playback/PlaylistModel.h
         src/playback/PlaylistModel.cpp
+        src/integration/VideoFormats.h
+        src/integration/VideoLibrary.h
+        src/integration/VideoLibrary.cpp
+        src/integration/FileAssociations.h
+        src/integration/FileAssociations.cpp
 )
 
-target_include_directories(KPlayer PRIVATE src/playback)
+target_include_directories(KPlayer PRIVATE src/playback src/integration)
 target_link_libraries(KPlayer PRIVATE Qt6::Quick Qt6::OpenGL Qt6::Svg MPV::MPV)
+if(WIN32)
+    target_link_libraries(KPlayer PRIVATE advapi32 shell32)
+endif()
 
 target_compile_definitions(KPlayer PRIVATE
     $<$<CONFIG:Debug>:QT_QML_DEBUG>
@@ -88,6 +96,34 @@ set_target_properties(KPlayer PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
+
+if(WIN32)
+    option(KPLAYER_DEPLOY_WINDOWS_RUNTIME "Copy runtime libraries for Explorer launching" ON)
+    if(KPLAYER_DEPLOY_WINDOWS_RUNTIME)
+        get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
+        get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
+        get_filename_component(_mpv_lib_dir "${MPV_LIBRARY}" DIRECTORY)
+        find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${_qt_bin}" REQUIRED)
+        if(MINGW)
+            get_filename_component(_compiler_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+            find_program(KPLAYER_OBJDUMP NAMES objdump HINTS "${_compiler_bin}" REQUIRED)
+        endif()
+        add_custom_command(TARGET KPlayer POST_BUILD
+            COMMAND "${CMAKE_COMMAND}"
+                "-DPLAYER=$<TARGET_FILE:KPlayer>"
+                "-DQT_BIN=${_qt_bin}"
+                "-DMPV_BIN=${_mpv_lib_dir}/../bin"
+                "-DWINDEPLOYQT=${WINDEPLOYQT_EXECUTABLE}"
+                "-DOBJDUMP=${KPLAYER_OBJDUMP}"
+                "-DQML_DIR=${CMAKE_CURRENT_SOURCE_DIR}/qml"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeployWindows.cmake"
+            COMMENT "Deploying Qt and libmpv runtime libraries for Explorer"
+            VERBATIM
+        )
+        set_property(TARGET KPlayer APPEND PROPERTY LINK_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeployWindows.cmake")
+    endif()
+endif()
 
 option(KPLAYER_BUILD_TESTS "Build playlist and playback interaction tests" OFF)
 if(KPLAYER_BUILD_TESTS)
@@ -103,10 +139,16 @@ if(KPLAYER_BUILD_TESTS)
             src/playback/MpvVideo.h src/playback/MpvVideo.cpp
             src/playback/MpvPreview.h src/playback/MpvPreview.cpp
             src/playback/PlaylistModel.h src/playback/PlaylistModel.cpp
+            src/integration/VideoFormats.h
+            src/integration/VideoLibrary.h src/integration/VideoLibrary.cpp
+            src/integration/FileAssociations.h src/integration/FileAssociations.cpp
     )
-    target_include_directories(KPlayerTests PRIVATE src/playback)
+    target_include_directories(KPlayerTests PRIVATE src/playback src/integration)
     target_link_libraries(KPlayerTests PRIVATE
         Qt6::Quick Qt6::OpenGL Qt6::Svg Qt6::Test MPV::MPV)
+    if(WIN32)
+        target_link_libraries(KPlayerTests PRIVATE advapi32 shell32)
+    endif()
     add_test(NAME player COMMAND KPlayerTests
         -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")
     set_tests_properties(player PROPERTIES TIMEOUT 120)

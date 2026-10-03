@@ -21,10 +21,34 @@ playback actions. Buttons have hover styling, accessible labels, and mouse and
 keyboard activation. Buttons and controls show hover tooltips.
 
 The libmpv backend in `src/playback/` renders media in the play area. The player
-starts idle. If `assets/dummy.mp4` exists in the working directory, Play starts
-that sample; otherwise Play opens a file picker. Open Media can select another
-file, and a file path or URL can also be supplied as the first command-line
-argument.
+starts idle when launched without a media argument. If `assets/dummy.mp4` exists
+in the working directory, it is selected as an idle sample. Open Media can
+select files, and file paths or URLs supplied as command-line arguments are
+queued and the first valid entry starts playing immediately.
+
+- On Windows, startup registers common video formats (including MP4, MKV, AVI,
+  MOV, WebM, WMV, MPEG, and TS) for **Open with** and **Default apps**, for the
+  current user without administrator rights. The first launch opens KPlayer's
+  Default apps page. Select KPlayer for the video types you want to open with a
+  double click. Windows requires this choice in its own UI; KPlayer does not
+  overwrite existing default choices. **設為預設影片播放器…** in Settings or
+  the application menu opens that page again. Moving the executable requires
+  launching it from its new location once to refresh registration.
+- At startup, a background search recursively adds videos from all local fixed
+  and removable drives to the default playlist on Windows. Other platforms
+  search their standard Videos folders. Files are recognized by extension;
+  TS/MTS files also need a transport-stream header so TypeScript files are ignored.
+  inaccessible folders, symbolic links, junctions, the Recycle Bin, and system
+  volume metadata are skipped. The playlist shows progress and a Stop button.
+  Adding discoveries preserves the playing track and avoids duplicate paths,
+  including files already opened from Explorer. Named playlists stay separate.
+  Clear Playlist stops an active search of the default playlist.
+- **搜尋所有影片** rescans, **搜尋資料夾內的影片…** searches a chosen folder,
+  and **停止搜尋影片** cancels. Search results remain in the queue for the
+  current session. Use `--no-scan` to skip discovery on a launch, or
+  `--scan-folder "C:\Videos"` to restrict it to a folder; repeat `--scan-folder`
+  for multiple roots. `--register-file-types` registers the formats, opens
+  Default apps, and exits.
 
 - Top-right Close, Minimize, Maximize/Restore, and Full Screen/Exit Full Screen
   buttons control the window. Exiting fullscreen restores its prior normal or
@@ -153,8 +177,11 @@ ctest --test-dir build-windows --output-on-failure
 
 Adjust the MSYS2 paths if it is installed elsewhere. Use a separate build
 directory from Linux or WSL: CMake caches are specific to their platform and
-compiler. The executable uses Qt and libmpv runtime libraries from the local
-MSYS2 installation, so keep its UCRT64 `bin` directory on `PATH` when launching.
+compiler. The Windows build copies Qt plugins, QML imports, libmpv, and their
+runtime DLLs beside `KPlayer.exe`, so Explorer and file associations can launch
+it directly without changing `PATH`. Keep the whole build folder together. Set
+`-DKPLAYER_DEPLOY_WINDOWS_RUNTIME=OFF` only for development builds where the
+UCRT64 `bin` directory is already on `PATH`.
 The tests need a Windows desktop with OpenGL support.
 
 To also smoke-test an existing video (including paths with non-ASCII characters),
@@ -265,7 +292,9 @@ To check QML with Qt's linter, run `cmake --build build --target all_qmllint`.
 ## Tests
 
 The optional tests require Qt Test and generate their own temporary WAV and Y4M files.
-They exercise multi-file drops, playlist validation, filtering, queue editing,
+They exercise recursive video discovery, cancellation, duplicate suppression,
+Explorer-style startup playback, isolated Windows association registration,
+multi-file drops, playlist validation, filtering, queue editing,
 active-track preservation, title/video context-menu opening and dismissal,
 submenus, menu bounds at minimum window size, keyboard shortcuts, repeat modes, playlist visibility, resize
 handle states, double-click playback, timeline hover, mute, volume, seeking,

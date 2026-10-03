@@ -1,6 +1,9 @@
 #include "MpvVideo.h"
 #include "MpvPreview.h"
 #include "PlaylistModel.h"
+#include "VideoLibrary.h"
+#include "FileAssociations.h"
+#include "VideoFormats.h"
 
 #include <QAbstractItemModelTester>
 #include <QDataStream>
@@ -20,6 +23,9 @@
 #include <QStyleHints>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QDir>
+#include <QSettings>
+#include <QUuid>
 
 #include <clocale>
 
@@ -133,6 +139,204 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void discoveryDeduplicatesWithoutChangingManualQueues()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("first.y4m"));
+        const QUrl second = makeVideo(directory.filePath("second.y4m"));
+        PlaylistModel playlist;
+        QAbstractItemModelTester tester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        QCOMPARE(playlist.appendUrls({first, first}), 2);
+        playlist.setCurrentIndex(1);
+        QSignalSpy changes(&playlist, &PlaylistModel::currentSourceChanged);
+        QCOMPARE(playlist.appendUniqueUrls({first, second, second, QUrl{}}), 1);
+        QCOMPARE(playlist.currentIndex(), 1);
+        QCOMPARE(playlist.currentSource(), first);
+        QCOMPARE(changes.size(), 0);
+        QCOMPARE(playlist.indexOfSource(second), 2);
+        const QUrl alias = QUrl::fromLocalFile(directory.path() + "/./first.y4m");
+        QCOMPARE(playlist.appendUniqueUrls({alias}), 0);
+        QCOMPARE(playlist.indexOfSource(alias), 0);
+        QVERIFY(playlist.removeAt(0));
+        QCOMPARE(playlist.appendUniqueUrls({first}), 0);
+        QVERIFY(playlist.removeAt(0));
+        QCOMPARE(playlist.appendUniqueUrls({first}), 1);
+        playlist.clear();
+        QCOMPARE(playlist.appendUniqueUrls({first, second}), 2);
+    }
+
+    void videoDiscoverySearchesRecursivelyAndCanRescan()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QDir root(directory.path());
+        QVERIFY(root.mkpath("nested/deep"));
+        QVERIFY(root.mkpath(".hidden"));
+        QVERIFY(root.mkpath("directory.mp4"));
+        const QUrl first = makeVideo(root.filePath("first.y4m"));
+        const QUrl second = makeVideo(root.filePath("nested/deep/第二部.MP4"));
+        const QUrl third = makeVideo(root.filePath(".hidden/third.mkv"));
+        makeAudio(root.filePath("audio.wav"));
+        makeAudio(root.filePath("nested/readme.txt"));
+        PlaylistModel playlist;
+        playlist.appendUrls({second});
+        VideoLibrary library;
+        QSignalSpy changes(&playlist, &PlaylistModel::currentSourceChanged);
+        QSignalSpy finished(&library, &VideoLibrary::finished);
+        const QList<QUrl> roots = {QUrl::fromLocalFile(root.path()),
+            QUrl::fromLocalFile(root.filePath("nested")),
+            QUrl::fromLocalFile(root.filePath("missing")), QUrl("https://example.com/")};
+        QVERIFY(library.scan(&playlist, roots));
+        QVERIFY(library.scanning());
+        QVERIFY(!library.scan(&playlist, roots));
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
+        QVERIFY(!library.scanning());
+        QCOMPARE(library.addedCount(), 2);
+        QCOMPARE(playlist.count(), 3);
+        QVERIFY(playlist.indexOfSource(first) >= 0);
+        QVERIFY(playlist.indexOfSource(third) >= 0);
+        QCOMPARE(playlist.currentSource(), second);
+        QCOMPARE(changes.size(), 0);
+        QVERIFY(library.scan(&playlist, roots));
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 2, 5000);
+        QCOMPARE(library.addedCount(), 0);
+        QCOMPARE(playlist.count(), 3);
+    }
+
+    void videoDiscoveryCancellationAndDeletedTargetAreSafe()
+    {
+        QTemporaryDir directory;
+        makeVideo(directory.filePath("movie.y4m"));
+        const QList<QUrl> roots = {QUrl::fromLocalFile(directory.path())};
+        PlaylistModel playlist;
+        VideoLibrary library;
+        QSignalSpy finished(&library, &VideoLibrary::finished);
+        QVERIFY(library.scan(&playlist, roots));
+        library.cancel();
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
+        QCOMPARE(finished.first().first().toBool(), true);
+        QCOMPARE(playlist.count(), 0);
+        auto *temporaryPlaylist = new PlaylistModel;
+        QVERIFY(library.scan(temporaryPlaylist, roots));
+        delete temporaryPlaylist;
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 2, 5000);
+        QVERIFY(!library.scanning());
+        QVERIFY(library.scan(&playlist, roots));
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 3, 5000);
+        QCOMPARE(playlist.count(), 1);
+    }
+
+    void videoDiscoveryRejectsTypeScriptButKeepsTransportStreams()
+    {
+        QTemporaryDir directory;
+        for (const QString &name : {QStringLiteral("source.ts"), QStringLiteral("source.mts")}) {
+            QFile source(directory.filePath(name));
+            QVERIFY(source.open(QIODevice::WriteOnly));
+            source.write("export const greeting: string = 'Hello';\n");
+        }
+        for (int packetSize : {188, 192, 204}) {
+            QFile stream(directory.filePath(QString::number(packetSize)
+                         + (packetSize == 192 ? ".mts" : ".ts")));
+            QVERIFY(stream.open(QIODevice::WriteOnly));
+            QByteArray packet(packetSize, char(0xff));
+            const int offset = packetSize == 192 ? 4 : 0;
+            // Four valid transport-stream null-packet headers with stuffing.
+            packet[offset] = char(0x47);
+            packet[offset + 1] = char(0x1f);
+            packet[offset + 2] = char(0xff);
+            packet[offset + 3] = char(0x10);
+            for (int count = 0; count < 4; ++count)
+                stream.write(packet);
+        }
+        PlaylistModel playlist;
+        VideoLibrary library;
+        QSignalSpy finished(&library, &VideoLibrary::finished);
+        QVERIFY(library.scan(&playlist, {QUrl::fromLocalFile(directory.path())}));
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
+        QCOMPARE(playlist.count(), 3);
+        QCOMPARE(playlist.indexOfSource(QUrl::fromLocalFile(directory.filePath("source.ts"))), -1);
+        QCOMPARE(playlist.indexOfSource(QUrl::fromLocalFile(directory.filePath("source.mts"))), -1);
+    }
+
+    void explorerStartupPlaysSelectedFileAndDiscoversOthers()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("第一部 video.y4m"));
+        const QUrl second = makeVideo(directory.filePath("second.y4m"));
+        QQmlApplicationEngine engine;
+        QList<QQmlError> warnings;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&](const QList<QQmlError> &items) { warnings.append(items); });
+        engine.setInitialProperties({
+            {"startupFiles", QVariant::fromValue(QList<QUrl>{first})},
+            {"discoverVideosOnStartup", true},
+            {"videoSearchRoots", QVariant::fromValue(QList<QUrl>{QUrl::fromLocalFile(directory.path())})}
+        });
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *library = window->findChild<VideoLibrary *>();
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(library && playlists && video);
+        QTRY_VERIFY(video->playing());
+        QTRY_VERIFY(video->seekable());
+        QTRY_VERIFY(!library->scanning());
+        QCOMPARE(playlists->defaultPlaylist()->count(), 2);
+        QCOMPARE(playlists->defaultPlaylist()->currentSource(), first);
+        QCOMPARE(video->source(), first);
+        QCOMPARE(video->loadRevision(), quint64(1));
+        QVERIFY(playlists->defaultPlaylist()->indexOfSource(second) >= 0);
+        QCOMPARE(playlists->addPlaylist("Other"), 1);
+        QVERIFY(library->scan(playlists->defaultPlaylist(),
+                             {QUrl::fromLocalFile(directory.path())}));
+        QTRY_VERIFY(!library->scanning());
+        QCOMPARE(playlists->currentPlaylist()->count(), 0);
+        QCOMPARE(playlists->defaultPlaylist()->count(), 2);
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
+                 ? QString{} : warnings.first().toString()));
+    }
+
+    void windowsVideoRegistrationQuotesPathsAndPreservesDefaults()
+    {
+#ifdef Q_OS_WIN
+        const QString registryRoot = "Software\\KPlayerTests\\"
+            + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        QSettings settings("HKEY_CURRENT_USER\\" + registryRoot, QSettings::NativeFormat);
+        // Clean up this isolated test key even if an assertion fails.
+        struct Cleanup {
+            QSettings &settings;
+            ~Cleanup() { settings.clear(); settings.sync(); }
+        } cleanup{settings};
+        settings.setValue("Classes/.mp4/Default", "OtherPlayer.Video");
+        settings.setValue("Microsoft/Windows/CurrentVersion/Explorer/FileExts/.mp4/UserChoice/ProgId",
+                          "OtherPlayer.Video");
+        settings.sync();
+        const QString executable = QDir::toNativeSeparators(
+            QDir::tempPath() + "/含空格 folder/KPlayer.exe");
+        QString error;
+        QVERIFY2(FileAssociations::registerApplication(executable, registryRoot, &error),
+                 qPrintable(error));
+        settings.sync();
+        QCOMPARE(settings.value("Classes/KPlayer.Video/shell/open/command/Default").toString(),
+                 QStringLiteral("\"%1\" \"%2\"").arg(executable, QStringLiteral("%1")));
+        QCOMPARE(settings.value("RegisteredApplications/KPlayer").toString(),
+                 registryRoot + "\\KPlayer\\Capabilities");
+        for (const QString &extension : VideoFormats::extensions()) {
+            QCOMPARE(settings.value("KPlayer/Capabilities/FileAssociations/." + extension).toString(),
+                     QStringLiteral("KPlayer.Video"));
+            QVERIFY(settings.contains("Classes/." + extension + "/OpenWithProgids/KPlayer.Video"));
+        }
+        QCOMPARE(settings.value("Classes/.mp4/Default").toString(), QStringLiteral("OtherPlayer.Video"));
+        QCOMPARE(settings.value("Microsoft/Windows/CurrentVersion/Explorer/FileExts/.mp4/UserChoice/ProgId")
+                     .toString(), QStringLiteral("OtherPlayer.Video"));
+#else
+        QSKIP("Windows registration test");
+#endif
+    }
+
     void namedPlaylistsKeepIndependentQueues()
     {
         PlaylistCollection playlists;

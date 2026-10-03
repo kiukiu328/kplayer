@@ -2,6 +2,7 @@
 
 #include <QFileInfo>
 #include <QCollator>
+#include <QDir>
 
 #include <algorithm>
 #include <numeric>
@@ -45,6 +46,41 @@ QUrl PlaylistModel::currentSource() const
 
 int PlaylistModel::appendUrls(const QList<QUrl> &urls)
 {
+    return appendUrlsImpl(urls, false);
+}
+
+int PlaylistModel::appendUniqueUrls(const QList<QUrl> &urls)
+{
+    return appendUrlsImpl(urls, true);
+}
+
+QString PlaylistModel::sourceKey(const QUrl &url)
+{
+    if (!url.isLocalFile())
+        return url.adjusted(QUrl::NormalizePathSegments).toString(QUrl::FullyEncoded);
+    const QFileInfo file(url.toLocalFile());
+    QString path = file.canonicalFilePath();
+    if (path.isEmpty())
+        path = file.absoluteFilePath();
+    path = QDir::cleanPath(path);
+#ifdef Q_OS_WIN
+    path = path.toCaseFolded();
+#endif
+    return QUrl::fromLocalFile(path).toString(QUrl::FullyEncoded);
+}
+
+int PlaylistModel::indexOfSource(const QUrl &url) const
+{
+    const QString key = sourceKey(url);
+    for (int index = 0; index < count(); ++index) {
+        if (m_tracks.at(index).source == url || m_tracks.at(index).key == key)
+            return index;
+    }
+    return -1;
+}
+
+int PlaylistModel::appendUrlsImpl(const QList<QUrl> &urls, bool unique)
+{
     QList<Track> tracks;
     for (const QUrl &url : urls) {
         if (!url.isValid() || url.isEmpty())
@@ -65,7 +101,11 @@ int PlaylistModel::appendUrls(const QList<QUrl> &urls)
         } else {
             continue;
         }
-        tracks.append({source, title});
+        const QString key = sourceKey(source);
+        if (unique && m_sourceCounts.contains(key))
+            continue;
+        ++m_sourceCounts[key];
+        tracks.append({source, title, key});
     }
     if (tracks.isEmpty())
         return 0;
@@ -86,6 +126,9 @@ bool PlaylistModel::removeAt(int index)
     const int previousIndex = m_currentIndex;
     const QUrl previousSource = currentSource();
     beginRemoveRows({}, index, index);
+    const QString key = m_tracks.at(index).key;
+    if (--m_sourceCounts[key] == 0)
+        m_sourceCounts.remove(key);
     m_tracks.removeAt(index);
     if (m_tracks.isEmpty())
         m_currentIndex = -1;
@@ -156,6 +199,7 @@ void PlaylistModel::clear()
         return;
     beginResetModel();
     m_tracks.clear();
+    m_sourceCounts.clear();
     m_currentIndex = -1;
     endResetModel();
     emit countChanged();

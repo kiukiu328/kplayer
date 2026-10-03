@@ -15,6 +15,10 @@ PlayerMenu {
     required property Action aboutAction
     required property Action exitAction
     required property Action searchAction
+    required property Action findVideosAction
+    required property Action findFolderVideosAction
+    required property Action stopVideoSearchAction
+    required property Action associateVideosAction
     property bool hasMedia: false
     property bool playing: false
     property bool seekable: false
@@ -45,6 +49,9 @@ PlayerMenu {
             text: qsTr("新增至播放清單…")
             onTriggered: root.addMediaRequested()
         }
+        PlayerMenuItem { objectName: "findVideosMenuItem"; action: root.findVideosAction }
+        PlayerMenuItem { objectName: "findFolderVideosMenuItem"; action: root.findFolderVideosAction }
+        PlayerMenuItem { objectName: "stopVideoSearchMenuItem"; action: root.stopVideoSearchAction }
         PlayerMenuItem {
             objectName: "clearPlaylistMenuItem"
             text: qsTr("清空播放清單")
@@ -135,6 +142,7 @@ PlayerMenu {
     PlayerMenu {
         title: qsTr("配置/語言/其他")
         PlayerMenuItem { action: root.preferencesAction }
+        PlayerMenuItem { objectName: "associateVideosMenuItem"; action: root.associateVideosAction }
         PlayerMenuItem { action: root.pinAction }
         PlayerMenuItem { action: root.aboutAction }
     }

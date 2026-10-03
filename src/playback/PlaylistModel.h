@@ -26,6 +26,8 @@ public:
     void setCurrentIndex(int index);
     QUrl currentSource() const;
     Q_INVOKABLE int appendUrls(const QList<QUrl> &urls);
+    Q_INVOKABLE int appendUniqueUrls(const QList<QUrl> &urls);
+    Q_INVOKABLE int indexOfSource(const QUrl &url) const;
     Q_INVOKABLE bool removeAt(int index);
     Q_INVOKABLE bool moveTrack(int from, int to);
     Q_INVOKABLE int sortByTitle(bool ascending = true, int selectedIndex = -1);
@@ -37,8 +39,11 @@ signals:
     void currentSourceChanged();
 
 private:
-    struct Track { QUrl source; QString title; };
+    int appendUrlsImpl(const QList<QUrl> &urls, bool unique);
+    static QString sourceKey(const QUrl &url);
+    struct Track { QUrl source; QString title; QString key; };
     QList<Track> m_tracks;
+    QHash<QString, int> m_sourceCounts;
     int m_currentIndex = -1;
 };
 
@@ -49,6 +54,7 @@ class PlaylistCollection : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
     Q_PROPERTY(PlaylistModel *currentPlaylist READ currentPlaylist NOTIFY currentPlaylistChanged)
+    Q_PROPERTY(PlaylistModel *defaultPlaylist READ defaultPlaylist CONSTANT)
     Q_PROPERTY(QString currentName READ currentName NOTIFY currentNameChanged)
 
 public:
@@ -62,6 +68,7 @@ public:
     int currentIndex() const { return m_currentIndex; }
     void setCurrentIndex(int index);
     PlaylistModel *currentPlaylist() const { return m_playlists.at(m_currentIndex).model; }
+    PlaylistModel *defaultPlaylist() const { return m_playlists.first().model; }
     QString currentName() const { return m_playlists.at(m_currentIndex).name; }
     Q_INVOKABLE bool nameAvailable(const QString &name, int exceptIndex = -1) const;
     Q_INVOKABLE int addPlaylist(const QString &name);
