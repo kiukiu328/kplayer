@@ -107,10 +107,7 @@ QString VideoLibrary::status() const
         return m_canceled ? tr("Stopping video search…")
             : tr("Finding videos… %1 added · %2 folders searched")
                   .arg(m_addedCount).arg(m_foldersVisited);
-    if (!m_hasScanned)
-        return {};
-    return m_canceled ? tr("Video search stopped · %1 added").arg(m_addedCount)
-                      : tr("Video search complete · %1 added").arg(m_addedCount);
+    return {};
 }
 
 void VideoLibrary::cancel()
@@ -130,7 +127,6 @@ bool VideoLibrary::scan(PlaylistModel *playlist, const QList<QUrl> &requestedRoo
     const QPointer<PlaylistModel> target(playlist);
     m_scanning = true;
     m_canceled = false;
-    m_hasScanned = true;
     m_addedCount = 0;
     m_foldersVisited = 0;
     emit scanningChanged();

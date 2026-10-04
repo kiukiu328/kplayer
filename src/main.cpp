@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QIcon>
 #include <QFontDatabase>
 #include <QDir>
 #include <QFileInfo>
@@ -33,6 +34,8 @@ int main(int argc, char *argv[])
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QCoreApplication::setApplicationName(QStringLiteral("KPlayer"));
     QCoreApplication::setOrganizationName(QStringLiteral("KPlayer"));
+    QGuiApplication::setDesktopFileName(QStringLiteral("kplayer"));
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/KPlayer/icons/kplayer.svg")));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("KPlayer media player"));

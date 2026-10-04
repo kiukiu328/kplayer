@@ -25,6 +25,7 @@
 #include <QTest>
 #include <QDir>
 #include <QSettings>
+#include <QScreen>
 #include <QUuid>
 
 #include <clocale>
@@ -233,8 +234,16 @@ private slots:
         click(window, findItem(window->contentItem(), "videoStage"));
         QTest::keyClick(window, Qt::Key_C);
         QTRY_COMPARE(video->speed(), 1.1);
+        auto *hint = findItem(window->contentItem(), "playbackHint");
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        QVERIFY(hint && stage);
+        QTRY_VERIFY(hint->isVisible());
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("1.1x"));
+        QCOMPARE(hint->property("color").value<QColor>(), QColor("#2489ee"));
+        QCOMPARE(hint->mapToItem(stage, QPointF{}), QPointF(16, 16));
         QTest::keyClick(window, Qt::Key_X);
         QTRY_COMPARE(video->speed(), 1.0);
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("1.0x"));
         video->setSpeed(2.0);
         QTRY_COMPARE(video->speed(), 2.0);
         QTest::keyClick(window, Qt::Key_Z);
@@ -377,6 +386,7 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
         QVERIFY(!library.scanning());
         QCOMPARE(library.addedCount(), 2);
+        QVERIFY(library.status().isEmpty());
         QCOMPARE(playlist.count(), 3);
         QVERIFY(playlist.indexOfSource(first) >= 0);
         QVERIFY(playlist.indexOfSource(third) >= 0);
@@ -1519,6 +1529,100 @@ private slots:
         window->showNormal();
         QTRY_COMPARE(window->visibility(), QWindow::Windowed);
         QTRY_VERIFY(frame->isEnabled());
+    }
+
+    void settingHintsExpireAndRestart()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *hint = findItem(window->contentItem(), "playbackHint");
+        QVERIFY(video && hint);
+        video->setSpeed(1.1);
+        QTRY_VERIFY(hint->isVisible());
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("1.1x"));
+        QTRY_VERIFY_WITH_TIMEOUT(!hint->isVisible(), 3000);
+        video->setSpeed(1.0);
+        QTRY_VERIFY(hint->isVisible());
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("1.0x"));
+        video->setVolume(65);
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("Volume: 65%"));
+        video->setMuted(true);
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("Muted"));
+        video->setSubtitlesVisible(false);
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("Subtitles off"));
+        window->setProperty("repeatMode", 2);
+        QCOMPARE(hint->property("text").toString(), QStringLiteral("Repeat playlist"));
+        QTRY_VERIFY_WITH_TIMEOUT(!hint->isVisible(), 3000);
+    }
+
+    void fullscreenRestoresLayoutAndWindowState()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *title = findItem(window->contentItem(), "titleBar");
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        QVERIFY(title && stage);
+        QVERIFY(title->isVisible());
+        const QSize normalSize = window->size();
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_VERIFY(!title->isVisible());
+        QTRY_COMPARE(stage->mapToScene(QPointF{}), QPointF(0, 0));
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        QTRY_VERIFY(title->isVisible());
+        QTRY_COMPARE(window->size(), normalSize);
+
+        window->showMaximized();
+        QTRY_COMPARE(window->visibility(), QWindow::Maximized);
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreenPlus"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(stage->size(), QSizeF(window->size()));
+        QVERIFY(!window->property("playlistVisible").toBool());
+        QVERIFY(!window->property("controlsVisible").toBool());
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::Maximized);
+        QTRY_VERIFY(title->isVisible());
+        QVERIFY(window->property("playlistVisible").toBool());
+        QVERIFY(window->property("controlsVisible").toBool());
+    }
+
+    void videoBackgroundIncludesLetterboxing()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("background.y4m"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(stage && video);
+        const auto backgroundColor = [&] {
+            const QImage image = window->grabWindow();
+            if (image.isNull())
+                return QColor{};
+            // Below hints and outside both the watermark and 16:9 video.
+            const QPointF point = stage->mapToScene({stage->width() / 2, 8});
+            return image.pixelColor(qRound(point.x() * image.width() / window->width()),
+                                    qRound(point.y() * image.height() / window->height()));
+        };
+        QTRY_COMPARE(backgroundColor(), QColor("#101010"));
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_COMPARE(backgroundColor(), QColor("#101010"));
+        video->stop();
+        QTRY_COMPARE(backgroundColor(), QColor("#101010"));
     }
 
     void timelinePreviewShowsHoveredFrame()

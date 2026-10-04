@@ -36,7 +36,6 @@ private:
     QThread *m_worker = nullptr;
     bool m_scanning = false;
     bool m_canceled = false;
-    bool m_hasScanned = false;
     int m_addedCount = 0;
     int m_foldersVisited = 0;
 };

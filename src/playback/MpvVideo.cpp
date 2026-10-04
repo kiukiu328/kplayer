@@ -91,7 +91,7 @@ public:
             mpv_render_context_render(m_context, params);
         } else {
             auto *gl = QOpenGLContext::currentContext()->functions();
-            gl->glClearColor(0, 0, 0, 1);
+            gl->glClearColor(16.0f / 255, 16.0f / 255, 16.0f / 255, 1);
             gl->glClear(GL_COLOR_BUFFER_BIT);
         }
         QQuickOpenGLUtils::resetOpenGLState();
@@ -121,6 +121,9 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
     m_mpv = {handle, mpv_terminate_destroy};
     for (const auto &[name, value] : {
              std::pair{"vo", "libmpv"},
+             std::pair{"background", "color"},
+             std::pair{"background-color", "#101010"},
+             std::pair{"osd-level", "0"},
              std::pair{"terminal", "no"}}) {
         const int result = mpv_set_option_string(m_mpv.get(), name, value);
         if (result < 0) {

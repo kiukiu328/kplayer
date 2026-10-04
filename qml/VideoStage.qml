@@ -16,6 +16,14 @@ Rectangle {
     property alias subtitleTracks: video.subtitleTracks
     property alias subtitleTrack: video.subtitleTrack
     property alias mediaLoaded: video.mediaLoaded
+    property bool hintsReady: false
+    Component.onCompleted: hintsReady = true
+    function showHint(message: string) {
+        if (!hintsReady)
+            return
+        hint.text = message
+        hintTimer.restart()
+    }
     function addSubtitle(url: url): bool { return video.addSubtitle(url) }
     function cycleSubtitle() { video.cycleSubtitle() }
     function stepFrame(forward: bool) { video.stepFrame(forward) }
@@ -36,6 +44,15 @@ Rectangle {
         id: video
         anchors.fill: parent
         onEndOfFile: root.endOfFile()
+        onSpeedChanged: root.showHint(speed.toFixed(1) + "x")
+        onVolumeChanged: root.showHint(qsTr("Volume: %1%").arg(Math.round(volume)))
+        onMutedChanged: root.showHint(muted ? qsTr("Muted") : qsTr("Unmuted"))
+        onSubtitlesVisibleChanged: root.showHint(subtitlesVisible
+            ? qsTr("Subtitles on") : qsTr("Subtitles off"))
+        onSubtitleTrackChanged: {
+            const track = subtitleTracks.find(track => track.id === subtitleTrack)
+            root.showHint(track ? qsTr("Subtitle: %1").arg(track.label) : qsTr("No subtitles"))
+        }
     }
     Row {
         visible: video.stopped
@@ -65,30 +82,37 @@ Rectangle {
         }
     }
 
-    Text {
-        anchors.centerIn: parent
-        width: parent.width - 40
-        horizontalAlignment: Text.AlignHCenter
-        wrapMode: Text.Wrap
-        text: video.errorString
-        visible: text.length > 0
-        color: Theme.textPrimary
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSize
-    }
-
-    Text {
-        anchors.right: parent.right
+    Column {
+        anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: 16
-        text: video.speed.toFixed(1) + "×"
-        visible: video.speed !== 1.0
-        color: Theme.textPrimary
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSize
-        style: Text.Outline
-        styleColor: "black"
+        width: Math.max(0, parent.width - 32)
+        spacing: 8
+        Text {
+            id: hint
+            objectName: "playbackHint"
+            width: parent.width
+            wrapMode: Text.Wrap
+            visible: hintTimer.running
+            color: Theme.hintText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            style: Text.Outline
+            styleColor: Theme.videoBackground
+        }
+        Text {
+            width: parent.width
+            wrapMode: Text.Wrap
+            text: video.errorString
+            visible: text.length > 0
+            color: Theme.hintText
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            style: Text.Outline
+            styleColor: Theme.videoBackground
+        }
     }
+    Timer { id: hintTimer; interval: 2000 }
 
     DragHandler {
         target: null

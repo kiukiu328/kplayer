@@ -6,8 +6,8 @@ Window {
     id: window
     width: 1225
     height: 824
-    minimumWidth: 1100
-    minimumHeight: 500
+    minimumWidth: isFullscreen ? 0 : 1100
+    minimumHeight: isFullscreen ? 0 : 500
     visible: true
     title: "KPlayer"
     color: Theme.border
@@ -20,6 +20,7 @@ Window {
     property list<url> videoSearchRoots: []
     readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
     property int visibilityBeforeFullscreen: Window.Windowed
+    readonly property bool isFullscreen: visibility === Window.FullScreen
     property bool playlistVisible: true
     property bool controlsVisible: true
     property bool alwaysOnTop: false
@@ -28,6 +29,16 @@ Window {
     property bool controlsBeforeFullscreenPlus: true
     // Manual track navigation always respects the queue boundaries.
     property int repeatMode: 0 // 0: off, 1: current track, 2: entire playlist
+    onRepeatModeChanged: videoStage.showHint([qsTr("Repeat off"),
+        qsTr("Repeat current file"), qsTr("Repeat playlist")][repeatMode])
+    onAlwaysOnTopChanged: videoStage.showHint(alwaysOnTop
+        ? qsTr("Always on top on") : qsTr("Always on top off"))
+    onPlaylistVisibleChanged: videoStage.showHint(playlistVisible
+        ? qsTr("Playlist shown") : qsTr("Playlist hidden"))
+    onControlsVisibleChanged: videoStage.showHint(controlsVisible
+        ? qsTr("Controls shown") : qsTr("Controls hidden"))
+    onIsFullscreenChanged: videoStage.showHint(isFullscreen
+        ? qsTr("Fullscreen") : qsTr("Fullscreen off"))
     readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
         && !playlist.menuOpen
         && !mediaDialog.visible && !videoFolderDialog.visible
@@ -633,10 +644,13 @@ Window {
 
     Item {
         anchors.fill: parent
-        anchors.margins: Theme.windowBorder
+        anchors.margins: window.isFullscreen ? 0 : Theme.windowBorder
 
         TitleBar {
             id: titleBar
+            objectName: "titleBar"
+            visible: !window.isFullscreen
+            height: visible ? Theme.titleHeight : 0
             anchors.top: parent.top
             width: parent.width
             maximized: window.visibility === Window.Maximized
@@ -658,7 +672,7 @@ Window {
 
         Item {
             anchors.top: titleBar.bottom
-            anchors.topMargin: Theme.dividerWidth
+            anchors.topMargin: window.isFullscreen ? 0 : Theme.dividerWidth
             anchors.bottom: parent.bottom
             width: parent.width
 

@@ -26,6 +26,13 @@ qt_standard_project_setup(REQUIRES 6.11.2)
 qt_add_executable(KPlayer
     src/main.cpp
 )
+if(WIN32)
+    enable_language(RC)
+    configure_file(packaging/windows/kplayer.rc.in kplayer.rc @ONLY)
+    target_sources(KPlayer PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/kplayer.rc")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/kplayer.rc" PROPERTIES
+        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icons/kplayer.ico")
+endif()
 
 # Keep reusable UI types at the QML module root.
 set(KPLAYER_QML_FILES
@@ -55,7 +62,7 @@ set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set(KPLAYER_ICONS
     chevronDown chevronRight close down eject exitFullscreen first fullscreen
     last list maximize menu minimize next pause pin play previous restore search
-    searchList settings stop up volume volumeMuted
+    searchList settings stop up volume volumeMuted kplayer
 )
 set(KPLAYER_ICON_FILES)
 foreach(icon IN LISTS KPLAYER_ICONS)
@@ -103,6 +110,10 @@ if(UNIX AND NOT APPLE)
     install(TARGETS KPlayer RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(FILES packaging/linux/kplayer.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES assets/icons/kplayer.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+    install(FILES assets/icons/kplayer.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
 endif()
 
 if(WIN32)

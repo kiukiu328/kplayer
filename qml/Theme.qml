@@ -19,6 +19,7 @@ QtObject {
     readonly property color iconMuted: "#737373"
     readonly property color watermark: "#303030"
     readonly property color accent: "#f3df00"
+    readonly property color hintText: "#2489ee"
     readonly property color menuBackground: "#444444"
     readonly property color menuHover: "#191919"
     readonly property color menuText: "#c5c5c5"

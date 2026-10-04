@@ -57,7 +57,8 @@ queued and the first valid entry starts playing immediately.
 
 - Top-right Close, Minimize, Maximize/Restore, and Full Screen/Exit Full Screen
   buttons control the window. Exiting fullscreen restores its prior normal or
-  maximized state.
+  maximized state. Fullscreen removes the custom title bar and window border;
+  use F11, Enter, Escape, or the play area's middle click to leave it.
 - Hold the left mouse button and drag the play area to move the window.
 - Double-click the play area with the left mouse button to play or pause.
 - Drag any window edge or corner to resize. Resizing is available in the normal
@@ -126,7 +127,9 @@ queued and the first valid entry starts playing immediately.
 
   Bindings were checked against [PotPlayer's bundled English menu definitions](https://github.com/Onemeshnik/PotPlayer-Median-subtitles-installer/blob/master/%7Bapp%7D/Language/English.ini).
   Z always resets to normal speed here, as opposed to toggling the last-used speed.
-  Playback speed also appears in the Playback menu and over the video when changed.
+  Playback speed also appears in the Playback menu. Setting changes show blue
+  hints at the top-left of the play area for two seconds, including normal speed
+  (`1.0x`), volume, mute, subtitles, repeat, and window controls.
 - Play toggles play/pause. Stop clears playback; pressing Play again restarts
   the selected media from the beginning.
 - Click the audio button to mute or unmute without changing the saved volume.
