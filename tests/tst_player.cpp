@@ -368,6 +368,30 @@ private slots:
         QCOMPARE(library.addSiblingVideos(&playlist, {QUrl("https://example.com/movie.mp4")}), 0);
     }
 
+    void siblingDiscoverySortsNumberedVideosWithoutChangingPlayback()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("video-01.y4m"));
+        const QUrl second = makeVideo(directory.filePath("video-02.y4m"));
+        const QUrl twelfth = makeVideo(directory.filePath("video-12.y4m"));
+        PlaylistModel playlist;
+        QAbstractItemModelTester tester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        VideoLibrary library;
+        playlist.appendUrls({twelfth});
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+
+        QCOMPARE(library.addSiblingVideos(&playlist, {twelfth}), 2);
+        QCOMPARE(playlist.indexOfSource(first), 0);
+        QCOMPARE(playlist.indexOfSource(second), 1);
+        QCOMPARE(playlist.indexOfSource(twelfth), 2);
+        QCOMPARE(playlist.currentIndex(), 2);
+        QCOMPARE(playlist.currentSource(), twelfth);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(library.addSiblingVideos(&playlist, {twelfth}), 0);
+        QCOMPARE(playlist.count(), 3);
+    }
+
     void openingMediaAddsSiblingsWithoutLibraryScan()
     {
         QTemporaryDir directory;
@@ -386,6 +410,8 @@ private slots:
         QTRY_VERIFY(video->mediaLoaded());
         QCOMPARE(video->source(), second);
         QCOMPARE(playlist->currentSource(), second);
+        QCOMPARE(playlist->indexOfSource(first), 0);
+        QCOMPARE(playlist->currentIndex(), 1);
         // Exercise the same handler used by the Open Media dialog on a named queue.
         auto *collection = window->findChild<PlaylistCollection *>();
         QVERIFY(collection);

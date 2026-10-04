@@ -81,7 +81,12 @@ int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &f
                 siblings.append(QUrl::fromLocalFile(entry.absoluteFilePath()));
         }
     }
-    return playlist->appendUniqueUrls(siblings);
+    const int added = playlist->appendUniqueUrls(siblings);
+    // The opened file is already in the queue; include it in the natural order
+    // instead of leaving it ahead of earlier episodes. Sorting preserves playback.
+    if (added > 0)
+        playlist->sortByTitle();
+    return added;
 }
 
 QList<QUrl> VideoLibrary::defaultRoots()
