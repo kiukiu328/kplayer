@@ -1,12 +1,41 @@
 # KPlayer
 
-A Qt Quick media-player UI based on the supplied KPlayer reference. The
-1225 × 824 frameless window includes the title bar, empty video surface,
-transport controls, seek and volume tracks, timestamps, media tools, playlist
-tabs, ordering buttons, and search surface. Window controls, playback, playlist
-file drops, seeking, mute, volume, and track navigation are connected. Playlist
-search, queue editing, ordering, application menus, repeat modes, and always-on-top
-window pinning are functional. Named playlists keep separate queues during the session.
+**A PotPlayer-inspired desktop media player built for watching anime on Linux.**
+
+I like using PotPlayer to watch anime on Windows, but I couldn't find a Linux
+replacement that felt right for me. So I started building my own. KPlayer aims
+to bring the familiar controls, playlists, and subtitle workflow I enjoy to my
+Linux desktop.
+
+Built with **C++20, Qt Quick, and libmpv**, KPlayer plays local media files and
+URLs in a compact desktop interface. Linux is the motivation behind the project;
+the repository also includes Windows build and file-association support.
+
+![KPlayer on Linux with its Traditional Chinese menu open, playback controls below, and playlist on the right](docs/screenshots/kplayer-linux.png)
+
+*KPlayer running on Linux, shown idle with the application menu open.*
+
+## What it can do
+
+- **Watch a series:** open an episode and add videos from the same folder to the
+  playlist automatically, with automatic playback of the next item.
+- **Work with subtitles:** select embedded tracks, load external subtitle files,
+  and save preferred subtitle languages such as `zh,en`.
+- **Use familiar controls:** PotPlayer-style keyboard shortcuts, playback speed
+  controls, frame stepping, repeat modes, fullscreen, and always-on-top.
+- **Find a scene:** seek with keyboard shortcuts or hover over the timeline for
+  a frame preview without interrupting playback.
+- **Organize your media:** drag and drop files, search and reorder the queue,
+  switch between named playlists, scan video folders, and save favorites.
+- **Adjust the picture:** choose an aspect ratio or change brightness, contrast,
+  and saturation during playback.
+
+The interface currently uses Traditional Chinese menus with some English labels.
+Named playlists last for the current session; favorites and subtitle language
+preferences are saved across launches.
+
+See [Build and run](#build-and-run) to try it, or [Player controls](#player-controls)
+for the detailed controls and shortcuts.
 
 ## UI organization
 
@@ -19,6 +48,8 @@ are reusable controls. Each major region has its own component:
 `Main.qml` assembles the window and connects component signals to window and
 playback actions. Buttons have hover styling, accessible labels, and mouse and
 keyboard activation. Buttons and controls show hover tooltips.
+
+## Player controls
 
 The libmpv backend in `src/playback/` renders media in the play area. The player
 starts idle when launched without a media argument. If `assets/dummy.mp4` exists
