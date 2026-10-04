@@ -46,6 +46,7 @@ set(KPLAYER_QML_FILES
     qml/PlayerMenuSeparator.qml
     qml/SubtitleMenu.qml
     qml/AdvancedSettings.qml
+    qml/VideoAdjustments.qml
     qml/AppMenu.qml
     qml/TitleBar.qml
     qml/VideoStage.qml
@@ -72,23 +73,28 @@ foreach(icon IN LISTS KPLAYER_ICONS)
     list(APPEND KPLAYER_ICON_FILES "${icon_file}")
 endforeach()
 
+set(KPLAYER_SOURCES
+    src/playback/MpvVideo.h
+    src/playback/MpvVideo.cpp
+    src/playback/MpvPreview.h
+    src/playback/MpvPreview.cpp
+    src/playback/PlaylistModel.h
+    src/playback/PlaylistModel.cpp
+    src/integration/VideoFormats.h
+    src/integration/VideoLibrary.h
+    src/integration/VideoLibrary.cpp
+    src/integration/FileAssociations.h
+    src/integration/FileAssociations.cpp
+    src/playback/Favorites.h
+    src/playback/Favorites.cpp
+)
+
 qt_add_qml_module(KPlayer
     URI KPlayer
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/KPlayer
     QML_FILES ${KPLAYER_QML_FILES}
     RESOURCES ${KPLAYER_ICON_FILES}
-    SOURCES
-        src/playback/MpvVideo.h
-        src/playback/MpvVideo.cpp
-        src/playback/MpvPreview.h
-        src/playback/MpvPreview.cpp
-        src/playback/PlaylistModel.h
-        src/playback/PlaylistModel.cpp
-        src/integration/VideoFormats.h
-        src/integration/VideoLibrary.h
-        src/integration/VideoLibrary.cpp
-        src/integration/FileAssociations.h
-        src/integration/FileAssociations.cpp
+    SOURCES ${KPLAYER_SOURCES}
 )
 
 target_include_directories(KPlayer PRIVATE src/playback src/integration)
@@ -155,13 +161,7 @@ if(KPLAYER_BUILD_TESTS)
         OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/qml/KPlayer
         QML_FILES ${KPLAYER_QML_FILES}
         RESOURCES ${KPLAYER_ICON_FILES}
-        SOURCES
-            src/playback/MpvVideo.h src/playback/MpvVideo.cpp
-            src/playback/MpvPreview.h src/playback/MpvPreview.cpp
-            src/playback/PlaylistModel.h src/playback/PlaylistModel.cpp
-            src/integration/VideoFormats.h
-            src/integration/VideoLibrary.h src/integration/VideoLibrary.cpp
-            src/integration/FileAssociations.h src/integration/FileAssociations.cpp
+        SOURCES ${KPLAYER_SOURCES}
     )
     target_include_directories(KPlayerTests PRIVATE src/playback src/integration)
     target_link_libraries(KPlayerTests PRIVATE

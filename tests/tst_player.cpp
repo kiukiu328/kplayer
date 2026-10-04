@@ -1,6 +1,7 @@
 #include "MpvVideo.h"
 #include "MpvPreview.h"
 #include "PlaylistModel.h"
+#include "Favorites.h"
 #include "VideoLibrary.h"
 #include "FileAssociations.h"
 #include "VideoFormats.h"
@@ -138,6 +139,108 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void favoritesPersistAndKeepUnavailableFiles()
+    {
+        QSettings().remove("favorites");
+        QTemporaryDir directory;
+        const QUrl source = makeAudio(directory.filePath(QString::fromUtf8("我的最愛.wav")));
+        const QUrl remote("https://example.com/video%20one.mp4");
+        {
+            Favorites favorites;
+            QVERIFY(favorites.entries().isEmpty());
+            QVERIFY(!favorites.toggle(QUrl("https:/missing-host.mp4")));
+            QVERIFY(!favorites.toggle(QUrl::fromLocalFile(directory.path())));
+            QVERIFY(favorites.toggle(source));
+            QVERIFY(favorites.contains(source));
+            QCOMPARE(favorites.entries().first().toMap().value("title").toString(),
+                     QString::fromUtf8("我的最愛.wav"));
+            QVERIFY(favorites.toggle(remote));
+        }
+        QVERIFY(QFile::remove(source.toLocalFile()));
+        {
+            Favorites favorites;
+            QCOMPARE(favorites.entries().size(), 2);
+            QVERIFY(favorites.contains(source));
+            QVERIFY(favorites.toggle(source));
+            QVERIFY(!favorites.contains(source));
+            QVERIFY(favorites.contains(QUrl("https://example.com/folder/../video%20one.mp4")));
+            favorites.clear();
+        }
+        QVERIFY(Favorites().entries().isEmpty());
+    }
+
+    void videoMenusApplyAdjustmentsAndFavorites()
+    {
+        QSettings().remove("favorites");
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("adjustments.y4m"), true);
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *favorites = window->findChild<Favorites *>();
+        auto *menu = window->findChild<QObject *>("appMenu");
+        auto *adjustments = window->findChild<QObject *>("videoAdjustmentsDialog");
+        auto *aspectMenu = window->findChild<QObject *>("aspectRatioMenu");
+        auto *favoritesMenu = window->findChild<QObject *>("favoritesMenu");
+        QVERIFY(video && favorites && menu && adjustments && aspectMenu && favoritesMenu);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        QTRY_VERIFY(!video->playing());
+        QTRY_VERIFY(previewBrightness(window, video) > 160);
+
+        QVERIFY(QMetaObject::invokeMethod(menuItemAt(aspectMenu, 1), "triggered"));
+        QTRY_COMPARE(video->aspectRatio(), QString("4:3"));
+        video->setAspectRatio("invalid");
+        QCOMPARE(video->aspectRatio(), QString("4:3"));
+        QVERIFY(QMetaObject::invokeMethod(menuItemAt(aspectMenu, 0), "triggered"));
+        QCOMPARE(video->aspectRatio(), QString("no"));
+        QVERIFY(QMetaObject::invokeMethod(menu, "videoAdjustmentsRequested"));
+        QTRY_VERIFY(adjustments->property("opened").toBool());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        auto *brightness = findItem(window->contentItem(), "brightnessSlider");
+        QVERIFY(brightness);
+        brightness->forceActiveFocus();
+        QTest::keyClick(window, Qt::Key_Left);
+        QTRY_COMPARE(video->brightness(), -1);
+        video->setBrightness(-200);
+        QCOMPARE(video->brightness(), -100);
+        video->setContrast(200);
+        QCOMPARE(video->contrast(), 100);
+        video->setSaturation(-200);
+        QCOMPARE(video->saturation(), -100);
+        click(window, findItem(window->contentItem(), "resetVideoAdjustmentsButton"));
+        QCOMPARE(video->brightness(), 0);
+        QCOMPARE(video->contrast(), 0);
+        QCOMPARE(video->saturation(), 0);
+        QVERIFY(QMetaObject::invokeMethod(adjustments, "close"));
+        video->setBrightness(-100);
+        QTRY_VERIFY(previewBrightness(window, video) < 10);
+        video->resetVideoAdjustments();
+        QTRY_VERIFY(previewBrightness(window, video) > 160);
+        QCOMPARE(video->errorString(), QString{});
+
+        QVERIFY(QMetaObject::invokeMethod(menuItemAt(favoritesMenu, 0), "triggered"));
+        QTRY_VERIFY(favorites->contains(source));
+        QTRY_COMPARE(favoritesMenu->property("count").toInt(), 4);
+        video->stop();
+        QCOMPARE(video->position(), 0.0);
+        QCOMPARE(video->duration(), 0.0);
+        QVERIFY(QMetaObject::invokeMethod(menuItemAt(favoritesMenu, 3), "triggered"));
+        QTRY_VERIFY(video->playing() && video->seekable());
+        QCOMPARE(video->source(), source);
+        video->seek(29.5);
+        QTRY_VERIFY_WITH_TIMEOUT(video->stopped(), 5000);
+        video->stop();
+        QCOMPARE(video->position(), 0.0);
+        QCOMPARE(video->duration(), 0.0);
+        favorites->clear();
+    }
+
     void advancedSettingsPersistAndCancel()
     {
         QSettings().clear();
@@ -1065,7 +1168,8 @@ private slots:
         QCOMPARE(playlist.currentSource(), second);
         QCOMPARE(playlist.appendUrls({first}), 1);
         QCOMPARE(playlist.currentIndex(), 1);
-        QCOMPARE(playlist.appendUrls({QUrl{}, QUrl("not-a-file")}), 0);
+        QCOMPARE(playlist.appendUrls({QUrl{}, QUrl("not-a-file"),
+                                     QUrl("https:/missing-host.mp4")}), 0);
     }
 
     void playlistSearchAndEditingPreservePlayback()
@@ -2072,6 +2176,9 @@ private slots:
 
 int main(int argc, char **argv)
 {
+    // File dialogs also use Quick Controls internally; match the application's
+    // explicit Basic imports instead of inheriting the desktop's global style.
+    qputenv("QT_QUICK_CONTROLS_STYLE", "Basic");
     // Keep dialog interaction in Qt's event loop during automated tests.
     QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QGuiApplication app(argc, argv);

@@ -45,7 +45,7 @@ Window {
         && !mediaDialog.visible && !videoFolderDialog.visible
         && !subtitleDialog.visible && !subtitleMenu.visible
         && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
-        && !advancedSettings.visible
+        && !advancedSettings.visible && !videoAdjustments.visible
         && !hasInteractiveFocus()
 
     function hasInteractiveFocus(): bool {
@@ -217,6 +217,7 @@ Window {
     }
 
     PlaylistCollection { id: playlists; objectName: "playlistCollection" }
+    Favorites { id: favorites; objectName: "favorites" }
     Settings {
         id: preferences
         category: "subtitles"
@@ -232,6 +233,14 @@ Window {
         onLanguageSaved: (language) => preferences.defaultLanguage = language
     }
     VideoLibrary { id: videoLibrary; objectName: "videoLibrary" }
+    VideoAdjustments {
+        id: videoAdjustments
+        objectName: "videoAdjustmentsDialog"
+        parent: window.contentItem
+        anchors.centerIn: parent
+        width: Math.min(420, window.width - 32)
+        player: videoStage
+    }
     FileAssociations { id: fileAssociations; objectName: "fileAssociations" }
     Connections {
         target: playlists
@@ -425,6 +434,22 @@ Window {
         associateVideosAction: associateVideosAction
         player: videoStage
         onAddSubtitleRequested: window.openSubtitles()
+        favorites: favorites
+        onFavoriteRequested: (source) => {
+            window.mediaPlaylist.appendUniqueUrls([source])
+            const index = window.mediaPlaylist.indexOfSource(source)
+            if (index >= 0) {
+                window.playTrack(index)
+            } else {
+                infoDialog.title = qsTr("我的最愛")
+                infoText.text = qsTr("無法開啟檔案：") + source.toString()
+                infoDialog.open()
+            }
+        }
+        onVideoAdjustmentsRequested: {
+            appMenu.dismiss()
+            videoAdjustments.open()
+        }
         hasMedia: window.mediaPlaylist.count > 0
         playing: videoStage.playing
         seekable: videoStage.seekable

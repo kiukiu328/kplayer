@@ -234,6 +234,9 @@ void MpvVideo::play()
 void MpvVideo::stop()
 {
     clearSubtitleTracks();
+    setPosition(0);
+    setDuration(0);
+    setSeekable(false);
     if (m_stopped)
         return;
     if (m_mpv) {
@@ -243,8 +246,6 @@ void MpvVideo::stop()
             setError(QString::fromUtf8(mpv_error_string(result)));
     }
     setPlaybackState(true, false);
-    setPosition(0);
-    setSeekable(false);
     ++m_loadRevision;
     update();
 }
@@ -308,6 +309,49 @@ void MpvVideo::setSpeed(double speed)
 void MpvVideo::toggleSpeed()
 {
     setSpeed(qFuzzyCompare(m_speed, 1.0) ? m_lastSpeed : 1.0);
+}
+
+void MpvVideo::setAspectRatio(const QString &ratio)
+{
+    static const QStringList ratios{"no", "4:3", "16:9", "16:10", "1:1", "2.35:1"};
+    if (!m_mpv || m_aspectRatio == ratio || !ratios.contains(ratio))
+        return;
+    const QByteArray encoded = ratio.toUtf8();
+    const char *value = encoded.constData();
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "video-aspect-override",
+                                              MPV_FORMAT_STRING, &value);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    m_aspectRatio = ratio;
+    emit aspectRatioChanged();
+}
+
+void MpvVideo::setVideoAdjustment(const char *name, int value, int &current)
+{
+    value = std::clamp(value, -100, 100);
+    if (!m_mpv || value == current)
+        return;
+    int64_t property = value;
+    const int result = mpv_set_property_async(m_mpv.get(), 0, name, MPV_FORMAT_INT64, &property);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    current = value;
+    emit videoAdjustmentsChanged();
+}
+
+void MpvVideo::setBrightness(int value) { setVideoAdjustment("brightness", value, m_brightness); }
+void MpvVideo::setContrast(int value) { setVideoAdjustment("contrast", value, m_contrast); }
+void MpvVideo::setSaturation(int value) { setVideoAdjustment("saturation", value, m_saturation); }
+
+void MpvVideo::resetVideoAdjustments()
+{
+    setBrightness(0);
+    setContrast(0);
+    setSaturation(0);
 }
 
 void MpvVideo::setDefaultSubtitleLanguage(const QString &language)

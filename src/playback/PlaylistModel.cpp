@@ -95,6 +95,8 @@ int PlaylistModel::appendUrlsImpl(const QList<QUrl> &urls, bool unique)
             title = file.fileName();
         } else if (url.scheme() == QStringLiteral("http")
                    || url.scheme() == QStringLiteral("https")) {
+            if (url.host().isEmpty())
+                continue;
             title = url.fileName(QUrl::FullyDecoded);
             if (title.isEmpty())
                 title = url.host();

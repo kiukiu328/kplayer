@@ -24,6 +24,10 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY mutedChanged)
     Q_PROPERTY(double volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
+    Q_PROPERTY(QString aspectRatio READ aspectRatio WRITE setAspectRatio NOTIFY aspectRatioChanged)
+    Q_PROPERTY(int brightness READ brightness WRITE setBrightness NOTIFY videoAdjustmentsChanged)
+    Q_PROPERTY(int contrast READ contrast WRITE setContrast NOTIFY videoAdjustmentsChanged)
+    Q_PROPERTY(int saturation READ saturation WRITE setSaturation NOTIFY videoAdjustmentsChanged)
     Q_PROPERTY(QString defaultSubtitleLanguage READ defaultSubtitleLanguage WRITE setDefaultSubtitleLanguage NOTIFY defaultSubtitleLanguageChanged)
     Q_PROPERTY(bool subtitlesVisible READ subtitlesVisible WRITE setSubtitlesVisible NOTIFY subtitlesVisibleChanged)
     Q_PROPERTY(QVariantList subtitleTracks READ subtitleTracks NOTIFY subtitleTracksChanged)
@@ -50,6 +54,15 @@ public:
     quint64 loadRevision() const { return m_loadRevision; }
     double speed() const { return m_speed; }
     void setSpeed(double speed);
+    QString aspectRatio() const { return m_aspectRatio; }
+    void setAspectRatio(const QString &ratio);
+    int brightness() const { return m_brightness; }
+    void setBrightness(int value);
+    int contrast() const { return m_contrast; }
+    void setContrast(int value);
+    int saturation() const { return m_saturation; }
+    void setSaturation(int value);
+    Q_INVOKABLE void resetVideoAdjustments();
     Q_INVOKABLE void toggleSpeed();
     QString defaultSubtitleLanguage() const { return m_defaultSubtitleLanguage; }
     void setDefaultSubtitleLanguage(const QString &language);
@@ -79,6 +92,8 @@ signals:
     void mutedChanged();
     void volumeChanged();
     void speedChanged();
+    void aspectRatioChanged();
+    void videoAdjustmentsChanged();
     void defaultSubtitleLanguageChanged();
     void subtitlesVisibleChanged();
     void subtitleTracksChanged();
@@ -96,6 +111,7 @@ private:
     void setSeekable(bool seekable);
     void updateSubtitleTracks(const mpv_node &node);
     void clearSubtitleTracks();
+    void setVideoAdjustment(const char *name, int value, int &current);
 
     // The renderer retains the handle until its OpenGL context is freed.
     std::shared_ptr<mpv_handle> m_mpv;
@@ -111,6 +127,10 @@ private:
     quint64 m_loadRevision = 0;
     double m_speed = 1.0;
     double m_lastSpeed = 1.0;
+    QString m_aspectRatio = QStringLiteral("no");
+    int m_brightness = 0;
+    int m_contrast = 0;
+    int m_saturation = 0;
     QString m_defaultSubtitleLanguage;
     bool m_subtitlesVisible = true;
     QVariantList m_subtitleTracks;

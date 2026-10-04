@@ -32,6 +32,7 @@ public:
     Q_INVOKABLE bool moveTrack(int from, int to);
     Q_INVOKABLE int sortByTitle(bool ascending = true, int selectedIndex = -1);
     Q_INVOKABLE void clear();
+    static QString sourceKey(const QUrl &url);
 
 signals:
     void countChanged();
@@ -40,7 +41,6 @@ signals:
 
 private:
     int appendUrlsImpl(const QList<QUrl> &urls, bool unique);
-    static QString sourceKey(const QUrl &url);
     struct Track { QUrl source; QString title; QString key; };
     QList<Track> m_tracks;
     QHash<QString, int> m_sourceCounts;

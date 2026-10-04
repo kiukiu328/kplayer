@@ -12,6 +12,10 @@ Rectangle {
     property alias muted: video.muted
     property alias volume: video.volume
     property alias speed: video.speed
+    property alias aspectRatio: video.aspectRatio
+    property alias brightness: video.brightness
+    property alias contrast: video.contrast
+    property alias saturation: video.saturation
     property alias defaultSubtitleLanguage: video.defaultSubtitleLanguage
     property alias subtitlesVisible: video.subtitlesVisible
     property alias subtitleTracks: video.subtitleTracks
@@ -28,6 +32,7 @@ Rectangle {
     function addSubtitle(url: url): bool { return video.addSubtitle(url) }
     function cycleSubtitle() { video.cycleSubtitle() }
     function toggleSpeed() { video.toggleSpeed() }
+    function resetVideoAdjustments() { video.resetVideoAdjustments() }
     function stepFrame(forward: bool) { video.stepFrame(forward) }
     signal moveRequested()
     signal fullscreenRequested()
@@ -47,6 +52,8 @@ Rectangle {
         anchors.fill: parent
         onEndOfFile: root.endOfFile()
         onSpeedChanged: root.showHint(speed.toFixed(1) + "x")
+        onAspectRatioChanged: root.showHint(aspectRatio === "no"
+            ? qsTr("Original aspect ratio") : qsTr("Aspect ratio: %1").arg(aspectRatio))
         onVolumeChanged: root.showHint(qsTr("Volume: %1%").arg(Math.round(volume)))
         onMutedChanged: root.showHint(muted ? qsTr("Muted") : qsTr("Unmuted"))
         onSubtitlesVisibleChanged: root.showHint(subtitlesVisible

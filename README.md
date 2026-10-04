@@ -91,11 +91,19 @@ queued and the first valid entry starts playing immediately.
 - Click the top-left KPlayer button, right-click it or the video area, or use the
   bottom Menu button to open the reference-style Traditional Chinese menu.
   It includes shortcut labels, checked states, separators, and nested menus;
-  unavailable features are disabled. Press Escape or click outside to dismiss it.
+  Press Escape or click outside to dismiss it.
   Open (開啟) contains file queueing, search, and Clear Playlist actions.
   Settings offers repeat off, repeat current track, or repeat the playlist;
   manual Previous/Next track navigation still stops at the queue boundaries.
   The pin button toggles Always on Top and highlights while enabled.
+- **我的最愛** saves the current file or URL as a favorite across launches. Click a
+  saved entry to queue and play it; toggle the current entry to remove it, or use
+  Clear Favorites to remove all saved entries. Missing files remain saved for
+  disconnected drives and show an error when they cannot be opened.
+- **比例** selects the original aspect ratio, 4:3, 16:9, 16:10, 1:1, or 2.35:1.
+  **濾鏡 > 影像調整…** adjusts brightness, contrast, and saturation immediately,
+  with a Reset button to restore neutral values. These video settings apply to
+  the current session and do not alter the media files.
 - Keyboard shortcuts: F3 or Ctrl+O opens media, F4 closes playback while keeping
   the queue, F5 opens Advanced Settings, F6 or Ctrl+L toggles the playlist, F11 toggles fullscreen, and Escape
   leaves fullscreen. With focus in the video area, Enter also toggles fullscreen, Space
@@ -317,7 +325,9 @@ KPlayer/
 │       ├── MpvPreview.h    # Timeline preview interface
 │       ├── MpvPreview.cpp  # Independent silent frame decoder
 │       ├── PlaylistModel.h # Playlist interface
-│       └── PlaylistModel.cpp # Ordered file queue and current track
+│       ├── PlaylistModel.cpp # Ordered file queue and current track
+│       ├── Favorites.h     # Saved favorite media interface
+│       └── Favorites.cpp   # Persistent favorites and duplicate handling
 ├── qml/
 │   ├── Main.qml            # Window composition
 │   ├── Theme.qml           # Singleton colors, typography, and sizing
@@ -325,9 +335,10 @@ KPlayer/
 │   ├── IconButton.qml      # Reusable visual button
 │   ├── PlayerSlider.qml    # Seek and volume slider with tooltip
 │   ├── AppMenu.qml         # Traditional Chinese application/context menu
-│   ├── StyledMenu.qml      # Shared compact menu styling
-│   ├── StyledMenuItem.qml  # Labels, shortcuts, checks, and submenu arrows
-│   ├── StyledMenuSeparator.qml # Shared menu dividers
+│   ├── VideoAdjustments.qml # Live brightness, contrast, and saturation controls
+│   ├── PlayerMenu.qml      # Shared compact menu styling
+│   ├── PlayerMenuItem.qml  # Labels, shortcuts, checks, and submenu arrows
+│   ├── PlayerMenuSeparator.qml # Shared menu dividers
 │   ├── PlaylistTab.qml     # Reusable visual tab
 │   ├── TitleBar.qml        # App menu and window control icons
 │   ├── VideoStage.qml      # Video rendering, watermark, and mouse actions
@@ -354,7 +365,8 @@ To check QML with Qt's linter, run `cmake --build build --target all_qmllint`.
 ## Tests
 
 The optional tests require Qt Test and generate their own temporary WAV and Y4M files.
-They exercise recursive video discovery, cancellation, duplicate suppression,
+They exercise favorite persistence, video adjustments, aspect-ratio controls,
+recursive video discovery, cancellation, duplicate suppression,
 Explorer-style startup playback, isolated Windows association registration,
 multi-file drops, playlist validation, filtering, queue editing,
 active-track preservation, title/video context-menu opening and dismissal,
@@ -369,10 +381,15 @@ ctest --test-dir build --output-on-failure
 ```
 
 The playback tests require an OpenGL-capable display (WSLg works). On a headless
-Linux system, run CTest through an X server with OpenGL support, such as Xvfb.
+Linux system, run CTest through an X server with OpenGL support, such as Xvfb,
+and a window manager for the fullscreen and focus tests. The tests select the
+Basic Qt Quick Controls style to avoid depending on the desktop theme.
 If WSL's graphics driver stalls, run the tests with software OpenGL and a single
 render thread:
 
 ```sh
 QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe QSG_RENDER_LOOP=basic ctest --test-dir build --output-on-failure
 ```
+
+If llvmpipe produces corrupted frames, use `GALLIUM_DRIVER=softpipe` instead.
+Preview diagnostics are opt-in with `QT_LOGGING_RULES="kplayer.preview.debug=true"`.

@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 
@@ -20,7 +21,10 @@ PlayerMenu {
     required property Action stopVideoSearchAction
     required property Action associateVideosAction
     required property var player
+    required property Favorites favorites
+    signal favoriteRequested(url source)
     signal addSubtitleRequested()
+    signal videoAdjustmentsRequested()
     property bool hasMedia: false
     property bool playing: false
     property bool seekable: false
@@ -67,7 +71,38 @@ PlayerMenu {
         PlayerMenuItem { action: root.playlistAction }
         PlayerMenuItem { action: root.searchAction }
     }
-    PlayerMenu { title: qsTr("我的最愛"); enabled: false }
+    PlayerMenu {
+        id: favoritesMenu
+        objectName: "favoritesMenu"
+        title: qsTr("我的最愛")
+        PlayerMenuItem {
+            objectName: "toggleFavoriteMenuItem"
+            text: qsTr("目前檔案加入我的最愛")
+            enabled: root.hasMedia
+            checkable: true
+            checked: root.favorites.entries.length > 0 && root.favorites.contains(root.player.source)
+            onTriggered: root.favorites.toggle(root.player.source)
+        }
+        PlayerMenuItem {
+            objectName: "clearFavoritesMenuItem"
+            text: qsTr("清空我的最愛")
+            enabled: root.favorites.entries.length > 0
+            onTriggered: root.favorites.clear()
+        }
+        PlayerMenuSeparator {}
+        Instantiator {
+            model: root.favorites.entries
+            delegate: PlayerMenuItem {
+                required property var modelData
+                required property int index
+                objectName: "favoriteMenuItem" + index
+                text: modelData.title
+                onTriggered: root.favoriteRequested(modelData.source)
+            }
+            onObjectAdded: (index, object) => favoritesMenu.insertItem(3 + index, object)
+            onObjectRemoved: (index, object) => favoritesMenu.removeItem(object)
+        }
+    }
     PlayerMenuItem { objectName: "closeMediaMenuItem"; action: root.closeAction }
     PlayerMenuSeparator {}
     PlayerMenu {
@@ -159,7 +194,18 @@ PlayerMenu {
         PlayerMenuItem { text: qsTr("提高音量"); onTriggered: root.volumeRequested(5) }
         PlayerMenuItem { text: qsTr("降低音量"); onTriggered: root.volumeRequested(-5) }
     }
-    PlayerMenu { title: qsTr("濾鏡"); enabled: false }
+    PlayerMenu {
+        title: qsTr("濾鏡")
+        PlayerMenuItem {
+            objectName: "videoAdjustmentsMenuItem"
+            text: qsTr("影像調整…")
+            onTriggered: root.videoAdjustmentsRequested()
+        }
+        PlayerMenuItem {
+            text: qsTr("重設影像調整")
+            onTriggered: root.player.resetVideoAdjustments()
+        }
+    }
     PlayerMenu {
         title: qsTr("面板")
         PlayerMenuItem { action: root.playlistAction }
@@ -180,7 +226,25 @@ PlayerMenu {
         PlayerMenuItem { text: qsTr("複製目前時間"); onTriggered: root.copyPositionRequested() }
         PlayerMenuItem { text: qsTr("回到開頭"); onTriggered: root.seekRequested(0) }
     }
-    PlayerMenu { title: qsTr("比例"); enabled: false }
+    PlayerMenu {
+        id: aspectMenu
+        objectName: "aspectRatioMenu"
+        title: qsTr("比例")
+        Instantiator {
+            model: ["no", "4:3", "16:9", "16:10", "1:1", "2.35:1"]
+            delegate: PlayerMenuItem {
+                required property string modelData
+                objectName: "aspectRatio_" + modelData
+                text: modelData === "no" ? qsTr("原始比例") : modelData
+                checkable: true
+                radioIndicator: true
+                checked: root.player.aspectRatio === modelData
+                onTriggered: root.player.aspectRatio = modelData
+            }
+            onObjectAdded: (index, object) => aspectMenu.insertItem(index, object)
+            onObjectRemoved: (index, object) => aspectMenu.removeItem(object)
+        }
+    }
     PlayerMenu {
         title: qsTr("畫面大小")
         PlayerMenuItem { text: qsTr("預設大小"); onTriggered: root.windowSizeRequested(false) }

@@ -1,7 +1,7 @@
 #include "MpvPreview.h"
 
 #include <QOpenGLContext>
-#include <QDebug>
+#include <QLoggingCategory>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QQuickOpenGLUtils>
@@ -16,6 +16,7 @@
 
 namespace {
 constexpr quint64 idleQueryMask = quint64{1} << 63;
+Q_LOGGING_CATEGORY(previewLog, "kplayer.preview", QtWarningMsg)
 }
 
 class MpvPreviewRenderer : public QObject, public QQuickFramebufferObject::Renderer
@@ -141,8 +142,6 @@ MpvPreview::MpvPreview(QQuickItem *parent) : QQuickFramebufferObject(parent)
     mpv_observe_property(handle, 0, "video-params/w", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "duration", MPV_FORMAT_DOUBLE);
     mpv_observe_property(handle, 0, "idle-active", MPV_FORMAT_FLAG);
-    mpv_observe_property(handle, 0, "time-pos", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(handle, 0, "path", MPV_FORMAT_STRING);
 }
 
 MpvPreview::~MpvPreview()
@@ -227,8 +226,8 @@ void MpvPreview::requestFrame()
 
 bool MpvPreview::submitCommand(Command command, const char **arguments)
 {
-    qInfo() << "Preview command" << int(command) << arguments[0]
-            << (arguments[1] ? arguments[1] : "") << "revision" << m_requestRevision;
+    qCDebug(previewLog) << "Preview command" << arguments[0]
+                       << "revision" << m_requestRevision;
     m_command = command;
     const int result = mpv_command_async(m_mpv.get(), ++m_commandId, arguments);
     if (result >= 0)
@@ -301,8 +300,7 @@ void MpvPreview::setReady(bool ready)
     if (m_ready == ready)
         return;
     m_ready = ready;
-    qInfo() << "Preview ready" << ready << m_loadedSource << m_position
-            << "revision" << m_requestRevision << "render" << m_renderRevision;
+    qCDebug(previewLog) << "Preview ready" << ready << "revision" << m_requestRevision;
     emit readyChanged();
 }
 
@@ -321,11 +319,6 @@ void MpvPreview::processEvents()
     while (const auto *event = mpv_wait_event(m_mpv.get(), 0)) {
         if (event->event_id == MPV_EVENT_NONE)
             break;
-        if (event->event_id == MPV_EVENT_FILE_LOADED || event->event_id == MPV_EVENT_START_FILE
-            || event->event_id == MPV_EVENT_END_FILE || event->event_id == MPV_EVENT_SEEK
-            || event->event_id == MPV_EVENT_PLAYBACK_RESTART)
-            qInfo() << "Preview event" << mpv_event_name(event->event_id) << m_loadedSource
-                    << "seeking" << m_seeking << "started" << m_seekStarted;
         if (event->event_id == MPV_EVENT_COMMAND_REPLY && event->reply_userdata == m_commandId) {
             const Command completed = std::exchange(m_command, Command::None);
             if (completed == Command::Stop) {
@@ -353,10 +346,6 @@ void MpvPreview::processEvents()
             m_loaded = true;
         } else if (event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
             const auto *property = static_cast<mpv_event_property *>(event->data);
-            if (std::strcmp(property->name, "time-pos") == 0 && property->data)
-                qInfo() << "Preview time" << *static_cast<double *>(property->data);
-            else if (std::strcmp(property->name, "path") == 0 && property->data)
-                qInfo() << "Preview path" << *static_cast<char **>(property->data);
             if (std::strcmp(property->name, "idle-active") == 0) {
                 if (property->data && property->format == MPV_FORMAT_FLAG
                     && *static_cast<int *>(property->data) && m_stopping && m_stopAcknowledged)
