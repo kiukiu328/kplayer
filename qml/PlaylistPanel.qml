@@ -106,7 +106,7 @@ Rectangle {
             objectName: "addMediaTab"
             width: root.width / 3
             height: header.height
-            label: "瀏覽器"
+            label: qsTr("瀏覽器")
             color: Theme.chromeBackground
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("Add media to playlist")
@@ -120,7 +120,7 @@ Rectangle {
             id: selectedHeader
             width: root.width / 3
             height: header.height
-            label: "播放清單"
+            label: qsTr("播放清單")
             selected: true
             color: Theme.tabBackground
             PlayerIcon {
@@ -166,7 +166,7 @@ Rectangle {
                 required property int index
                 required property string name
                 objectName: "playlistTab" + index
-                label: name
+                label: index === 0 ? qsTr("預設") : name
                 selected: index === root.playlistCollection.currentIndex
                 width: Math.min(180, implicitWidth)
                 height: playlistTabs.height
@@ -422,9 +422,9 @@ Rectangle {
             }
             Repeater {
                 model: [
-                    { text: "新增", label: qsTr("Add media"), name: "addPlaylistButton" },
-                    { text: "移除", label: qsTr("Remove selected track"), name: "removePlaylistButton" },
-                    { text: "排序", label: qsTr("Sort playlist"), name: "sortPlaylistButton" }
+                    { text: qsTr("新增"), label: qsTr("Add media"), name: "addPlaylistButton" },
+                    { text: qsTr("移除"), label: qsTr("Remove selected track"), name: "removePlaylistButton" },
+                    { text: qsTr("排序"), label: qsTr("Sort playlist"), name: "sortPlaylistButton" }
                 ]
                 Button {
                     id: textButton
@@ -538,7 +538,7 @@ Rectangle {
                 required property int index
                 required property string name
                 objectName: "selectPlaylistMenuItem" + index
-                text: name
+                text: index === 0 ? qsTr("預設") : name
                 checkable: true
                 autoExclusive: true
                 radioIndicator: true

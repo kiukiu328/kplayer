@@ -21,6 +21,7 @@ Dialog {
     palette.highlightedText: Theme.textPrimary
 
     onOpened: {
+        interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
         languageCodes.text = subtitleLanguage
         languageChoice.currentIndex = 0
         for (let i = 0; i < languageChoice.model.length; ++i) {
@@ -30,10 +31,24 @@ Dialog {
             }
         }
     }
-    onAccepted: languageSaved(languageCodes.text.trim().replace(/\s+/g, "").toLowerCase())
+    onAccepted: {
+        AppLanguage.language = interfaceLanguage.currentIndex === 1 ? "en" : "zh_TW"
+        languageSaved(languageCodes.text.trim().replace(/\s+/g, "").toLowerCase())
+    }
 
     contentItem: Column {
         spacing: 12
+        Label {
+            text: qsTr("介面語言")
+            color: Theme.textPrimary
+        }
+        ComboBox {
+            id: interfaceLanguage
+            objectName: "interfaceLanguageChoice"
+            width: parent.width
+            model: ["繁體中文", "English"]
+            Accessible.name: qsTr("介面語言")
+        }
         Label {
             text: qsTr("預設字幕語言")
             color: Theme.textPrimary

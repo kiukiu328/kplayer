@@ -63,6 +63,10 @@ Rectangle {
             root.showHint(track ? qsTr("Subtitle: %1").arg(track.label) : qsTr("No subtitles"))
         }
     }
+    Connections {
+        target: AppLanguage
+        function onLanguageChanged() { video.retranslateSubtitles() }
+    }
     Row {
         visible: video.stopped
         anchors.centerIn: parent

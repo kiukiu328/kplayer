@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.11.2 REQUIRED COMPONENTS Quick OpenGL Svg)
+find_package(Qt6 6.11.2 REQUIRED COMPONENTS Quick OpenGL Svg LinguistTools)
 if(WIN32)
     # Native Windows CMake cannot use MSYS paths from dependency .pc files.
     find_path(MPV_INCLUDE_DIR NAMES mpv/client.h REQUIRED)
@@ -51,6 +51,7 @@ set(KPLAYER_QML_FILES
     qml/TitleBar.qml
     qml/VideoStage.qml
     qml/WindowResizeFrame.qml
+    qml/WindowDragArea.qml
     qml/PlaybackBar.qml
     qml/PlaylistTab.qml
     qml/PlaylistPanel.qml
@@ -74,6 +75,8 @@ foreach(icon IN LISTS KPLAYER_ICONS)
 endforeach()
 
 set(KPLAYER_SOURCES
+    src/integration/AppLanguage.h
+    src/integration/AppLanguage.cpp
     src/playback/MpvVideo.h
     src/playback/MpvVideo.cpp
     src/playback/MpvPreview.h
@@ -88,6 +91,20 @@ set(KPLAYER_SOURCES
     src/playback/Favorites.h
     src/playback/Favorites.cpp
 )
+
+qt_add_lrelease(TS_FILES translations/kplayer_en.ts
+    QM_FILES_OUTPUT_VARIABLE KPLAYER_TRANSLATIONS)
+qt_add_lrelease(TS_FILES translations/kplayer_zh_TW.ts
+    MERGE_QT_TRANSLATIONS QT_TRANSLATION_CATALOGS qtbase qtdeclarative
+    QM_FILES_OUTPUT_VARIABLE KPLAYER_CHINESE_TRANSLATIONS)
+list(APPEND KPLAYER_TRANSLATIONS ${KPLAYER_CHINESE_TRANSLATIONS})
+
+function(kplayer_add_translations target)
+    qt_add_resources(${target} translations
+        PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}"
+        FILES ${KPLAYER_TRANSLATIONS})
+endfunction()
+kplayer_add_translations(KPlayer)
 
 qt_add_qml_module(KPlayer
     URI KPlayer
@@ -156,6 +173,7 @@ if(KPLAYER_BUILD_TESTS)
     enable_testing()
     find_package(Qt6 6.11.2 REQUIRED COMPONENTS Test)
     qt_add_executable(KPlayerTests tests/tst_player.cpp)
+    kplayer_add_translations(KPlayerTests)
     qt_add_qml_module(KPlayerTests
         URI KPlayer
         OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/qml/KPlayer

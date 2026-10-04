@@ -4,7 +4,15 @@ import QtQuick
 PlayerMenu {
     id: root
     required property var player
+    property string preferredLanguages: ""
+    readonly property string trackLanguage: {
+        const track = player.subtitleTracks.find(track => track.id === player.subtitleTrack)
+        return track && track.lang ? track.lang.trim().toLowerCase() : ""
+    }
+    readonly property bool usableLanguage: /^[a-z]{2,3}(-[a-z0-9]+)*$/.test(trackLanguage)
+        && !["und", "zxx", "mul"].includes(trackLanguage)
     signal addRequested()
+    signal preferLanguageRequested(string language)
     title: qsTr("字幕")
 
     PlayerMenuItem {
@@ -52,5 +60,19 @@ PlayerMenu {
         }
         onObjectAdded: (index, object) => root.insertItem(5 + index, object)
         onObjectRemoved: (index, object) => root.removeItem(object)
+    }
+    PlayerMenuSeparator {}
+    PlayerMenuItem {
+        objectName: "subtitleLanguageMenuItem"
+        text: root.usableLanguage ? qsTr("目前字幕語言代碼：%1").arg(root.trackLanguage)
+                                 : qsTr("目前字幕語言代碼：未知")
+        enabled: false
+    }
+    PlayerMenuItem {
+        objectName: "preferSubtitleLanguageMenuItem"
+        text: qsTr("加入預設字幕語言")
+        enabled: root.player.mediaLoaded && root.usableLanguage
+            && !root.preferredLanguages.toLowerCase().split(",").map(code => code.trim()).includes(root.trackLanguage)
+        onTriggered: root.preferLanguageRequested(root.trackLanguage)
     }
 }

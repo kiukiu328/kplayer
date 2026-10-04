@@ -460,6 +460,34 @@ void MpvVideo::clearSubtitleTracks()
     }
 }
 
+QString MpvVideo::subtitleLabel(const QVariantMap &track) const
+{
+    QStringList label;
+    label << tr("Subtitle %1").arg(track.value("id").toInt());
+    for (const QString &key : {QStringLiteral("title"), QStringLiteral("lang")}) {
+        if (!track.value(key).toString().isEmpty())
+            label << track.value(key).toString();
+    }
+    if (track.value("external").toBool()) {
+        const QString filename = QFileInfo(track.value("external-filename").toString()).fileName();
+        if (!filename.isEmpty() && !label.contains(filename))
+            label << filename;
+    }
+    return label.join(QStringLiteral(" · "));
+}
+
+void MpvVideo::retranslateSubtitles()
+{
+    if (m_subtitleTracks.isEmpty())
+        return;
+    for (QVariant &entry : m_subtitleTracks) {
+        QVariantMap track = entry.toMap();
+        track.insert("label", subtitleLabel(track));
+        entry = track;
+    }
+    emit subtitleTracksChanged();
+}
+
 void MpvVideo::updateSubtitleTracks(const mpv_node &node)
 {
     QVariantList tracks;
@@ -481,18 +509,7 @@ void MpvVideo::updateSubtitleTracks(const mpv_node &node)
             }
             if (track.value("type").toString() != "sub")
                 continue;
-            QStringList label;
-            label << tr("Subtitle %1").arg(track.value("id").toInt());
-            for (const QString &key : {QStringLiteral("title"), QStringLiteral("lang")}) {
-                if (!track.value(key).toString().isEmpty())
-                    label << track.value(key).toString();
-            }
-            if (track.value("external").toBool()) {
-                const QString filename = QFileInfo(track.value("external-filename").toString()).fileName();
-                if (!filename.isEmpty() && !label.contains(filename))
-                    label << filename;
-            }
-            track.insert("label", label.join(QStringLiteral(" · ")));
+            track.insert("label", subtitleLabel(track));
             tracks.append(track);
         }
     }

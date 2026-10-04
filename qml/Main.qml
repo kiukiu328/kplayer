@@ -15,6 +15,21 @@ Window {
     flags: Qt.Window | Qt.FramelessWindowHint
         | (alwaysOnTop ? Qt.WindowStaysOnTopHint : 0)
     property url mediaSource
+    readonly property string interfaceLanguage: AppLanguage.language
+    signal windowMoveRequested()
+    onWindowMoveRequested: {
+        if (!isFullscreen)
+            startSystemMove()
+    }
+
+    function preferSubtitleLanguage(language: string) {
+        const codes = preferences.defaultLanguage.toLowerCase().split(",")
+            .map(code => code.trim()).filter(code => code.length > 0)
+        if (!codes.includes(language))
+            codes.push(language)
+        preferences.defaultLanguage = codes.join(",")
+        videoStage.showHint(qsTr("已加入預設字幕語言：%1").arg(language))
+    }
     property list<url> startupFiles: []
     // Desktop startup enables discovery; previews and component tests stay isolated.
     property bool discoverVideosOnStartup: false
@@ -325,6 +340,8 @@ Window {
     SubtitleMenu {
         id: subtitleMenu
         objectName: "subtitleSelectionMenu"
+        preferredLanguages: preferences.defaultLanguage
+        onPreferLanguageRequested: (language) => window.preferSubtitleLanguage(language)
         parent: window.contentItem
         player: videoStage
         onAddRequested: window.openSubtitles()
@@ -414,6 +431,8 @@ Window {
         onTriggered: window.close()
     }
     AppMenu {
+        preferredSubtitleLanguages: preferences.defaultLanguage
+        onPreferSubtitleLanguageRequested: (language) => window.preferSubtitleLanguage(language)
         id: appMenu
         parent: window.contentItem
         openAction: openMediaAction
@@ -741,10 +760,7 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: playback.top
-                    onMoveRequested: {
-                        if (window.visibility !== Window.FullScreen)
-                            window.startSystemMove()
-                    }
+                    onMoveRequested: if (!window.isFullscreen) window.windowMoveRequested()
                     onFullscreenRequested: window.toggleFullscreen()
                     onPlayPauseRequested: window.togglePlayback()
                     onEndOfFile: window.advanceAfterEnd()
@@ -798,7 +814,10 @@ Window {
                     ? Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio) : 0
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
-                discoveryStatus: videoLibrary.status
+                discoveryStatus: {
+                    AppLanguage.language
+                    return videoLibrary.status
+                }
                 discoveringVideos: videoLibrary.scanning
                 onStopDiscoveryRequested: videoLibrary.cancel()
                 onTrackRequested: (index) => window.playTrack(index)
@@ -806,6 +825,15 @@ Window {
                 onClearRequested: window.clearPlaylist()
             }
         }
+    }
+
+    WindowDragArea {
+        objectName: "windowDragArea"
+        anchors.fill: parent
+        surface: window.contentItem
+        enabled: !window.isFullscreen
+        z: 50
+        onMoveRequested: window.windowMoveRequested()
     }
 
     WindowResizeFrame {

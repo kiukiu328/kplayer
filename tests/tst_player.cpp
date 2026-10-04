@@ -5,6 +5,7 @@
 #include "VideoLibrary.h"
 #include "FileAssociations.h"
 #include "VideoFormats.h"
+#include "AppLanguage.h"
 
 #include <QAbstractItemModelTester>
 #include <QDataStream>
@@ -139,6 +140,89 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void interfaceLanguageSwitchesAndPersists()
+    {
+        QSettings().clear();
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            QVERIFY(dialog);
+            QCOMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("zh_TW"));
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            auto *choice = findItem(window->contentItem(), "interfaceLanguageChoice");
+            QVERIFY(choice);
+            choice->setProperty("currentIndex", 1);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+            QCOMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("zh_TW"));
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QCOMPARE(choice->property("currentIndex").toInt(), 0);
+            choice->setProperty("currentIndex", 1);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+            QTRY_COMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("en"));
+            QCOMPARE(dialog->property("title").toString(), QStringLiteral("Advanced settings"));
+            QCOMPARE(findItem(window->contentItem(), "addMediaTab")->property("label").toString(), QStringLiteral("Browse"));
+            QCOMPARE(findItem(window->contentItem(), "playlistTab0")->property("label").toString(), QStringLiteral("Default"));
+            QCOMPARE(QSettings().value("interface/language").toString(), QStringLiteral("en"));
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QCOMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("en"));
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            QCOMPARE(dialog->property("title").toString(), QStringLiteral("Advanced settings"));
+            auto *language = engine.singletonInstance<AppLanguage *>("KPlayer", "AppLanguage");
+            QVERIFY(language);
+            language->setLanguage("zh_TW");
+            QCOMPARE(dialog->property("title").toString(), QStringLiteral("進階設定"));
+            QCOMPARE(findItem(window->contentItem(), "playButton")->property("label").toString(), QStringLiteral("播放"));
+        }
+        QSettings().clear();
+    }
+
+    void unusedWindowAreasAllowDragging()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        QSignalSpy moves(window, SIGNAL(windowMoveRequested()));
+        const auto drag = [&](QQuickItem *item, QPointF local) {
+            const QPoint start = item->mapToScene(local).toPoint();
+            const QPoint end = start + QPoint(QGuiApplication::styleHints()->startDragDistance() + 12, 0);
+            QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+            QTest::mouseMove(window, end, 30);
+            QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+        };
+        for (const QString &name : {QStringLiteral("titleBar"), QStringLiteral("playbackBar"),
+                                    QStringLiteral("trackList")}) {
+            auto *item = findItem(window->contentItem(), name);
+            QVERIFY(item);
+            const int before = moves.count();
+            drag(item, {item->width() / 2, item->height() - 20});
+            QCOMPARE(moves.count(), before + 1);
+        }
+        const int before = moves.count();
+        for (const QString &name : {QStringLiteral("playButton"), QStringLiteral("volumeSlider"),
+                                    QStringLiteral("playlistSearch"), QStringLiteral("playlistTab0")}) {
+            auto *item = findItem(window->contentItem(), name);
+            QVERIFY(item);
+            drag(item, {item->width() / 2, item->height() / 2});
+            QCOMPARE(moves.count(), before);
+        }
+        window->showFullScreen();
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QVERIFY(!findItem(window->contentItem(), "windowDragArea")->isEnabled());
+    }
+
     void favoritesPersistAndKeepUnavailableFiles()
     {
         QSettings().remove("favorites");
@@ -1767,6 +1851,7 @@ private slots:
 
     void settingHintsExpireAndRestart()
     {
+        QSettings().setValue("interface/language", "en");
         QQmlApplicationEngine engine;
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
@@ -1791,6 +1876,7 @@ private slots:
         window->setProperty("repeatMode", 2);
         QCOMPARE(hint->property("text").toString(), QStringLiteral("Repeat playlist"));
         QTRY_VERIFY_WITH_TIMEOUT(!hint->isVisible(), 3000);
+        QSettings().remove("interface/language");
     }
 
     void fullscreenRestoresLayoutAndWindowState()

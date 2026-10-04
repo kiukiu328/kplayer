@@ -21,6 +21,8 @@ PlayerMenu {
     required property Action stopVideoSearchAction
     required property Action associateVideosAction
     required property var player
+    property string preferredSubtitleLanguages: ""
+    signal preferSubtitleLanguageRequested(string language)
     required property Favorites favorites
     signal favoriteRequested(url source)
     signal addSubtitleRequested()
@@ -173,6 +175,8 @@ PlayerMenu {
     SubtitleMenu {
         objectName: "subtitleSubmenu"
         player: root.player
+        preferredLanguages: root.preferredSubtitleLanguages
+        onPreferLanguageRequested: (language) => root.preferSubtitleLanguageRequested(language)
         onAddRequested: root.addSubtitleRequested()
     }
     PlayerMenu {

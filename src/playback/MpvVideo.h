@@ -79,6 +79,7 @@ public:
     Q_INVOKABLE void play();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void togglePause();
+    Q_INVOKABLE void retranslateSubtitles();
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void seekRelative(double seconds);
 
@@ -109,6 +110,7 @@ private:
     void setPosition(double seconds);
     void setDuration(double seconds);
     void setSeekable(bool seekable);
+    QString subtitleLabel(const QVariantMap &track) const;
     void updateSubtitleTracks(const mpv_node &node);
     void clearSubtitleTracks();
     void setVideoAdjustment(const char *name, int value, int &current);
