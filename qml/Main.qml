@@ -40,9 +40,8 @@ Window {
     property bool playlistVisible: true
     property bool controlsVisible: true
     property bool alwaysOnTop: false
-    property bool fullscreenPlus: false
-    property bool playlistBeforeFullscreenPlus: true
-    property bool controlsBeforeFullscreenPlus: true
+    property bool playlistBeforeFullscreen: true
+    property bool controlsBeforeFullscreen: true
     // Manual track navigation always respects the queue boundaries.
     property int repeatMode: 0 // 0: off, 1: current track, 2: entire playlist
     onRepeatModeChanged: videoStage.showHint([qsTr("Repeat off"),
@@ -157,33 +156,20 @@ Window {
 
     function toggleFullscreen() {
         if (visibility === Window.FullScreen) {
-            if (fullscreenPlus) {
-                playlistVisible = playlistBeforeFullscreenPlus
-                controlsVisible = controlsBeforeFullscreenPlus
-                fullscreenPlus = false
-            }
+            playlistVisible = playlistBeforeFullscreen
+            controlsVisible = controlsBeforeFullscreen
             if (visibilityBeforeFullscreen === Window.Maximized)
                 showMaximized()
             else
                 showNormal()
         } else {
             visibilityBeforeFullscreen = visibility
+            playlistBeforeFullscreen = playlistVisible
+            controlsBeforeFullscreen = controlsVisible
+            playlistVisible = false
+            controlsVisible = false
             showFullScreen()
         }
-    }
-
-    function toggleFullscreenPlus() {
-        if (fullscreenPlus) {
-            toggleFullscreen()
-            return
-        }
-        playlistBeforeFullscreenPlus = playlistVisible
-        controlsBeforeFullscreenPlus = controlsVisible
-        fullscreenPlus = true
-        playlistVisible = false
-        controlsVisible = false
-        if (visibility !== Window.FullScreen)
-            toggleFullscreen()
     }
 
     function formatTime(seconds: real): string {
@@ -238,12 +224,25 @@ Window {
         category: "subtitles"
         property string defaultLanguage: ""
     }
+    Settings {
+        id: playbackPreferences
+        category: "playback"
+        property real maximumSpeed: 16
+        property real playlistWidth: Theme.playlistWidth
+    }
     AdvancedSettings {
         id: advancedSettings
         objectName: "advancedSettingsDialog"
         parent: window.contentItem
         anchors.centerIn: parent
         width: Math.min(480, window.width - 32)
+        height: Math.min(implicitHeight, window.height - 32)
+        maximumSpeed: playbackPreferences.maximumSpeed
+        playbackSpeed: videoStage.speed
+        onSpeedSaved: (speed, maximum) => {
+            playbackPreferences.maximumSpeed = maximum
+            videoStage.speed = speed
+        }
         subtitleLanguage: preferences.defaultLanguage
         onLanguageSaved: (language) => preferences.defaultLanguage = language
     }
@@ -370,7 +369,6 @@ Window {
     Action {
         id: fullscreenAction
         text: qsTr("全螢幕")
-        shortcut: "F11"
         checkable: true
         checked: window.visibility === Window.FullScreen
         onTriggered: window.toggleFullscreen()
@@ -404,14 +402,6 @@ Window {
         onTriggered: window.controlsVisible = !window.controlsVisible
     }
     Action {
-        id: fullscreenPlusAction
-        text: qsTr("全螢幕+")
-        shortcut: "Ctrl+Return"
-        checkable: true
-        checked: window.fullscreenPlus
-        onTriggered: window.toggleFullscreenPlus()
-    }
-    Action {
         id: mediaInfoAction
         text: qsTr("媒體資訊…")
         shortcut: "Ctrl+F1"
@@ -441,7 +431,6 @@ Window {
         playlistAction: showPlaylistAction
         controlsAction: controlsAction
         fullscreenAction: fullscreenAction
-        fullscreenPlusAction: fullscreenPlusAction
         pinAction: pinAction
         mediaInfoAction: mediaInfoAction
         aboutAction: aboutAction
@@ -754,12 +743,13 @@ Window {
 
                 VideoStage {
                     id: videoStage
+                    maximumSpeed: playbackPreferences.maximumSpeed
                     defaultSubtitleLanguage: preferences.defaultLanguage
                     source: window.mediaPlaylist.currentSource
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.bottom: playback.top
+                    anchors.bottom: window.isFullscreen ? parent.bottom : playback.top
                     onMoveRequested: if (!window.isFullscreen) window.windowMoveRequested()
                     onFullscreenRequested: window.toggleFullscreen()
                     onPlayPauseRequested: window.togglePlayback()
@@ -769,13 +759,23 @@ Window {
                         window.showContextMenu(point.x, point.y)
                     }
                 }
+                Item {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: Theme.seekHeight + Theme.transportHeight + 16
+                    enabled: window.isFullscreen
+                    HoverHandler { id: bottomHover }
+                }
                 PlaybackBar {
                     id: playback
                     objectName: "playbackBar"
                     anchors.bottom: parent.bottom
                     width: parent.width
-                    visible: window.controlsVisible
-                    height: window.controlsVisible ? Theme.seekHeight + Theme.transportHeight : 0
+                    visible: window.controlsVisible || (window.isFullscreen
+                        && (bottomHover.hovered || playback.interacting || activeFocus
+                            || appMenu.visible || settingsMenu.visible))
+                    height: visible ? Theme.seekHeight + Theme.transportHeight : 0
                     playing: videoStage.playing
                     position: videoStage.position
                     duration: videoStage.duration
@@ -804,6 +804,31 @@ Window {
                 }
             }
 
+            MouseArea {
+                objectName: "playlistResizeHandle"
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                x: playlist.x - width / 2
+                width: 8
+                z: 2
+                visible: window.playlistVisible
+                cursorShape: Qt.SplitHCursor
+                preventStealing: true
+                property real startX
+                property real startWidth
+                onPressed: (mouse) => {
+                    startX = mapToItem(window.contentItem, mouse.x, mouse.y).x
+                    startWidth = playlist.width
+                }
+                onPositionChanged: (mouse) => {
+                    if (pressed) {
+                        const currentX = mapToItem(window.contentItem, mouse.x, mouse.y).x
+                        playbackPreferences.playlistWidth = Math.max(360,
+                            Math.min(parent.width - 400, startWidth + startX - currentX))
+                    }
+                }
+            }
+
             PlaylistPanel {
                 id: playlist
                 anchors.right: parent.right
@@ -811,7 +836,7 @@ Window {
                 anchors.bottom: parent.bottom
                 visible: window.playlistVisible
                 width: window.playlistVisible
-                    ? Math.min(Theme.playlistWidth, parent.width * Theme.playlistRatio) : 0
+                    ? Math.max(360, Math.min(playbackPreferences.playlistWidth, parent.width - 400)) : 0
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
                 discoveryStatus: {

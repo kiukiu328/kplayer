@@ -55,7 +55,7 @@ int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &f
         return 0;
     QSet<QString> visited;
     QList<QUrl> siblings;
-    QCollator collator;
+    QCollator collator(QLocale(QLocale::English, QLocale::UnitedStates));
     collator.setCaseSensitivity(Qt::CaseInsensitive);
     collator.setNumericMode(true);
     for (const QUrl &url : files) {

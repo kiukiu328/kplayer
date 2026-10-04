@@ -7,6 +7,9 @@ replacement that felt right for me. So I started building my own. KPlayer aims
 to bring the familiar controls, playlists, and subtitle workflow I enjoy to my
 Linux desktop.
 
+I know about rein_player, which uses Flutter. I wanted a more native desktop
+solution built with C++ and Qt, so I started KPlayer.
+
 Built with **C++20, Qt Quick, and libmpv**, KPlayer plays local media files and
 URLs in a compact desktop interface. Linux is the motivation behind the project;
 the repository also includes Windows build and file-association support.
@@ -52,9 +55,7 @@ keyboard activation. Buttons and controls show hover tooltips.
 ## Player controls
 
 The libmpv backend in `src/playback/` renders media in the play area. The player
-starts idle when launched without a media argument. If `assets/dummy.mp4` exists
-in the working directory, it is selected as an idle sample. Open Media can
-select files, and file paths or URLs supplied as command-line arguments are
+starts idle when launched without a media argument. Open Media can select files, and file paths or URLs supplied as command-line arguments are
 queued and the first valid entry starts playing immediately.
 
 - On Windows, startup registers common video formats (including MP4, MKV, AVI,
@@ -67,7 +68,8 @@ queued and the first valid entry starts playing immediately.
   launching it from its new location once to refresh registration.
 - Opening local videos from the file manager, command line, or Open Media also
   adds videos from the same folders to the active playlist, without duplicates
-  or scanning subfolders. The requested file stays selected and starts playing.
+  or scanning subfolders. The queue is sorted in natural filename order (episode 2
+  before episode 10). The requested file stays selected and starts playing.
   This works independently of the background library search, including with
   `--no-scan`. Add to Playlist and drag-and-drop retain explicit queue order.
 - At startup, a background search recursively adds videos from all local fixed
@@ -88,25 +90,33 @@ queued and the first valid entry starts playing immediately.
 
 - Top-right Close, Minimize, Maximize/Restore, and Full Screen/Exit Full Screen
   buttons control the window. Exiting fullscreen restores its prior normal or
-  maximized state. Fullscreen removes the custom title bar and window border;
-  use F11, Enter, Escape, or the play area's middle click to leave it.
+  maximized state. Fullscreen hides the title bar, playlist, and controls.
+  Move the cursor to the bottom to reveal the timeline and controls over the video.
+  Return toggles fullscreen; Escape or the play area's middle click also leaves it.
+  Exiting restores the previous playlist and control visibility.
 - Hold the left mouse button and drag the play area to move the window.
 - Double-click the play area with the left mouse button to play or pause.
 - Drag any window edge or corner to resize. Resizing is available in the normal
   window state and respects the minimum window size.
 - Click the Playlist button to hide or show the playlist. Hiding it expands the
-  play area and keeps the queue and current selection.
+  play area and keeps the queue and current selection. Drag the divider at the
+  playlist's left edge to resize it; its width is saved across launches.
 - Drag one or more files onto the playlist to append them in drop order.
   Double-click a playlist entry, or select it and press Enter, to play it.
   Dropping files queues them without interrupting playback; directories and
   missing files are ignored. Open Media supports selecting multiple files and
   starts the first new entry.
 - Add (新增), the Browse tab, and **Add to playlist…** queue files without
-  interrupting playback. Remove (移除) or Delete removes the selected entry;
+  interrupting playback. Remove (移除) or Delete removes the selected entries;
   removing the current entry selects its next neighbor (or the previous final
   entry). Playback stops if the media changes. Clear Playlist empties the queue
   and stops playback.
-- The ordering buttons move the selected entry to the top, up, down, or bottom.
+- Each playlist entry shows its queue index, including while searching.
+  Shift-click or Shift+Up/Down selects a range; Ctrl-click toggles individual
+  entries, and Ctrl+A selects all visible entries. Drag selected entries to the
+  insertion line to move them together, preserving their order. Drag near the
+  list's top or bottom to scroll. Remove or Delete removes the selected entries.
+- The ordering buttons move the selected entries to the top, up, down, or bottom.
   Ctrl+Up/Ctrl+Down also reorder a focused playlist selection. Sort (排序)
   offers natural, case-insensitive title order in either direction. Queue edits
   preserve the current track without restarting it when its media stays in the queue.
@@ -136,8 +146,8 @@ queued and the first valid entry starts playing immediately.
   with a Reset button to restore neutral values. These video settings apply to
   the current session and do not alter the media files.
 - Keyboard shortcuts: F3 or Ctrl+O opens media, F4 closes playback while keeping
-  the queue, F5 opens Advanced Settings, F6 or Ctrl+L toggles the playlist, F11 toggles fullscreen, and Escape
-  leaves fullscreen. With focus in the video area, Enter also toggles fullscreen, Space
+  the queue, F5 opens Advanced Settings, F6 or Ctrl+L toggles the playlist, and Escape
+  leaves fullscreen. With focus in the video area, Return toggles fullscreen, Space
   toggles playback, M toggles mute, Left/Right seek 10 seconds, and Up/Down adjust
   volume by 5%. Text fields, focused controls, and playlist selection keep their
   own keyboard behavior.
@@ -154,7 +164,7 @@ queued and the first valid entry starts playing immediately.
   | Keys | Action |
   | --- | --- |
   | Z | Toggle between 1.0× and the last non-normal speed |
-  | X / C | Decrease / increase speed by 0.1× (0.2–5.0×) |
+  | X / C | Decrease / increase speed by 0.1× (0.2–16.0× by default) |
   | L | Open the subtitle selection menu |
   | Alt+O | Add subtitle files |
   | Alt+H | Show / hide subtitles |
@@ -168,7 +178,10 @@ queued and the first valid entry starts playing immediately.
   | D / F | Previous / next frame (pauses playback) |
 
   Bindings were checked against [PotPlayer's bundled English menu definitions](https://github.com/Onemeshnik/PotPlayer-Median-subtitles-installer/blob/master/%7Bapp%7D/Language/English.ini).
-  Playback speed also appears in the Playback menu. Setting changes show blue
+  Playback speed also appears in the Playback menu. **Custom playback speed…**
+  or Advanced Settings (F5) lets you enter a speed in 0.1× steps and change the
+  maximum (16× by default, configurable from 1× to 100×). The maximum is saved
+  across launches; lowering it also clamps the current speed. Setting changes show blue
   hints at the top-left of the play area for two seconds, including normal speed
   (`1.0x`), volume, mute, subtitles, repeat, and window controls.
 - Play toggles play/pause. Stop clears playback; pressing Play again restarts
@@ -194,7 +207,6 @@ queued and the first valid entry starts playing immediately.
 - libmpv development headers and library (on Windows, found through CMake;
   on Linux and macOS, discoverable as `mpv` through pkg-config)
 - pkg-config (Linux and macOS)
-- FFmpeg with the `libx264` encoder (optional, to generate a future playback sample)
 - CMake 3.24 or newer
 - A C++20 compiler
 - Ninja
@@ -202,15 +214,7 @@ queued and the first valid entry starts playing immediately.
 
 ## Build and run
 
-No media file is needed to open the player. To optionally prepare a silent
-10-second H.264 test video, run:
-
-```sh
-ffmpeg -hide_banner -y -f lavfi -i testsrc2=size=960x540:rate=30 -t 10 -c:v libx264 -pix_fmt yuv420p -movflags +faststart assets/dummy.mp4
-```
-
-This command overwrites `assets/dummy.mp4`. The generated video is ignored by Git;
-regenerate it when needed after cloning the project.
+No media file is needed to open the player.
 
 From the project directory (Linux):
 
@@ -377,8 +381,7 @@ KPlayer/
 │   ├── PlaybackBar.qml     # Tracks, transport, time, and tools
 │   └── PlaylistPanel.qml   # Playlist headers, tabs, and footer
 └── assets/
-    ├── icons/              # Embedded SVG icons
-    └── dummy.mp4           # Generated sample video (ignored by Git)
+    └── icons/              # Embedded SVG icons
 ```
 
 C++ implementation files live in `src/`, with headers beside their sources.

@@ -11,6 +11,7 @@ Rectangle {
     property alias seekable: video.seekable
     property alias muted: video.muted
     property alias volume: video.volume
+    property alias maximumSpeed: video.maximumSpeed
     property alias speed: video.speed
     property alias aspectRatio: video.aspectRatio
     property alias brightness: video.brightness

@@ -30,6 +30,7 @@ public:
     Q_INVOKABLE int indexOfSource(const QUrl &url) const;
     Q_INVOKABLE bool removeAt(int index);
     Q_INVOKABLE bool moveTrack(int from, int to);
+    Q_INVOKABLE QList<int> moveTracks(const QList<int> &rows, int destination);
     Q_INVOKABLE int sortByTitle(bool ascending = true, int selectedIndex = -1);
     Q_INVOKABLE void clear();
     static QString sourceKey(const QUrl &url);

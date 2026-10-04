@@ -23,6 +23,7 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(bool seekable READ seekable NOTIFY seekableChanged)
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY mutedChanged)
     Q_PROPERTY(double volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(double maximumSpeed READ maximumSpeed WRITE setMaximumSpeed NOTIFY maximumSpeedChanged)
     Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
     Q_PROPERTY(QString aspectRatio READ aspectRatio WRITE setAspectRatio NOTIFY aspectRatioChanged)
     Q_PROPERTY(int brightness READ brightness WRITE setBrightness NOTIFY videoAdjustmentsChanged)
@@ -52,6 +53,8 @@ public:
     double volume() const { return m_volume; }
     void setVolume(double volume);
     quint64 loadRevision() const { return m_loadRevision; }
+    double maximumSpeed() const { return m_maximumSpeed; }
+    void setMaximumSpeed(double speed);
     double speed() const { return m_speed; }
     void setSpeed(double speed);
     QString aspectRatio() const { return m_aspectRatio; }
@@ -93,6 +96,7 @@ signals:
     void mutedChanged();
     void volumeChanged();
     void speedChanged();
+    void maximumSpeedChanged();
     void aspectRatioChanged();
     void videoAdjustmentsChanged();
     void defaultSubtitleLanguageChanged();
@@ -127,6 +131,7 @@ private:
     bool m_muted = false;
     double m_volume = 100;
     quint64 m_loadRevision = 0;
+    double m_maximumSpeed = 16.0;
     double m_speed = 1.0;
     double m_lastSpeed = 1.0;
     QString m_aspectRatio = QStringLiteral("no");

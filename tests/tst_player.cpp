@@ -220,7 +220,7 @@ private slots:
         }
         window->showFullScreen();
         QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
-        QVERIFY(!findItem(window->contentItem(), "windowDragArea")->isEnabled());
+        QVERIFY(!findItem(window->contentItem(), "windowDragArea")->property("enabled").toBool());
     }
 
     void favoritesPersistAndKeepUnavailableFiles()
@@ -352,16 +352,26 @@ private slots:
             QTest::keyClick(window, Qt::Key_Z);
             QCOMPARE(codes->property("text").toString(), QStringLiteral("xcz"));
             QCOMPARE(video->speed(), 1.0);
+            auto *maximum = findItem(window->contentItem(), "maximumSpeedInput");
+            auto *speed = findItem(window->contentItem(), "customSpeedInput");
+            QVERIFY(maximum && speed);
+            QCOMPARE(maximum->property("value").toInt(), 160);
+            maximum->setProperty("value", 240);
+            speed->setProperty("value", 125);
             codes->setProperty("text", " JA, JPN ");
             QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
             QTRY_COMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
+            QCOMPARE(video->maximumSpeed(), 24.0);
+            QTRY_COMPARE(video->speed(), 12.5);
             QTest::keyClick(window, Qt::Key_F5);
             QTRY_VERIFY(dialog->property("opened").toBool());
             QCOMPARE(codes->property("text").toString(), QStringLiteral("ja,jpn"));
             codes->setProperty("text", "en");
+            maximum->setProperty("value", 80);
             QTest::keyClick(window, Qt::Key_Escape);
             QTRY_VERIFY(!dialog->property("visible").toBool());
             QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
+            QCOMPARE(video->maximumSpeed(), 24.0);
         }
         {
             QQmlApplicationEngine engine;
@@ -370,6 +380,7 @@ private slots:
             auto *video = engine.rootObjects().first()->findChild<MpvVideo *>();
             QVERIFY(video);
             QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
+            QCOMPARE(video->maximumSpeed(), 24.0);
         }
         QSettings().clear();
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
@@ -455,8 +466,8 @@ private slots:
     void siblingDiscoverySortsNumberedVideosWithoutChangingPlayback()
     {
         QTemporaryDir directory;
-        const QUrl first = makeVideo(directory.filePath("video-01.y4m"));
-        const QUrl second = makeVideo(directory.filePath("video-02.y4m"));
+        const QUrl first = makeVideo(directory.filePath("video-1.y4m"));
+        const QUrl second = makeVideo(directory.filePath("video-2.y4m"));
         const QUrl twelfth = makeVideo(directory.filePath("video-12.y4m"));
         PlaylistModel playlist;
         QAbstractItemModelTester tester(&playlist,
@@ -568,9 +579,9 @@ private slots:
         QTRY_COMPARE(video->speed(), 1.0);
         QTest::keyClick(window, Qt::Key_Z);
         QTRY_COMPARE(video->speed(), 0.2);
-        video->setSpeed(5.0);
+        video->setSpeed(16.0);
         QTest::keyClick(window, Qt::Key_C);
-        QTRY_COMPARE(video->speed(), 5.0);
+        QTRY_COMPARE(video->speed(), 16.0);
         QTest::keyClick(window, Qt::Key_Z);
         QTRY_COMPARE(video->speed(), 1.0);
 
@@ -605,7 +616,7 @@ private slots:
         auto *menu = window->findChild<QObject *>("subtitleSelectionMenu");
         QVERIFY(menu);
         QTRY_VERIFY(menu->property("opened").toBool());
-        QCOMPARE(menu->property("count").toInt(), 7);
+        QCOMPARE(menu->property("count").toInt(), 8 + video->subtitleTracks().size());
         QVERIFY(menuItemAt(menu, 5)->property("checked").toBool());
         click(window, menuItemAt(menu, 6));
         QTRY_COMPARE(video->subtitleTrack(), secondId);
@@ -1059,6 +1070,51 @@ private slots:
         QCOMPARE(sourceChanges.count(), 0);
     }
 
+    void playlistGroupMovesPreserveOrderAndPlayback()
+    {
+        PlaylistModel playlist;
+        QAbstractItemModelTester tester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        const QList<QUrl> urls = {QUrl("https://example.com/1"), QUrl("https://example.com/2"),
+            QUrl("https://example.com/3"), QUrl("https://example.com/4"), QUrl("https://example.com/5")};
+        playlist.appendUrls(urls);
+        playlist.setCurrentIndex(2);
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QCOMPARE(playlist.moveTracks({1, 2}, 5), QList<int>({3, 4}));
+        const QList<QUrl> expected = {urls[0], urls[3], urls[4], urls[1], urls[2]};
+        for (int i = 0; i < expected.size(); ++i)
+            QCOMPARE(playlist.data(playlist.index(i), PlaylistModel::SourceRole).toUrl(), expected[i]);
+        QCOMPARE(playlist.currentIndex(), 4);
+        QCOMPARE(playlist.currentSource(), urls[2]);
+        QCOMPARE(playlist.moveTracks({4, 1, 4}, 0), QList<int>({0, 1}));
+        QCOMPARE(playlist.currentIndex(), 1);
+        QCOMPARE(playlist.currentSource(), urls[2]);
+        QCOMPARE(playlist.moveTracks({0, 1}, 1), QList<int>({0, 1}));
+        QVERIFY(playlist.moveTracks({-1}, 0).isEmpty());
+        QVERIFY(playlist.moveTracks({0}, 6).isEmpty());
+        QCOMPARE(sourceChanges.count(), 0);
+    }
+
+    void configurablePlaybackSpeed()
+    {
+        MpvVideo video;
+        QCOMPARE(video.maximumSpeed(), 16.0);
+        video.setSpeed(30);
+        QCOMPARE(video.speed(), 16.0);
+        video.setMaximumSpeed(32);
+        video.setSpeed(24.5);
+        QCOMPARE(video.speed(), 24.5);
+        video.setMaximumSpeed(8);
+        QCOMPARE(video.speed(), 8.0);
+        video.toggleSpeed();
+        QCOMPARE(video.speed(), 1.0);
+        video.toggleSpeed();
+        QCOMPARE(video.speed(), 8.0);
+        video.setMaximumSpeed(0);
+        QCOMPARE(video.maximumSpeed(), 1.0);
+        QCOMPARE(video.speed(), 1.0);
+    }
+
     void playlistRemovalAndClearChooseValidMedia()
     {
         PlaylistModel playlist;
@@ -1343,6 +1399,9 @@ private slots:
         QTRY_VERIFY(item("track0"));
         click(window, item("track0"));
         QCOMPARE(playlist->currentSource(), alpha);
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), 1);
+        QCOMPARE(panel->property("selectedRows").value<QJSValue>().toVariant().toList(), QVariantList({1}));
+        QVERIFY(item("removePlaylistButton")->isEnabled());
         click(window, item("removePlaylistButton"));
         QTRY_COMPARE(playlist->count(), 2);
         QTRY_COMPARE(list->property("count").toInt(), 0);
@@ -1377,6 +1436,83 @@ private slots:
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
                  ? QString{} : warnings.first().toString()));
         video->stop();
+    }
+
+    void playlistRangeDragAndResize()
+    {
+        QTemporaryDir directory;
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto item = [window](const char *name) { return findItem(window->contentItem(), name); };
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *panel = item("playlistPanel");
+        QVERIFY(playlist && panel);
+        QList<QUrl> urls;
+        for (int i = 0; i < 5; ++i)
+            urls.append(makeAudio(directory.filePath(QString::number(i) + ".wav")));
+        playlist->appendUrls(urls);
+        QSignalSpy sourceChanges(playlist, &PlaylistModel::currentSourceChanged);
+        QTRY_VERIFY(item("track4"));
+        click(window, item("track1"));
+        const auto center = [](QQuickItem *row) {
+            return row->mapToScene(QPointF(row->width() / 2, row->height() / 2)).toPoint();
+        };
+        QTest::mouseClick(window, Qt::LeftButton, Qt::ShiftModifier, center(item("track2")));
+        QCOMPARE(panel->property("selectedRows").value<QJSValue>().toVariant().toList().size(), 2);
+        const QPoint from = center(item("track1"));
+        const QPoint to = center(item("track4")) + QPoint(0, 15);
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, from);
+        QTest::mouseMove(window, to, 50);
+        QTRY_VERIFY(panel->property("draggingTracks").toBool());
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, to);
+        QTRY_COMPARE(playlist->data(playlist->index(3), PlaylistModel::SourceRole).toUrl(), urls[1]);
+        QCOMPARE(playlist->data(playlist->index(4), PlaylistModel::SourceRole).toUrl(), urls[2]);
+        QCOMPARE(sourceChanges.count(), 0);
+        QTRY_VERIFY(item("trackNumber4"));
+        QCOMPARE(item("trackNumber4")->property("text").toString(), QStringLiteral("5."));
+        // Shift+Up extends a keyboard range, while Delete removes the entire selection.
+        click(window, item("track4"));
+        QTest::keyClick(window, Qt::Key_Up, Qt::ShiftModifier);
+        QTest::keyClick(window, Qt::Key_Delete);
+        QTRY_COMPARE(playlist->count(), 3);
+        QCOMPARE(playlist->currentSource(), urls[0]);
+        auto *handle = item("playlistResizeHandle");
+        QVERIFY(handle);
+        const qreal originalWidth = panel->width();
+        const QPoint handlePoint = center(handle);
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, handlePoint);
+        QTest::mouseMove(window, handlePoint + QPoint(70, 0), 50);
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, handlePoint + QPoint(70, 0));
+        QTRY_COMPARE(panel->width(), originalWidth - 70);
+        click(window, item("playlistButton"));
+        click(window, item("playlistButton"));
+        QCOMPARE(panel->width(), originalWidth - 70);
+        // Restore the saved width for other layout tests.
+        const QPoint restorePoint = center(handle);
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, restorePoint);
+        QTest::mouseMove(window, restorePoint - QPoint(70, 0), 50);
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, restorePoint - QPoint(70, 0));
+        // Scrolling must not destroy the pointer grab when the pressed row is recycled.
+        QList<QUrl> more;
+        for (int i = 0; i < 40; ++i)
+            more.append(QUrl(QStringLiteral("https://example.com/%1.mp4").arg(i)));
+        playlist->appendUrls(more);
+        auto *list = item("trackList");
+        QTRY_VERIFY(item("track0"));
+        click(window, item("track0"));
+        const QPoint start = center(item("track0"));
+        const QPoint edge = list->mapToScene(QPointF(list->width() / 2, list->height() - 5)).toPoint();
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(window, edge, 50);
+        QTRY_VERIFY(list->property("contentY").toReal() > 300);
+        QVERIFY(panel->property("draggingTracks").toBool());
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, edge);
+        QVERIFY(playlist->indexOfSource(urls[0]) > 3);
+        QCOMPARE(playlist->currentSource(), urls[0]);
+        QCOMPARE(sourceChanges.count(), 0);
     }
 
     void playlistTogglePreservesQueueAndLayout()
@@ -1665,7 +1801,7 @@ private slots:
         QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
         QTest::keyClick(window, Qt::Key_Return);
         QTRY_COMPARE(window->visibility(), QWindow::Windowed);
-        QTest::keyClick(window, Qt::Key_F11);
+        QTest::keyClick(window, Qt::Key_Return);
         QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
         QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
         QTRY_VERIFY(search->hasActiveFocus());
@@ -1896,6 +2032,15 @@ private slots:
         QTRY_VERIFY(!title->isVisible());
         QTRY_COMPARE(stage->mapToScene(QPointF{}), QPointF(0, 0));
         QTRY_COMPARE(window->size(), window->screen()->size());
+        auto *bar = findItem(window->contentItem(), "playbackBar");
+        QVERIFY(bar);
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!bar->isVisible());
+        QTest::mouseMove(window, QPoint(window->width() / 2, window->height() - 2));
+        QTRY_VERIFY(bar->isVisible());
+        QCOMPARE(stage->size(), QSizeF(window->size()));
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!bar->isVisible());
         QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
         QTRY_COMPARE(window->visibility(), QWindow::Windowed);
         QTRY_VERIFY(title->isVisible());
@@ -1903,7 +2048,7 @@ private slots:
 
         window->showMaximized();
         QTRY_COMPARE(window->visibility(), QWindow::Maximized);
-        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreenPlus"));
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
         QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
         QTRY_COMPARE(stage->size(), QSizeF(window->size()));
         QVERIFY(!window->property("playlistVisible").toBool());

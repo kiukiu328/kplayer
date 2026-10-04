@@ -439,11 +439,6 @@
             <translation>控制面版…</translation>
         </message>
         <message>
-            <location filename="../qml/Main.qml" line="408" />
-            <source>全螢幕+</source>
-            <translation>全螢幕+</translation>
-        </message>
-        <message>
             <location filename="../qml/Main.qml" line="416" />
             <source>媒體資訊…</source>
             <translation>媒體資訊…</translation>

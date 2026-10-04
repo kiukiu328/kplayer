@@ -167,11 +167,47 @@ bool PlaylistModel::moveTrack(int from, int to)
     return true;
 }
 
+// Destination is an insertion boundary in the original queue (0 through count).
+QList<int> PlaylistModel::moveTracks(const QList<int> &rows, int destination)
+{
+    QList<int> selected = rows;
+    std::sort(selected.begin(), selected.end());
+    selected.erase(std::unique(selected.begin(), selected.end()), selected.end());
+    if (selected.isEmpty() || selected.first() < 0 || selected.last() >= count()
+        || destination < 0 || destination > count())
+        return {};
+    QList<int> order;
+    for (int row = 0; row < count(); ++row) {
+        if (!std::binary_search(selected.begin(), selected.end(), row))
+            order.append(row);
+    }
+    const int insertion = destination - static_cast<int>(
+        std::lower_bound(selected.begin(), selected.end(), destination) - selected.begin());
+    QList<int> result;
+    for (int i = 0; i < selected.size(); ++i) {
+        order.insert(insertion + i, selected.at(i));
+        result.append(insertion + i);
+    }
+    if (std::is_sorted(order.begin(), order.end()))
+        return result;
+    QList<Track> reordered;
+    for (int row : order)
+        reordered.append(m_tracks.at(row));
+    const int previousIndex = m_currentIndex;
+    beginResetModel();
+    m_tracks = std::move(reordered);
+    m_currentIndex = static_cast<int>(order.indexOf(previousIndex));
+    endResetModel();
+    if (previousIndex != m_currentIndex)
+        emit currentIndexChanged();
+    return result;
+}
+
 int PlaylistModel::sortByTitle(bool ascending, int selectedIndex)
 {
     QList<int> order(count());
     std::iota(order.begin(), order.end(), 0);
-    QCollator collator;
+    QCollator collator(QLocale(QLocale::English, QLocale::UnitedStates));
     collator.setCaseSensitivity(Qt::CaseInsensitive);
     collator.setNumericMode(true);
     std::stable_sort(order.begin(), order.end(), [&](int left, int right) {

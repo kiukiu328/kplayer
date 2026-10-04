@@ -3,6 +3,14 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>最高播放速度 (×)</source>
+            <translation>Maximum playback speed (×)</translation>
+        </message>
+        <message>
+            <source>播放速度 (×)</source>
+            <translation>Playback speed (×)</translation>
+        </message>
+        <message>
             <location filename="../qml/AdvancedSettings.qml" line="8" />
             <source>進階設定</source>
             <translation>Advanced settings</translation>
@@ -46,6 +54,10 @@
     </context>
     <context>
         <name>AppMenu</name>
+        <message>
+            <source>自訂播放速度…</source>
+            <translation>Custom playback speed…</translation>
+        </message>
         <message>
             <location filename="../qml/AppMenu.qml" line="53" />
             <source>開啟</source>
@@ -437,11 +449,6 @@
             <location filename="../qml/Main.qml" line="400" />
             <source>控制面版…</source>
             <translation>Playback controls…</translation>
-        </message>
-        <message>
-            <location filename="../qml/Main.qml" line="408" />
-            <source>全螢幕+</source>
-            <translation>Full screen+</translation>
         </message>
         <message>
             <location filename="../qml/Main.qml" line="416" />

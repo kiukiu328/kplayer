@@ -288,11 +288,25 @@ void MpvVideo::setVolume(double volume)
     emit volumeChanged();
 }
 
+void MpvVideo::setMaximumSpeed(double speed)
+{
+    if (!std::isfinite(speed))
+        return;
+    speed = std::clamp(speed, 1.0, 100.0);
+    if (qFuzzyCompare(m_maximumSpeed, speed))
+        return;
+    m_maximumSpeed = speed;
+    m_lastSpeed = std::min(m_lastSpeed, speed);
+    if (m_speed > speed)
+        setSpeed(speed);
+    emit maximumSpeedChanged();
+}
+
 void MpvVideo::setSpeed(double speed)
 {
     if (!m_mpv || !std::isfinite(speed))
         return;
-    speed = std::clamp(speed, 0.2, 5.0);
+    speed = std::clamp(speed, 0.2, m_maximumSpeed);
     if (qFuzzyCompare(m_speed, speed))
         return;
     const int result = mpv_set_property_async(m_mpv.get(), 0, "speed", MPV_FORMAT_DOUBLE, &speed);

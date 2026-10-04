@@ -11,6 +11,7 @@ Rectangle {
     property real volume: 100
     property url mediaSource
     property bool playlistVisible: true
+    readonly property bool interacting: positionSlider.pressed || volumeSlider.pressed
     signal playPauseRequested()
     signal stopRequested()
     signal openRequested()

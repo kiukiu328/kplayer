@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls.Basic
+import QtQuick.Templates as T
 
 MouseArea {
     id: root
@@ -7,6 +7,8 @@ MouseArea {
     signal moveRequested()
     property point pressPosition
     property bool moveStarted: false
+    // Qt exposes styleHints as QObject in QML type metadata.
+    readonly property var platformStyleHints: Qt.styleHints
     acceptedButtons: Qt.LeftButton
     preventStealing: true
 
@@ -19,12 +21,13 @@ MouseArea {
         if (!item.contains(local))
             return false
         if (item instanceof IconButton || item instanceof PlaylistTab
-            || item instanceof Control || item instanceof TextInput
+            || item instanceof T.Control || item instanceof TextInput
             || item instanceof TextEdit || item instanceof VideoStage
-            || item.objectName === "appMenuButton")
+            || item.objectName === "appMenuButton"
+            || item.objectName === "playlistResizeHandle")
             return true
-        if (item instanceof ListView
-            && item.indexAt(local.x + item.contentX, local.y + item.contentY) >= 0)
+        const list = item as ListView
+        if (list && list.indexAt(local.x + list.contentX, local.y + list.contentY) >= 0)
             return true
         for (let child of item.children) {
             if (blocksDrag(child, point))
@@ -41,7 +44,7 @@ MouseArea {
     onPositionChanged: (mouse) => {
         if (pressed && !moveStarted
             && Math.hypot(mouse.x - pressPosition.x, mouse.y - pressPosition.y)
-                >= Qt.styleHints.startDragDistance) {
+                >= root.platformStyleHints.startDragDistance) {
             moveStarted = true
             moveRequested()
         }

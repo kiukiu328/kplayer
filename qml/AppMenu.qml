@@ -10,7 +10,6 @@ PlayerMenu {
     required property Action playlistAction
     required property Action controlsAction
     required property Action fullscreenAction
-    required property Action fullscreenPlusAction
     required property Action pinAction
     required property Action mediaInfoAction
     required property Action aboutAction
@@ -151,6 +150,10 @@ PlayerMenu {
                 shortcutLabel: "C"
                 onTriggered: root.player.speed = Math.round((root.player.speed + 0.1) * 10) / 10
             }
+            PlayerMenuItem {
+                text: qsTr("自訂播放速度…")
+                onTriggered: root.preferencesAction.trigger()
+            }
         }
         PlayerMenuSeparator {}
         PlayerMenuItem {
@@ -181,7 +184,7 @@ PlayerMenu {
     }
     PlayerMenu {
         title: qsTr("視訊")
-        PlayerMenuItem { action: root.fullscreenAction; shortcutLabel: "Enter" }
+        PlayerMenuItem { action: root.fullscreenAction; shortcutLabel: "Return" }
         PlayerMenuItem { action: root.pinAction }
     }
     PlayerMenu {
@@ -257,9 +260,8 @@ PlayerMenu {
     PlayerMenuItem {
         objectName: "fullscreenMenuItem"
         action: root.fullscreenAction
-        shortcutLabel: "Enter"
+        shortcutLabel: "Return"
     }
-    PlayerMenuItem { action: root.fullscreenPlusAction }
     PlayerMenuSeparator {}
     PlayerMenuItem { action: root.preferencesAction }
     PlayerMenuItem { objectName: "playlistMenuItem"; action: root.playlistAction }

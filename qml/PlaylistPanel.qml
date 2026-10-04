@@ -22,10 +22,45 @@ Rectangle {
         return filteredTracks.sourceIndex(trackList.currentIndex)
     }
 
+    property var selectedRows: []
+    property int selectionAnchor: -1
+    property bool editingQueue: false
+    property bool draggingTracks: false
+    property real dragY: 0
+    property int dropBoundary: -1
+    property real dropLineY: 0
+    readonly property var platformStyleHints: Qt.styleHints
+
     function selectSource(index: int) {
         trackList.currentIndex = filteredTracks.filteredIndex(index)
+        selectedRows = index >= 0 && trackList.currentIndex >= 0 ? [index] : []
+        selectionAnchor = trackList.currentIndex
         if (trackList.currentIndex >= 0)
             trackList.positionViewAtIndex(trackList.currentIndex, ListView.Contain)
+    }
+
+    function selectRow(row: int, modifiers: int) {
+        const source = filteredTracks.sourceIndex(row)
+        if (source < 0)
+            return
+        if ((modifiers & Qt.ShiftModifier) && selectionAnchor >= 0) {
+            let rows = (modifiers & Qt.ControlModifier) ? selectedRows.slice() : []
+            for (let i = Math.min(selectionAnchor, row); i <= Math.max(selectionAnchor, row); ++i) {
+                const mapped = filteredTracks.sourceIndex(i)
+                if (!rows.includes(mapped))
+                    rows.push(mapped)
+            }
+            selectedRows = rows.sort((a, b) => a - b)
+        } else if (modifiers & Qt.ControlModifier) {
+            selectedRows = selectedRows.includes(source)
+                ? selectedRows.filter(value => value !== source)
+                : selectedRows.concat([source]).sort((a, b) => a - b)
+            selectionAnchor = row
+        } else {
+            selectedRows = [source]
+            selectionAnchor = row
+        }
+        trackList.currentIndex = row
     }
 
     function focusSearch() {
@@ -42,18 +77,58 @@ Rectangle {
     }
 
     function removeSelected() {
+        if (selectedRows.length === 0)
+            return
         const row = trackList.currentIndex
-        if (playlistModel.removeAt(selectedSourceIndex))
-            trackList.currentIndex = Math.min(row, trackList.count - 1)
+        editingQueue = true
+        const rows = selectedRows.slice().sort((a, b) => b - a)
+        for (let source of rows)
+            playlistModel.removeAt(source)
+        editingQueue = false
+        selectSource(filteredTracks.sourceIndex(Math.min(row, trackList.count - 1)))
+    }
+
+    function moveSelection(destination: int) {
+        editingQueue = true
+        const moved = playlistModel.moveTracks(selectedRows, destination)
+        editingQueue = false
+        if (moved.length > 0) {
+            selectedRows = moved
+            trackList.currentIndex = filteredTracks.filteredIndex(moved[0])
+            selectionAnchor = trackList.currentIndex
+            trackList.positionViewAtIndex(trackList.currentIndex, ListView.Contain)
+        }
     }
 
     function moveSelected(to: int) {
-        if (playlistModel.moveTrack(selectedSourceIndex, to))
-            selectSource(to)
+        if (selectedRows.length === 0)
+            return
+        const first = selectedRows[0]
+        const last = selectedRows[selectedRows.length - 1]
+        moveSelection(to <= selectedSourceIndex
+            ? Math.max(0, first + to - selectedSourceIndex)
+            : Math.min(playlistModel.count, last + 1 + to - selectedSourceIndex))
+    }
+
+    function updateDrop(y: real) {
+        dragY = y
+        const row = trackList.indexAt(10, y + trackList.contentY)
+        if (row < 0) {
+            dropBoundary = y + trackList.contentY <= 0 ? 0 : playlistModel.count
+            dropLineY = dropBoundary === 0 ? 0 : trackList.contentHeight
+        } else {
+            const item = trackList.itemAtIndex(row)
+            const after = y + trackList.contentY > item.y + item.height / 2
+            dropBoundary = filteredTracks.sourceIndex(row) + (after ? 1 : 0)
+            dropLineY = item.y + (after ? item.height : 0)
+        }
     }
 
     function sortTracks(ascending: bool) {
-        selectSource(playlistModel.sortByTitle(ascending, selectedSourceIndex))
+        editingQueue = true
+        const selected = playlistModel.sortByTitle(ascending, selectedSourceIndex)
+        editingQueue = false
+        selectSource(selected)
     }
 
     function editPlaylistName(create: bool) {
@@ -80,13 +155,19 @@ Rectangle {
         function onRowsInserted() { root.mappingRevision++ }
         function onRowsRemoved() { root.mappingRevision++ }
         function onRowsMoved() { root.mappingRevision++ }
-        function onModelReset() { root.mappingRevision++ }
+        function onModelReset() {
+            root.mappingRevision++
+            if (!root.editingQueue) {
+                root.selectedRows = []
+                root.selectionAnchor = -1
+            }
+        }
         function onLayoutChanged() { root.mappingRevision++ }
     }
     Connections {
         target: root.playlistModel
-        function onCurrentIndexChanged() { root.selectSource(root.playlistModel.currentIndex) }
-        function onCurrentSourceChanged() { root.selectSource(root.playlistModel.currentIndex) }
+        function onCurrentIndexChanged() { if (!root.editingQueue) root.selectSource(root.playlistModel.currentIndex) }
+        function onCurrentSourceChanged() { if (!root.editingQueue) root.selectSource(root.playlistModel.currentIndex) }
     }
     Connections {
         target: root.playlistCollection
@@ -266,11 +347,29 @@ Rectangle {
         currentIndex: filteredTracks.filteredIndex(root.playlistModel.currentIndex)
         boundsBehavior: Flickable.StopAtBounds
         activeFocusOnTab: true
+        interactive: !root.draggingTracks
         Keys.onReturnPressed: root.trackRequested(root.selectedSourceIndex)
         Keys.onEnterPressed: root.trackRequested(root.selectedSourceIndex)
         Keys.onSpacePressed: root.trackRequested(root.selectedSourceIndex)
         Keys.onDeletePressed: root.removeSelected()
         Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+                if (!(event.modifiers & Qt.ControlModifier)) {
+                    const next = Math.max(0, Math.min(trackList.count - 1,
+                        trackList.currentIndex + (event.key === Qt.Key_Up ? -1 : 1)))
+                    root.selectRow(next, event.modifiers)
+                    trackList.positionViewAtIndex(next, ListView.Contain)
+                    event.accepted = true
+                    return
+                }
+            }
+            if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+                let rows = []
+                for (let i = 0; i < trackList.count; ++i)
+                    rows.push(filteredTracks.sourceIndex(i))
+                root.selectedRows = rows
+                event.accepted = true
+            }
             if (event.modifiers & Qt.ControlModifier) {
                 if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
                     root.moveSelected(root.selectedSourceIndex + (event.key === Qt.Key_Up ? -1 : 1))
@@ -280,7 +379,56 @@ Rectangle {
         }
         Accessible.role: Accessible.List
         Accessible.name: qsTr("Playlist items")
-        ScrollBar.vertical: ScrollBar {}
+        ScrollBar.vertical: ScrollBar { id: playlistScrollBar }
+
+        // Keep the pointer grab on the view while scrolling recycles delegates.
+        MouseArea {
+            width: trackList.width - playlistScrollBar.width
+            height: trackList.height
+            z: 1
+            preventStealing: true
+            property point pressPosition
+            property int pressedSource: -1
+            property bool collapseOnRelease: false
+            onPressed: (mouse) => {
+                const row = trackList.indexAt(mouse.x, mouse.y + trackList.contentY)
+                pressedSource = filteredTracks.sourceIndex(row)
+                if (pressedSource < 0) {
+                    mouse.accepted = false
+                    return
+                }
+                pressPosition = Qt.point(mouse.x, mouse.y)
+                collapseOnRelease = !(mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier))
+                    && root.selectedRows.includes(pressedSource)
+                if (!collapseOnRelease)
+                    root.selectRow(row, mouse.modifiers)
+                trackList.forceActiveFocus()
+            }
+            onPositionChanged: (mouse) => {
+                if (!pressed)
+                    return
+                if (!root.draggingTracks && root.selectedRows.includes(pressedSource)
+                    && Math.hypot(mouse.x - pressPosition.x, mouse.y - pressPosition.y)
+                        >= root.platformStyleHints.startDragDistance)
+                    root.draggingTracks = true
+                if (root.draggingTracks)
+                    root.updateDrop(mouse.y)
+            }
+            onReleased: () => {
+                const dragged = root.draggingTracks
+                root.draggingTracks = false
+                if (dragged)
+                    root.moveSelection(root.dropBoundary)
+                else if (collapseOnRelease)
+                    root.selectRow(filteredTracks.filteredIndex(pressedSource), Qt.NoModifier)
+                root.dropBoundary = -1
+            }
+            onCanceled: {
+                root.draggingTracks = false
+                root.dropBoundary = -1
+            }
+            onDoubleClicked: root.trackRequested(pressedSource)
+        }
 
         delegate: Rectangle {
             id: track
@@ -295,10 +443,11 @@ Rectangle {
             readonly property bool current: queueIndex === root.playlistModel.currentIndex
             width: trackList.width
             height: 42
-            color: trackList.currentIndex === index || trackHover.hovered
+            color: root.selectedRows.includes(queueIndex) || trackHover.hovered
                 ? Theme.chromeHover : Theme.transparent
             Accessible.role: Accessible.ListItem
-            Accessible.name: title
+            Accessible.name: (queueIndex + 1) + ". " + title
+            Accessible.selected: root.selectedRows.includes(queueIndex)
             Accessible.onPressAction: root.trackRequested(track.queueIndex)
             ToolTip.text: qsTr("%1\nDouble click to play").arg(source.toString())
             ToolTip.visible: trackHover.hovered
@@ -316,8 +465,21 @@ Rectangle {
                 visible: track.current
             }
             Text {
+                id: trackNumber
+                objectName: "trackNumber" + track.index
                 anchors.left: parent.left
-                anchors.leftMargin: 34
+                anchors.leftMargin: 30
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(24, String(root.playlistModel.count).length * 8)
+                text: (track.queueIndex + 1) + "."
+                horizontalAlignment: Text.AlignRight
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.smallFontSize
+                color: track.current ? Theme.accent : Theme.textMuted
+            }
+            Text {
+                anchors.left: trackNumber.right
+                anchors.leftMargin: 8
                 anchors.right: parent.right
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
@@ -327,14 +489,7 @@ Rectangle {
                 font.pixelSize: Theme.smallFontSize
                 color: track.current ? Theme.accent : Theme.textPrimary
             }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
-                    trackList.currentIndex = track.index
-                    trackList.forceActiveFocus()
-                }
-                onDoubleClicked: root.trackRequested(track.queueIndex)
-            }
+
         }
         Text {
             anchors.centerIn: parent
@@ -348,6 +503,29 @@ Rectangle {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.smallFontSize
         }
+    }
+    Timer {
+        interval: 30
+        repeat: true
+        running: root.draggingTracks
+        onTriggered: {
+            const direction = root.dragY < 30 ? -1 : root.dragY > trackList.height - 30 ? 1 : 0
+            if (direction !== 0) {
+                trackList.contentY = Math.max(0, Math.min(
+                    Math.max(0, trackList.contentHeight - trackList.height),
+                    trackList.contentY + direction * 12))
+                root.updateDrop(root.dragY)
+            }
+        }
+    }
+    Rectangle {
+        parent: trackList
+        z: 3
+        width: trackList.width
+        height: 2
+        color: Theme.accent
+        visible: root.draggingTracks
+        y: Math.max(0, Math.min(trackList.height - height, root.dropLineY - trackList.contentY))
     }
     DropArea {
         anchors.fill: parent
@@ -372,7 +550,7 @@ Rectangle {
         id: footer
         anchors.bottom: parent.bottom
         width: parent.width
-        height: Theme.playlistFooterHeight
+        height: root.width < 450 ? Theme.playlistFooterHeight + 36 : Theme.playlistFooterHeight
         color: Theme.footerBackground
         Rectangle {
             width: parent.width
@@ -383,8 +561,8 @@ Rectangle {
             id: ordering
             anchors.left: parent.left
             anchors.leftMargin: 12
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 2
+            anchors.top: parent.top
+            anchors.topMargin: 12
             spacing: 8
             Repeater {
                 model: [
@@ -405,9 +583,9 @@ Rectangle {
                     backgroundColor: Theme.buttonBackground
                     hoverColor: Theme.buttonHover
                     iconColor: Theme.textMuted
-                    enabled: root.selectedSourceIndex >= 0 && (index < 2
-                        ? root.selectedSourceIndex > 0
-                        : root.selectedSourceIndex < root.playlistModel.count - 1)
+                    enabled: root.selectedRows.length > 0 && (index < 2
+                        ? root.selectedRows[0] > 0
+                        : root.selectedRows[root.selectedRows.length - 1] < root.playlistModel.count - 1)
                     opacity: enabled ? 1 : 0.4
                     onClicked: {
                         const selected = root.selectedSourceIndex
@@ -434,7 +612,7 @@ Rectangle {
                     width: 45
                     height: Theme.compactButtonHeight
                     enabled: index === 0 || (index === 1
-                        ? root.selectedSourceIndex >= 0 : root.playlistModel.count > 1)
+                        ? root.selectedRows.length > 0 : root.playlistModel.count > 1)
                     opacity: enabled ? 1 : 0.4
                     Accessible.name: modelData.label
                     ToolTip.text: modelData.label
@@ -467,11 +645,12 @@ Rectangle {
         TextField {
             id: search
             objectName: "playlistSearch"
-            anchors.left: ordering.right
-            anchors.leftMargin: 8
+            anchors.left: root.width < 450 ? parent.left : ordering.right
+            anchors.leftMargin: root.width < 450 ? 12 : 8
             anchors.right: parent.right
             anchors.rightMargin: 12
-            anchors.verticalCenter: ordering.verticalCenter
+            anchors.top: root.width < 450 ? ordering.bottom : ordering.top
+            anchors.topMargin: root.width < 450 ? 5 : 0
             height: 35
             leftPadding: 8
             rightPadding: 30
@@ -496,7 +675,7 @@ Rectangle {
                 filteredTracks.searchText = text
                 root.selectSource(root.playlistModel.currentIndex)
                 if (trackList.currentIndex < 0 && trackList.count > 0)
-                    trackList.currentIndex = 0
+                    root.selectSource(filteredTracks.sourceIndex(0))
             }
             onAccepted: {
                 if (root.selectedSourceIndex >= 0)
