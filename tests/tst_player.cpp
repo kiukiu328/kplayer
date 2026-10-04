@@ -2060,6 +2060,57 @@ private slots:
         QVERIFY(window->property("controlsVisible").toBool());
     }
 
+    void fullscreenControlsStayVisibleOverClickableAreas()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeAudio(directory.filePath("fullscreen.wav"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *bar = findItem(window->contentItem(), "playbackBar");
+        QVERIFY(video && bar);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        video->togglePause();
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        QTRY_COMPARE(bar->mapToScene({0, bar->height()}).y(), qreal(window->height()));
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!bar->isVisible());
+        QTest::mouseMove(window, QPoint(window->width() / 2, window->height() - 2));
+        QTRY_VERIFY(bar->isVisible());
+
+        QSignalSpy visibilityChanges(bar, &QQuickItem::visibleChanged);
+        for (const char *name : {"playButton", "stopButton", "previousButton", "nextButton",
+                                "ejectButton", "positionSlider", "muteButton", "volumeSlider",
+                                "searchMediaButton", "playlistButton", "settingsButton",
+                                "playbackMenuButton"}) {
+            auto *control = findItem(bar, QString::fromLatin1(name));
+            QVERIFY2(control && control->isEnabled(), name);
+            const QPoint center = control->mapToScene(
+                    {control->width() / 2, control->height() / 2}).toPoint();
+            QTest::mouseMove(window, center, 20);
+            QTest::qWait(80);
+            QVERIFY2(bar->isVisible(), name);
+            // A hide/show cycle between frames is also a failure.
+            QVERIFY2(visibilityChanges.isEmpty(), name);
+        }
+
+        auto *mute = findItem(bar, "muteButton");
+        const bool wasMuted = video->muted();
+        click(window, mute);
+        QTRY_COMPARE(video->muted(), !wasMuted);
+        QVERIFY(bar->isVisible());
+        QVERIFY(visibilityChanges.isEmpty());
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!bar->isVisible());
+    }
+
     void videoBackgroundIncludesLetterboxing()
     {
         QTemporaryDir directory;

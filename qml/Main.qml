@@ -764,8 +764,12 @@ Window {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     height: Theme.seekHeight + Theme.transportHeight + 16
-                    enabled: window.isFullscreen
-                    HoverHandler { id: bottomHover }
+                    z: 1
+                    HoverHandler {
+                        id: bottomHover
+                        enabled: window.isFullscreen
+                        blocking: false
+                    }
                 }
                 PlaybackBar {
                     id: playback
