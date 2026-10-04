@@ -34,6 +34,11 @@ queued and the first valid entry starts playing immediately.
   overwrite existing default choices. **設為預設影片播放器…** in Settings or
   the application menu opens that page again. Moving the executable requires
   launching it from its new location once to refresh registration.
+- Opening local videos from the file manager, command line, or Open Media also
+  adds videos from the same folders to the active playlist, without duplicates
+  or scanning subfolders. The requested file stays selected and starts playing.
+  This works independently of the background library search, including with
+  `--no-scan`. Add to Playlist and drag-and-drop retain explicit queue order.
 - At startup, a background search recursively adds videos from all local fixed
   and removable drives to the default playlist on Windows. Other platforms
   search their standard Videos folders. Files are recognized by extension;
@@ -96,6 +101,32 @@ queued and the first valid entry starts playing immediately.
   toggles playback, M toggles mute, Left/Right seek 10 seconds, and Up/Down adjust
   volume by 5%. Text fields, focused controls, and playlist selection keep their
   own keyboard behavior.
+- The **字幕** menu shows/hides subtitles, loads external subtitle files, and
+  selects embedded or external tracks by title/language/filename. Hiding subtitles
+  keeps the selected track; selecting or loading a track makes it visible again.
+  Start playback before adding subtitles. Loaded tracks clear when playback closes
+  or changes files.
+- Additional PotPlayer-style shortcuts (with focus in the video area):
+
+  | Keys | Action |
+  | --- | --- |
+  | Z | Reset speed to 1.0× |
+  | X / C | Decrease / increase speed by 0.1× (0.2–5.0×) |
+  | L | Open the subtitle selection menu |
+  | Alt+O | Add subtitle files |
+  | Alt+H | Show / hide subtitles |
+  | Alt+L | Cycle subtitle tracks |
+  | PgUp / PgDown | Previous / next playlist item |
+  | Ctrl+Left / Ctrl+Right | Seek backward / forward 30 seconds |
+  | Shift+Left / Shift+Right | Seek backward / forward 60 seconds |
+  | Backspace | Seek to the beginning |
+  | Ctrl+Backspace | Seek to the midpoint |
+  | Shift+Backspace | Seek to 30 seconds before the end |
+  | D / F | Previous / next frame (pauses playback) |
+
+  Bindings were checked against [PotPlayer's bundled English menu definitions](https://github.com/Onemeshnik/PotPlayer-Median-subtitles-installer/blob/master/%7Bapp%7D/Language/English.ini).
+  Z always resets to normal speed here, as opposed to toggling the last-used speed.
+  Playback speed also appears in the Playback menu and over the video when changed.
 - Play toggles play/pause. Stop clears playback; pressing Play again restarts
   the selected media from the beginning.
 - Click the audio button to mute or unmute without changing the saved volume.
@@ -150,6 +181,32 @@ using your actual Qt installation prefix.
 You can also open `CMakeLists.txt` in Qt Creator and select a Qt 6.11.2+ kit.
 On Windows the executable is `build/KPlayer.exe`; on macOS it is
 `build/KPlayer.app/Contents/MacOS/KPlayer`.
+
+### Arch Linux package
+
+Install the build dependencies:
+
+```sh
+sudo pacman -S --needed base-devel cmake ninja pkgconf qt6-base qt6-declarative qt6-svg mpv
+```
+
+Qt packages must be version 6.11.2 or newer. From the project directory, build
+an installable package as your regular user:
+
+```sh
+bash scripts/build-arch.sh
+sudo pacman -U build/arch/kplayer-0.1.0-1-$(uname -m).pkg.tar.zst
+```
+
+The script packages the current working source, including local edits, and writes
+the source archive, checksummed PKGBUILD, build files, and package to `build/arch/`.
+It excludes the optional sample video. The package installs `/usr/bin/KPlayer`
+and a desktop launcher with media file associations. Install `noto-fonts-cjk`
+if the Traditional Chinese labels appear as squares.
+
+Builds use your makepkg configuration; additional arguments are passed to
+`makepkg` (for example, `--syncdeps` to install missing dependencies).
+Set `CMAKE_BUILD_PARALLEL_LEVEL` to change the default of four build jobs.
 
 ### Native Windows build (MSYS2 UCRT64)
 

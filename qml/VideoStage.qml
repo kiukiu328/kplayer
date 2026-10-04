@@ -11,6 +11,14 @@ Rectangle {
     property alias seekable: video.seekable
     property alias muted: video.muted
     property alias volume: video.volume
+    property alias speed: video.speed
+    property alias subtitlesVisible: video.subtitlesVisible
+    property alias subtitleTracks: video.subtitleTracks
+    property alias subtitleTrack: video.subtitleTrack
+    property alias mediaLoaded: video.mediaLoaded
+    function addSubtitle(url: url): bool { return video.addSubtitle(url) }
+    function cycleSubtitle() { video.cycleSubtitle() }
+    function stepFrame(forward: bool) { video.stepFrame(forward) }
     signal moveRequested()
     signal fullscreenRequested()
     signal playPauseRequested()
@@ -67,6 +75,19 @@ Rectangle {
         color: Theme.textPrimary
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize
+    }
+
+    Text {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 16
+        text: video.speed.toFixed(1) + "×"
+        visible: video.speed !== 1.0
+        color: Theme.textPrimary
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSize
+        style: Text.Outline
+        styleColor: "black"
     }
 
     DragHandler {

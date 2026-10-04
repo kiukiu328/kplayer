@@ -25,6 +25,7 @@ public:
     static QList<QUrl> defaultRoots();
     Q_INVOKABLE bool scan(PlaylistModel *playlist, const QList<QUrl> &roots = {});
     Q_INVOKABLE void cancel();
+    Q_INVOKABLE int addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &files);
 
 signals:
     void scanningChanged();

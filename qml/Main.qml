@@ -31,6 +31,7 @@ Window {
     readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
         && !playlist.menuOpen
         && !mediaDialog.visible && !videoFolderDialog.visible
+        && !subtitleDialog.visible && !subtitleMenu.visible
         && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
         && !hasInteractiveFocus()
 
@@ -49,6 +50,26 @@ Window {
     function openMedia(playAdded: bool) {
         mediaDialog.playAdded = playAdded
         mediaDialog.open()
+    }
+
+    function addOpenedFiles(files: list<url>) {
+        mediaPlaylist.appendUniqueUrls(files)
+        // Select the requested file before discovering its neighbors.
+        for (let file of files) {
+            const index = mediaPlaylist.indexOfSource(file)
+            if (index >= 0) {
+                playTrack(index)
+                break
+            }
+        }
+        videoLibrary.addSiblingVideos(mediaPlaylist, files)
+    }
+
+    function openSubtitles() {
+        appMenu.dismiss()
+        subtitleMenu.close()
+        subtitleDialog.mediaSource = videoStage.source
+        subtitleDialog.open()
     }
 
     function focusPlaylistSearch() {
@@ -185,8 +206,8 @@ Window {
     Component.onCompleted: {
         if (mediaSource.toString().length > 0)
             mediaPlaylist.appendUrls([mediaSource])
-        if (startupFiles.length > 0 && mediaPlaylist.appendUniqueUrls(startupFiles) > 0)
-            Qt.callLater(() => window.playTrack(0))
+        if (startupFiles.length > 0)
+            Qt.callLater(() => window.addOpenedFiles(startupFiles))
         if (discoverVideosOnStartup)
             Qt.callLater(() => videoLibrary.scan(playlists.defaultPlaylist, videoSearchRoots))
     }
@@ -236,10 +257,34 @@ Window {
         title: playAdded ? qsTr("Open media") : qsTr("Add media to playlist")
         fileMode: FileDialog.OpenFiles
         onAccepted: {
-            const firstIndex = window.mediaPlaylist.count
-            if (window.mediaPlaylist.appendUrls(selectedFiles) > 0 && playAdded)
-                window.playTrack(firstIndex)
+            if (playAdded)
+                window.addOpenedFiles(selectedFiles)
+            else
+                window.mediaPlaylist.appendUrls(selectedFiles)
         }
+    }
+
+    FileDialog {
+        id: subtitleDialog
+        objectName: "subtitleDialog"
+        property url mediaSource
+        title: qsTr("新增字幕")
+        fileMode: FileDialog.OpenFiles
+        nameFilters: [qsTr("字幕檔案 (*.srt *.ass *.ssa *.vtt *.sub *.idx *.sup *.smi *.txt)"),
+                      qsTr("所有檔案 (*)")]
+        onAccepted: {
+            if (mediaSource.toString() === videoStage.source.toString()) {
+                for (let file of selectedFiles)
+                    videoStage.addSubtitle(file)
+            }
+        }
+    }
+    SubtitleMenu {
+        id: subtitleMenu
+        objectName: "subtitleSelectionMenu"
+        parent: window.contentItem
+        player: videoStage
+        onAddRequested: window.openSubtitles()
     }
 
     Action {
@@ -344,6 +389,8 @@ Window {
         findFolderVideosAction: findFolderVideosAction
         stopVideoSearchAction: stopVideoSearchAction
         associateVideosAction: associateVideosAction
+        player: videoStage
+        onAddSubtitleRequested: window.openSubtitles()
         hasMedia: window.mediaPlaylist.count > 0
         playing: videoStage.playing
         seekable: videoStage.seekable
@@ -456,6 +503,7 @@ Window {
             && !playlist.editingSearch && !playlist.menuOpen
             && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible
             && !videoFolderDialog.visible && !infoDialog.visible
+            && !subtitleDialog.visible && !subtitleMenu.visible
         onActivated: window.toggleFullscreen()
     }
     Shortcut {
@@ -490,6 +538,97 @@ Window {
         sequence: "Down"
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.volume = Math.max(0, videoStage.volume - 5)
+    }
+
+    Shortcut {
+        sequence: "Z"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.speed = 1.0
+    }
+    Shortcut {
+        sequence: "X"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.speed = Math.round((videoStage.speed - 0.1) * 10) / 10
+    }
+    Shortcut {
+        sequence: "C"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.speed = Math.round((videoStage.speed + 0.1) * 10) / 10
+    }
+    Shortcut {
+        sequence: "PgUp"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: window.skipTrack(-1)
+    }
+    Shortcut {
+        sequence: "PgDown"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: window.skipTrack(1)
+    }
+    Shortcut {
+        sequence: "Alt+H"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.subtitlesVisible = !videoStage.subtitlesVisible
+    }
+    Shortcut {
+        sequence: "Alt+L"
+        enabled: window.playbackShortcutsEnabled && videoStage.mediaLoaded
+        onActivated: videoStage.cycleSubtitle()
+    }
+    Shortcut {
+        sequence: "Alt+O"
+        enabled: window.playbackShortcutsEnabled && videoStage.mediaLoaded
+        onActivated: window.openSubtitles()
+    }
+    Shortcut {
+        sequence: "L"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: subtitleMenu.popup(32, 64)
+    }
+    Shortcut {
+        sequence: "Backspace"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seek(0)
+    }
+    Shortcut {
+        sequence: "Ctrl+Backspace"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seek(videoStage.duration / 2)
+    }
+    Shortcut {
+        sequence: "Shift+Backspace"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seek(Math.max(0, videoStage.duration - 30))
+    }
+    Shortcut {
+        sequence: "Ctrl+Left"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seekRelative(-30)
+    }
+    Shortcut {
+        sequence: "Ctrl+Right"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seekRelative(30)
+    }
+    Shortcut {
+        sequence: "Shift+Left"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seekRelative(-60)
+    }
+    Shortcut {
+        sequence: "Shift+Right"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.seekRelative(60)
+    }
+    Shortcut {
+        sequence: "D"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.stepFrame(false)
+    }
+    Shortcut {
+        sequence: "F"
+        enabled: window.playbackShortcutsEnabled && videoStage.seekable
+        onActivated: videoStage.stepFrame(true)
     }
 
     Item {

@@ -7,6 +7,8 @@
 #include <QPointer>
 #include <QSet>
 #include <QStandardPaths>
+#include <QCollator>
+#include <algorithm>
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -45,6 +47,41 @@ VideoLibrary::~VideoLibrary()
         m_worker->requestInterruption();
         m_worker->wait();
     }
+}
+
+int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &files)
+{
+    if (!playlist)
+        return 0;
+    QSet<QString> visited;
+    QList<QUrl> siblings;
+    QCollator collator;
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    collator.setNumericMode(true);
+    for (const QUrl &url : files) {
+        const QFileInfo file(url.toLocalFile());
+        if (!url.isLocalFile() || !file.isFile()
+            || !VideoFormats::extensions().contains(file.suffix().toLower()))
+            continue;
+        const QDir folder = file.absoluteDir();
+        QString key = folder.canonicalPath();
+#ifdef Q_OS_WIN
+        key = key.toCaseFolded();
+#endif
+        if (visited.contains(key))
+            continue;
+        visited.insert(key);
+        auto entries = folder.entryInfoList(QDir::Files | QDir::Readable, QDir::NoSort);
+        std::stable_sort(entries.begin(), entries.end(), [&](const auto &a, const auto &b) {
+            return collator.compare(a.fileName(), b.fileName()) < 0;
+        });
+        for (const QFileInfo &entry : entries) {
+            if (VideoFormats::extensions().contains(entry.suffix().toLower())
+                && hasTransportStreamHeader(entry))
+                siblings.append(QUrl::fromLocalFile(entry.absoluteFilePath()));
+        }
+    }
+    return playlist->appendUniqueUrls(siblings);
 }
 
 QList<QUrl> VideoLibrary::defaultRoots()

@@ -1,6 +1,7 @@
 #include "MpvVideo.h"
 
 #include <QDebug>
+#include <QFileInfo>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
@@ -145,6 +146,10 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
     mpv_observe_property(m_mpv.get(), 0, "seekable", MPV_FORMAT_FLAG);
     mpv_observe_property(m_mpv.get(), 0, "mute", MPV_FORMAT_FLAG);
     mpv_observe_property(m_mpv.get(), 0, "volume", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(m_mpv.get(), 0, "speed", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(m_mpv.get(), 0, "sub-visibility", MPV_FORMAT_FLAG);
+    mpv_observe_property(m_mpv.get(), 0, "track-list", MPV_FORMAT_NODE);
+    mpv_observe_property(m_mpv.get(), 0, "sid", MPV_FORMAT_INT64);
 }
 
 MpvVideo::~MpvVideo()
@@ -218,6 +223,7 @@ void MpvVideo::play()
 
 void MpvVideo::stop()
 {
+    clearSubtitleTracks();
     if (m_stopped)
         return;
     if (m_mpv) {
@@ -269,6 +275,153 @@ void MpvVideo::setVolume(double volume)
     }
     m_volume = volume;
     emit volumeChanged();
+}
+
+void MpvVideo::setSpeed(double speed)
+{
+    if (!m_mpv || !std::isfinite(speed))
+        return;
+    speed = std::clamp(speed, 0.2, 5.0);
+    if (qFuzzyCompare(m_speed, speed))
+        return;
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "speed", MPV_FORMAT_DOUBLE, &speed);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    m_speed = speed;
+    emit speedChanged();
+}
+
+void MpvVideo::setSubtitlesVisible(bool visible)
+{
+    if (!m_mpv || m_subtitlesVisible == visible)
+        return;
+    int value = visible ? 1 : 0;
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "sub-visibility", MPV_FORMAT_FLAG, &value);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    m_subtitlesVisible = visible;
+    emit subtitlesVisibleChanged();
+}
+
+void MpvVideo::setSubtitleTrack(int id)
+{
+    if (!m_mpv || !m_mediaLoaded)
+        return;
+    if (id != -1 && std::none_of(m_subtitleTracks.cbegin(), m_subtitleTracks.cend(),
+                                [id](const QVariant &track) {
+                                    return track.toMap().value("id").toInt() == id;
+                                }))
+        return;
+    const QByteArray value = id < 0 ? QByteArray("no") : QByteArray::number(id);
+    const char *command[] = {"set", "sid", value.constData(), nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 0, command);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    if (id >= 0)
+        setSubtitlesVisible(true);
+}
+
+bool MpvVideo::addSubtitle(const QUrl &url)
+{
+    if (!m_mpv || !m_mediaLoaded || !url.isLocalFile()
+        || !QFileInfo(url.toLocalFile()).isFile())
+        return false;
+    const QByteArray path = url.toLocalFile().toUtf8();
+    const char *command[] = {"sub-add", path.constData(), "select", nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 0, command);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return false;
+    }
+    setSubtitlesVisible(true);
+    return true;
+}
+
+void MpvVideo::cycleSubtitle()
+{
+    if (m_subtitleTracks.isEmpty())
+        return;
+    int index = -1;
+    for (int i = 0; i < m_subtitleTracks.size(); ++i) {
+        if (m_subtitleTracks.at(i).toMap().value("id").toInt() == m_subtitleTrack)
+            index = i;
+    }
+    setSubtitleTrack(m_subtitleTracks.at((index + 1) % m_subtitleTracks.size())
+                         .toMap().value("id").toInt());
+}
+
+void MpvVideo::stepFrame(bool forward)
+{
+    if (!m_mpv || !m_mediaLoaded || !m_seekable)
+        return;
+    const char *command[] = {forward ? "frame-step" : "frame-back-step", nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 0, command);
+    if (result < 0)
+        setError(QString::fromUtf8(mpv_error_string(result)));
+}
+
+void MpvVideo::clearSubtitleTracks()
+{
+    if (m_mediaLoaded) {
+        m_mediaLoaded = false;
+        emit mediaLoadedChanged();
+    }
+    if (!m_subtitleTracks.isEmpty()) {
+        m_subtitleTracks.clear();
+        emit subtitleTracksChanged();
+    }
+    if (m_subtitleTrack != -1) {
+        m_subtitleTrack = -1;
+        emit subtitleTrackChanged();
+    }
+}
+
+void MpvVideo::updateSubtitleTracks(const mpv_node &node)
+{
+    QVariantList tracks;
+    if (!m_stopped && node.format == MPV_FORMAT_NODE_ARRAY) {
+        for (int i = 0; i < node.u.list->num; ++i) {
+            const mpv_node &entry = node.u.list->values[i];
+            if (entry.format != MPV_FORMAT_NODE_MAP)
+                continue;
+            QVariantMap track;
+            for (int j = 0; j < entry.u.list->num; ++j) {
+                const QString key = QString::fromUtf8(entry.u.list->keys[j]);
+                const mpv_node &value = entry.u.list->values[j];
+                if (value.format == MPV_FORMAT_STRING)
+                    track.insert(key, QString::fromUtf8(value.u.string));
+                else if (value.format == MPV_FORMAT_INT64)
+                    track.insert(key, qlonglong(value.u.int64));
+                else if (value.format == MPV_FORMAT_FLAG)
+                    track.insert(key, bool(value.u.flag));
+            }
+            if (track.value("type").toString() != "sub")
+                continue;
+            QStringList label;
+            label << tr("Subtitle %1").arg(track.value("id").toInt());
+            for (const QString &key : {QStringLiteral("title"), QStringLiteral("lang")}) {
+                if (!track.value(key).toString().isEmpty())
+                    label << track.value(key).toString();
+            }
+            if (track.value("external").toBool()) {
+                const QString filename = QFileInfo(track.value("external-filename").toString()).fileName();
+                if (!filename.isEmpty() && !label.contains(filename))
+                    label << filename;
+            }
+            track.insert("label", label.join(QStringLiteral(" · ")));
+            tracks.append(track);
+        }
+    }
+    if (tracks != m_subtitleTracks) {
+        m_subtitleTracks = tracks;
+        emit subtitleTracksChanged();
+    }
 }
 
 void MpvVideo::seek(double seconds)
@@ -339,14 +492,28 @@ void MpvVideo::processEvents()
             setError(QString::fromUtf8(mpv_error_string(event->error)));
         if (event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
             const auto *property = static_cast<mpv_event_property *>(event->data);
+            if (std::strcmp(property->name, "sid") == 0) {
+                const int id = !m_stopped && property->data && property->format == MPV_FORMAT_INT64
+                    ? int(*static_cast<int64_t *>(property->data)) : -1;
+                if (m_subtitleTrack != id) {
+                    m_subtitleTrack = id;
+                    emit subtitleTrackChanged();
+                }
+            }
             if (!property->data)
                 continue;
+            if (std::strcmp(property->name, "track-list") == 0 && property->format == MPV_FORMAT_NODE)
+                updateSubtitleTracks(*static_cast<mpv_node *>(property->data));
             if (property->format == MPV_FORMAT_FLAG) {
                 const bool value = *static_cast<int *>(property->data) != 0;
                 if (std::strcmp(property->name, "pause") == 0)
                     setPlaybackState(m_stopped, value);
                 else if (std::strcmp(property->name, "seekable") == 0)
                     setSeekable(!m_stopped && value);
+                else if (std::strcmp(property->name, "sub-visibility") == 0 && m_subtitlesVisible != value) {
+                    m_subtitlesVisible = value;
+                    emit subtitlesVisibleChanged();
+                }
                 else if (std::strcmp(property->name, "mute") == 0 && m_muted != value) {
                     m_muted = value;
                     emit mutedChanged();
@@ -357,15 +524,24 @@ void MpvVideo::processEvents()
                     setPosition(value);
                 else if (std::strcmp(property->name, "duration") == 0 && !m_stopped)
                     setDuration(value);
+                else if (std::strcmp(property->name, "speed") == 0 && m_speed != value) {
+                    m_speed = value;
+                    emit speedChanged();
+                }
                 else if (std::strcmp(property->name, "volume") == 0 && m_volume != value) {
                     m_volume = value;
                     emit volumeChanged();
                 }
             }
         }
+        if (event->event_id == MPV_EVENT_FILE_LOADED && !m_stopped) {
+            m_mediaLoaded = true;
+            emit mediaLoadedChanged();
+        }
         if (event->event_id == MPV_EVENT_END_FILE) {
             const auto *end = static_cast<mpv_event_end_file *>(event->data);
             if (end->reason == MPV_END_FILE_REASON_ERROR) {
+                clearSubtitleTracks();
                 setPlaybackState(true, false);
                 setPosition(0);
                 setDuration(0);
@@ -374,6 +550,7 @@ void MpvVideo::processEvents()
                              .arg(m_source.toDisplayString(),
                                   QString::fromUtf8(mpv_error_string(end->error))));
             } else if (end->reason == MPV_END_FILE_REASON_EOF) {
+                clearSubtitleTracks();
                 setPlaybackState(true, false);
                 setSeekable(false);
                 emit endOfFile();

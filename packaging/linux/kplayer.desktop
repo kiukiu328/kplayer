@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=KPlayer
+Comment=Play videos and music
+Exec=KPlayer %U
+TryExec=KPlayer
+Icon=multimedia-video-player
+Terminal=false
+Categories=AudioVideo;Player;Video;
+MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/mpeg;video/mp2t;video/x-ms-wmv;video/ogg;audio/mpeg;audio/flac;audio/ogg;audio/x-wav;
+Keywords=media;video;audio;player;

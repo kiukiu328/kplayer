@@ -19,6 +19,8 @@ PlayerMenu {
     required property Action findFolderVideosAction
     required property Action stopVideoSearchAction
     required property Action associateVideosAction
+    required property var player
+    signal addSubtitleRequested()
     property bool hasMedia: false
     property bool playing: false
     property bool seekable: false
@@ -84,13 +86,34 @@ PlayerMenu {
         }
         PlayerMenuItem {
             text: qsTr("上一個檔案")
+            shortcutLabel: "PgUp"
             enabled: root.hasMedia
             onTriggered: root.skipTrackRequested(-1)
         }
         PlayerMenuItem {
             text: qsTr("下一個檔案")
+            shortcutLabel: "PgDown"
             enabled: root.hasMedia
             onTriggered: root.skipTrackRequested(1)
+        }
+        PlayerMenuSeparator {}
+        PlayerMenu {
+            title: qsTr("播放速度") + " (" + root.player.speed.toFixed(1) + "×)"
+            PlayerMenuItem {
+                text: qsTr("正常速度")
+                shortcutLabel: "Z"
+                onTriggered: root.player.speed = 1.0
+            }
+            PlayerMenuItem {
+                text: qsTr("減速")
+                shortcutLabel: "X"
+                onTriggered: root.player.speed = Math.round((root.player.speed - 0.1) * 10) / 10
+            }
+            PlayerMenuItem {
+                text: qsTr("加速")
+                shortcutLabel: "C"
+                onTriggered: root.player.speed = Math.round((root.player.speed + 0.1) * 10) / 10
+            }
         }
         PlayerMenuSeparator {}
         PlayerMenuItem {
@@ -112,7 +135,11 @@ PlayerMenu {
             onTriggered: root.repeatRequested(2)
         }
     }
-    PlayerMenu { title: qsTr("字幕"); enabled: false }
+    SubtitleMenu {
+        objectName: "subtitleSubmenu"
+        player: root.player
+        onAddRequested: root.addSubtitleRequested()
+    }
     PlayerMenu {
         title: qsTr("視訊")
         PlayerMenuItem { action: root.fullscreenAction; shortcutLabel: "Enter" }

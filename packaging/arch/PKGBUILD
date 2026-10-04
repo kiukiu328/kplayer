@@ -1,0 +1,25 @@
+# Build the local source archive with scripts/build-arch.sh.
+pkgname=kplayer
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Qt Quick media player powered by libmpv'
+arch=('x86_64' 'aarch64')
+depends=('qt6-base>=6.11.2' 'qt6-declarative>=6.11.2' 'qt6-svg>=6.11.2' 'mpv' 'gcc-libs' 'glibc')
+makedepends=('cmake' 'ninja' 'pkgconf')
+optdepends=('noto-fonts-cjk: Traditional Chinese interface text')
+source=("${pkgname}-${pkgver}.tar.gz")
+# The build script replaces this with the local source archive's checksum.
+sha256sums=('SKIP')
+
+build() {
+    cmake -S "${pkgname}-${pkgver}" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DKPLAYER_BUILD_TESTS=OFF
+    cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-4}"
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}

@@ -139,6 +139,190 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void siblingDiscoveryOnlyAddsVideosFromOpenedFolders()
+    {
+        QTemporaryDir directory;
+        const QUrl selected = makeVideo(directory.filePath("episode1.y4m"));
+        const QUrl sibling = makeVideo(directory.filePath("episode2.MP4"));
+        const QUrl audio = makeAudio(directory.filePath("music.wav"));
+        QVERIFY(QDir(directory.path()).mkdir("nested"));
+        const QUrl nested = makeVideo(directory.filePath("nested/episode3.y4m"));
+        QFile source(directory.filePath("source.ts"));
+        QVERIFY(source.open(QIODevice::WriteOnly));
+        source.write("export const notVideo = true;");
+        source.close();
+        PlaylistModel playlist;
+        VideoLibrary library;
+        playlist.appendUrls({selected});
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QCOMPARE(library.addSiblingVideos(&playlist, {selected, sibling}), 1);
+        QCOMPARE(playlist.count(), 2);
+        QCOMPARE(playlist.currentSource(), selected);
+        QCOMPARE(sourceChanges.count(), 0);
+        QVERIFY(playlist.indexOfSource(sibling) >= 0);
+        QCOMPARE(playlist.indexOfSource(nested), -1);
+        QCOMPARE(playlist.indexOfSource(audio), -1);
+        QCOMPARE(library.addSiblingVideos(&playlist, {selected}), 0);
+        PlaylistModel audioPlaylist;
+        QCOMPARE(library.addSiblingVideos(&audioPlaylist, {audio}), 0);
+        QCOMPARE(library.addSiblingVideos(&playlist, {QUrl("https://example.com/movie.mp4")}), 0);
+    }
+
+    void openingMediaAddsSiblingsWithoutLibraryScan()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("first.y4m"));
+        const QUrl second = makeVideo(directory.filePath("second.y4m"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"startupFiles", QVariant::fromValue(QList<QUrl>{second})}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(playlist && video);
+        QTRY_COMPARE(playlist->count(), 2);
+        QTRY_VERIFY(video->mediaLoaded());
+        QCOMPARE(video->source(), second);
+        QCOMPARE(playlist->currentSource(), second);
+        // Exercise the same handler used by the Open Media dialog on a named queue.
+        auto *collection = window->findChild<PlaylistCollection *>();
+        QVERIFY(collection);
+        collection->addPlaylist("Opened files");
+        QVERIFY(QMetaObject::invokeMethod(window, "addOpenedFiles",
+                                          Q_ARG(QList<QUrl>, QList<QUrl>{first})));
+        QTRY_COMPARE(collection->currentPlaylist()->count(), 2);
+        QTRY_VERIFY(video->mediaLoaded());
+        QCOMPARE(video->source(), first);
+        QVERIFY(QMetaObject::invokeMethod(window, "addOpenedFiles",
+                                          Q_ARG(QList<QUrl>, QList<QUrl>{first})));
+        QCOMPARE(collection->currentPlaylist()->count(), 2);
+        QCOMPARE(playlist->count(), 2);
+        video->stop();
+    }
+
+    void subtitleMenuAndPotPlayerShortcuts()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("first.y4m"));
+        const QUrl second = makeVideo(directory.filePath("second.y4m"));
+        QList<QUrl> subtitles;
+        for (const QString &name : {QStringLiteral("English.srt"), QStringLiteral("中文.srt")}) {
+            QFile file(directory.filePath(name));
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("1\n00:00:00,000 --> 00:00:29,000\nTest subtitle\n");
+            subtitles.append(QUrl::fromLocalFile(file.fileName()));
+        }
+        QList<QQmlError> warnings;
+        QQmlApplicationEngine engine;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&](const QList<QQmlError> &items) { warnings.append(items); });
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *playlist = window->findChild<PlaylistModel *>();
+        QVERIFY(video && playlist);
+        playlist->appendUrls({second});
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        click(window, findItem(window->contentItem(), "videoStage"));
+        QTest::keyClick(window, Qt::Key_C);
+        QTRY_COMPARE(video->speed(), 1.1);
+        QTest::keyClick(window, Qt::Key_X);
+        QTRY_COMPARE(video->speed(), 1.0);
+        video->setSpeed(2.0);
+        QTRY_COMPARE(video->speed(), 2.0);
+        QTest::keyClick(window, Qt::Key_Z);
+        QTRY_COMPARE(video->speed(), 1.0);
+        video->setSpeed(0.2);
+        QTest::keyClick(window, Qt::Key_X);
+        QTRY_COMPARE(video->speed(), 0.2);
+        video->setSpeed(5.0);
+        QTest::keyClick(window, Qt::Key_C);
+        QTRY_COMPARE(video->speed(), 5.0);
+        QTest::keyClick(window, Qt::Key_Z);
+        QTRY_COMPARE(video->speed(), 1.0);
+
+        // Load through the dialog acceptance path, then observe mpv's actual track list.
+        QTest::keyClick(window, Qt::Key_O, Qt::AltModifier);
+        auto *dialog = window->findChild<QObject *>("subtitleDialog");
+        QVERIFY(dialog);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        // Supply the chosen URL and dispatch the accepted signal; this avoids
+        // depending on the platform file picker implementation in the test.
+        QVERIFY(dialog->setProperty("selectedFile", subtitles.first()));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "accepted"));
+        QTRY_COMPARE(video->subtitleTracks().size(), 1);
+        QVERIFY(video->addSubtitle(subtitles.last()));
+        QTRY_COMPARE(video->subtitleTracks().size(), 2);
+        const int firstId = video->subtitleTracks().first().toMap().value("id").toInt();
+        const int secondId = video->subtitleTracks().last().toMap().value("id").toInt();
+        QTRY_COMPARE(video->subtitleTrack(), secondId);
+        QVERIFY(video->subtitleTracks().last().toMap().value("label").toString().contains("中文.srt"));
+        click(window, findItem(window->contentItem(), "videoStage"));
+        QTest::keyClick(window, Qt::Key_H, Qt::AltModifier);
+        QTRY_VERIFY(!video->subtitlesVisible());
+        QCOMPARE(video->subtitleTrack(), secondId);
+        QTest::keyClick(window, Qt::Key_H, Qt::AltModifier);
+        QTRY_VERIFY(video->subtitlesVisible());
+        QTest::keyClick(window, Qt::Key_L, Qt::AltModifier);
+        QTRY_COMPARE(video->subtitleTrack(), firstId);
+        QTest::keyClick(window, Qt::Key_L);
+        auto *menu = window->findChild<QObject *>("subtitleSelectionMenu");
+        QVERIFY(menu);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QCOMPARE(menu->property("count").toInt(), 7);
+        QVERIFY(menuItemAt(menu, 5)->property("checked").toBool());
+        click(window, menuItemAt(menu, 6));
+        QTRY_COMPARE(video->subtitleTrack(), secondId);
+        video->setSubtitleTrack(-1);
+        QTRY_COMPARE(video->subtitleTrack(), -1);
+        video->setSubtitlesVisible(false);
+        video->setSubtitleTrack(firstId);
+        QTRY_COMPARE(video->subtitleTrack(), firstId);
+        QTRY_VERIFY(video->subtitlesVisible());
+
+        click(window, findItem(window->contentItem(), "videoStage"));
+        QTest::keyClick(window, Qt::Key_PageDown);
+        QTRY_COMPARE(video->source(), second);
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_VERIFY(video->subtitleTracks().isEmpty());
+        QTest::keyClick(window, Qt::Key_PageUp);
+        QTRY_COMPARE(video->source(), first);
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        video->seek(12);
+        QTRY_VERIFY(qAbs(video->position() - 12) < 0.2);
+        QTest::keyClick(window, Qt::Key_Backspace);
+        QTRY_VERIFY(video->position() < 0.2);
+        QTest::keyClick(window, Qt::Key_F);
+        QTRY_VERIFY(video->position() > 0.5 && !video->playing());
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        auto *search = findItem(window->contentItem(), "playlistSearch");
+        QTRY_VERIFY(search->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_X);
+        QTest::keyClick(window, Qt::Key_C);
+        QTest::keyClick(window, Qt::Key_Z);
+        QTest::keyClick(window, Qt::Key_L);
+        QCOMPARE(search->property("text").toString(), QStringLiteral("xczl"));
+        QCOMPARE(video->speed(), 1.0);
+        QVERIFY(!menu->property("visible").toBool());
+        video->stop();
+        QVERIFY(!video->mediaLoaded());
+        QVERIFY(video->subtitleTracks().isEmpty());
+        QCOMPARE(video->subtitleTrack(), -1);
+        QCOMPARE(video->errorString(), QString{});
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
     void discoveryDeduplicatesWithoutChangingManualQueues()
     {
         QTemporaryDir directory;

@@ -37,6 +37,7 @@ set(KPLAYER_QML_FILES
     qml/PlayerMenu.qml
     qml/PlayerMenuItem.qml
     qml/PlayerMenuSeparator.qml
+    qml/SubtitleMenu.qml
     qml/AppMenu.qml
     qml/TitleBar.qml
     qml/VideoStage.qml
@@ -96,6 +97,13 @@ set_target_properties(KPlayer PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
+
+if(UNIX AND NOT APPLE)
+    include(GNUInstallDirs)
+    install(TARGETS KPlayer RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES packaging/linux/kplayer.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+endif()
 
 if(WIN32)
     option(KPLAYER_DEPLOY_WINDOWS_RUNTIME "Copy runtime libraries for Explorer launching" ON)

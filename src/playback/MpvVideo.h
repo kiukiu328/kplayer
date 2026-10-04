@@ -2,11 +2,13 @@
 
 #include <QQuickFramebufferObject>
 #include <QUrl>
+#include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
 
 struct mpv_handle;
+struct mpv_node;
 
 class MpvVideo : public QQuickFramebufferObject
 {
@@ -21,6 +23,11 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(bool seekable READ seekable NOTIFY seekableChanged)
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY mutedChanged)
     Q_PROPERTY(double volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
+    Q_PROPERTY(bool subtitlesVisible READ subtitlesVisible WRITE setSubtitlesVisible NOTIFY subtitlesVisibleChanged)
+    Q_PROPERTY(QVariantList subtitleTracks READ subtitleTracks NOTIFY subtitleTracksChanged)
+    Q_PROPERTY(int subtitleTrack READ subtitleTrack WRITE setSubtitleTrack NOTIFY subtitleTrackChanged)
+    Q_PROPERTY(bool mediaLoaded READ mediaLoaded NOTIFY mediaLoadedChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -40,6 +47,17 @@ public:
     double volume() const { return m_volume; }
     void setVolume(double volume);
     quint64 loadRevision() const { return m_loadRevision; }
+    double speed() const { return m_speed; }
+    void setSpeed(double speed);
+    bool subtitlesVisible() const { return m_subtitlesVisible; }
+    void setSubtitlesVisible(bool visible);
+    QVariantList subtitleTracks() const { return m_subtitleTracks; }
+    int subtitleTrack() const { return m_subtitleTrack; }
+    void setSubtitleTrack(int id);
+    bool mediaLoaded() const { return m_mediaLoaded; }
+    Q_INVOKABLE bool addSubtitle(const QUrl &url);
+    Q_INVOKABLE void cycleSubtitle();
+    Q_INVOKABLE void stepFrame(bool forward);
 
     Q_INVOKABLE void play();
     Q_INVOKABLE void stop();
@@ -56,6 +74,11 @@ signals:
     void seekableChanged();
     void mutedChanged();
     void volumeChanged();
+    void speedChanged();
+    void subtitlesVisibleChanged();
+    void subtitleTracksChanged();
+    void subtitleTrackChanged();
+    void mediaLoadedChanged();
     void endOfFile();
 
 private:
@@ -66,6 +89,8 @@ private:
     void setPosition(double seconds);
     void setDuration(double seconds);
     void setSeekable(bool seekable);
+    void updateSubtitleTracks(const mpv_node &node);
+    void clearSubtitleTracks();
 
     // The renderer retains the handle until its OpenGL context is freed.
     std::shared_ptr<mpv_handle> m_mpv;
@@ -79,4 +104,9 @@ private:
     bool m_muted = false;
     double m_volume = 100;
     quint64 m_loadRevision = 0;
+    double m_speed = 1.0;
+    bool m_subtitlesVisible = true;
+    QVariantList m_subtitleTracks;
+    int m_subtitleTrack = -1;
+    bool m_mediaLoaded = false;
 };
