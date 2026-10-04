@@ -97,7 +97,7 @@ queued and the first valid entry starts playing immediately.
   manual Previous/Next track navigation still stops at the queue boundaries.
   The pin button toggles Always on Top and highlights while enabled.
 - Keyboard shortcuts: F3 or Ctrl+O opens media, F4 closes playback while keeping
-  the queue, F6 or Ctrl+L toggles the playlist, F11 toggles fullscreen, and Escape
+  the queue, F5 opens Advanced Settings, F6 or Ctrl+L toggles the playlist, F11 toggles fullscreen, and Escape
   leaves fullscreen. With focus in the video area, Enter also toggles fullscreen, Space
   toggles playback, M toggles mute, Left/Right seek 10 seconds, and Up/Down adjust
   volume by 5%. Text fields, focused controls, and playlist selection keep their
@@ -107,11 +107,14 @@ queued and the first valid entry starts playing immediately.
   keeps the selected track; selecting or loading a track makes it visible again.
   Start playback before adding subtitles. Loaded tracks clear when playback closes
   or changes files.
+  In **進階設定** (F5), choose a default subtitle language or enter language codes
+  in priority order (for example, `zh,en`). Save keeps the preference across
+  launches and applies it when opening media. Leave it blank for automatic selection.
 - Additional PotPlayer-style shortcuts (with focus in the video area):
 
   | Keys | Action |
   | --- | --- |
-  | Z | Reset speed to 1.0× |
+  | Z | Toggle between 1.0× and the last non-normal speed |
   | X / C | Decrease / increase speed by 0.1× (0.2–5.0×) |
   | L | Open the subtitle selection menu |
   | Alt+O | Add subtitle files |
@@ -126,7 +129,6 @@ queued and the first valid entry starts playing immediately.
   | D / F | Previous / next frame (pauses playback) |
 
   Bindings were checked against [PotPlayer's bundled English menu definitions](https://github.com/Onemeshnik/PotPlayer-Median-subtitles-installer/blob/master/%7Bapp%7D/Language/English.ini).
-  Z always resets to normal speed here, as opposed to toggling the last-used speed.
   Playback speed also appears in the Playback menu. Setting changes show blue
   hints at the top-left of the play area for two seconds, including normal speed
   (`1.0x`), volume, mute, subtitles, repeat, and window controls.

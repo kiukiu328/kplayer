@@ -24,6 +24,7 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY mutedChanged)
     Q_PROPERTY(double volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
+    Q_PROPERTY(QString defaultSubtitleLanguage READ defaultSubtitleLanguage WRITE setDefaultSubtitleLanguage NOTIFY defaultSubtitleLanguageChanged)
     Q_PROPERTY(bool subtitlesVisible READ subtitlesVisible WRITE setSubtitlesVisible NOTIFY subtitlesVisibleChanged)
     Q_PROPERTY(QVariantList subtitleTracks READ subtitleTracks NOTIFY subtitleTracksChanged)
     Q_PROPERTY(int subtitleTrack READ subtitleTrack WRITE setSubtitleTrack NOTIFY subtitleTrackChanged)
@@ -49,6 +50,9 @@ public:
     quint64 loadRevision() const { return m_loadRevision; }
     double speed() const { return m_speed; }
     void setSpeed(double speed);
+    Q_INVOKABLE void toggleSpeed();
+    QString defaultSubtitleLanguage() const { return m_defaultSubtitleLanguage; }
+    void setDefaultSubtitleLanguage(const QString &language);
     bool subtitlesVisible() const { return m_subtitlesVisible; }
     void setSubtitlesVisible(bool visible);
     QVariantList subtitleTracks() const { return m_subtitleTracks; }
@@ -75,6 +79,7 @@ signals:
     void mutedChanged();
     void volumeChanged();
     void speedChanged();
+    void defaultSubtitleLanguageChanged();
     void subtitlesVisibleChanged();
     void subtitleTracksChanged();
     void subtitleTrackChanged();
@@ -105,6 +110,8 @@ private:
     double m_volume = 100;
     quint64 m_loadRevision = 0;
     double m_speed = 1.0;
+    double m_lastSpeed = 1.0;
+    QString m_defaultSubtitleLanguage;
     bool m_subtitlesVisible = true;
     QVariantList m_subtitleTracks;
     int m_subtitleTrack = -1;

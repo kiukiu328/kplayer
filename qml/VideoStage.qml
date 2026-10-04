@@ -12,6 +12,7 @@ Rectangle {
     property alias muted: video.muted
     property alias volume: video.volume
     property alias speed: video.speed
+    property alias defaultSubtitleLanguage: video.defaultSubtitleLanguage
     property alias subtitlesVisible: video.subtitlesVisible
     property alias subtitleTracks: video.subtitleTracks
     property alias subtitleTrack: video.subtitleTrack
@@ -26,6 +27,7 @@ Rectangle {
     }
     function addSubtitle(url: url): bool { return video.addSubtitle(url) }
     function cycleSubtitle() { video.cycleSubtitle() }
+    function toggleSpeed() { video.toggleSpeed() }
     function stepFrame(forward: bool) { video.stepFrame(forward) }
     signal moveRequested()
     signal fullscreenRequested()

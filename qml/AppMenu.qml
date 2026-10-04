@@ -100,9 +100,9 @@ PlayerMenu {
         PlayerMenu {
             title: qsTr("播放速度") + " (" + root.player.speed.toFixed(1) + "×)"
             PlayerMenuItem {
-                text: qsTr("正常速度")
+                text: qsTr("切換正常 / 上次速度")
                 shortcutLabel: "Z"
-                onTriggered: root.player.speed = 1.0
+                onTriggered: root.player.toggleSpeed()
             }
             PlayerMenuItem {
                 text: qsTr("減速")

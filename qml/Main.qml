@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 import QtQuick.Dialogs
 import QtQuick.Controls.Basic
 
@@ -44,6 +45,7 @@ Window {
         && !mediaDialog.visible && !videoFolderDialog.visible
         && !subtitleDialog.visible && !subtitleMenu.visible
         && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
+        && !advancedSettings.visible
         && !hasInteractiveFocus()
 
     function hasInteractiveFocus(): bool {
@@ -131,6 +133,13 @@ Window {
         settingsMenu.open()
     }
 
+    function showAdvancedSettings() {
+        appMenu.dismiss()
+        settingsMenu.close()
+        subtitleMenu.close()
+        advancedSettings.open()
+    }
+
     function toggleFullscreen() {
         if (visibility === Window.FullScreen) {
             if (fullscreenPlus) {
@@ -208,6 +217,20 @@ Window {
     }
 
     PlaylistCollection { id: playlists; objectName: "playlistCollection" }
+    Settings {
+        id: preferences
+        category: "subtitles"
+        property string defaultLanguage: ""
+    }
+    AdvancedSettings {
+        id: advancedSettings
+        objectName: "advancedSettingsDialog"
+        parent: window.contentItem
+        anchors.centerIn: parent
+        width: Math.min(480, window.width - 32)
+        subtitleLanguage: preferences.defaultLanguage
+        onLanguageSaved: (language) => preferences.defaultLanguage = language
+    }
     VideoLibrary { id: videoLibrary; objectName: "videoLibrary" }
     FileAssociations { id: fileAssociations; objectName: "fileAssociations" }
     Connections {
@@ -342,9 +365,9 @@ Window {
     }
     Action {
         id: preferencesAction
-        text: qsTr("偏好設定…")
+        text: qsTr("進階設定…")
         shortcut: "F5"
-        onTriggered: window.showSettingsMenu()
+        onTriggered: window.showAdvancedSettings()
     }
     Action {
         id: controlsAction
@@ -489,6 +512,7 @@ Window {
             onTriggered: window.repeatMode = 2
         }
         PlayerMenuSeparator {}
+        PlayerMenuItem { action: preferencesAction }
         PlayerMenuItem { action: associateVideosAction }
         PlayerMenuItem { action: findVideosAction }
         PlayerMenuItem { action: findFolderVideosAction }
@@ -515,6 +539,7 @@ Window {
             && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible
             && !videoFolderDialog.visible && !infoDialog.visible
             && !subtitleDialog.visible && !subtitleMenu.visible
+            && !advancedSettings.visible
         onActivated: window.toggleFullscreen()
     }
     Shortcut {
@@ -554,7 +579,7 @@ Window {
     Shortcut {
         sequence: "Z"
         enabled: window.playbackShortcutsEnabled
-        onActivated: videoStage.speed = 1.0
+        onActivated: videoStage.toggleSpeed()
     }
     Shortcut {
         sequence: "X"
@@ -685,6 +710,7 @@ Window {
 
                 VideoStage {
                     id: videoStage
+                    defaultSubtitleLanguage: preferences.defaultLanguage
                     source: window.mediaPlaylist.currentSource
                     anchors.top: parent.top
                     anchors.left: parent.left

@@ -216,6 +216,13 @@ void MpvVideo::play()
     if (!setPaused(false))
         return;
     if (m_stopped) {
+        // Manual track choices belong to the current file; new loads use the language preference.
+        const char *selection = "auto";
+        const int result = mpv_set_property_async(m_mpv.get(), 0, "sid", MPV_FORMAT_STRING, &selection);
+        if (result < 0) {
+            setError(QString::fromUtf8(mpv_error_string(result)));
+            return;
+        }
         setPosition(0);
         setPlaybackState(false, false);
         // A revision also reloads the same source after Stop.
@@ -293,7 +300,31 @@ void MpvVideo::setSpeed(double speed)
         return;
     }
     m_speed = speed;
+    if (!qFuzzyCompare(speed, 1.0))
+        m_lastSpeed = speed;
     emit speedChanged();
+}
+
+void MpvVideo::toggleSpeed()
+{
+    setSpeed(qFuzzyCompare(m_speed, 1.0) ? m_lastSpeed : 1.0);
+}
+
+void MpvVideo::setDefaultSubtitleLanguage(const QString &language)
+{
+    const QString normalized = language.simplified().remove(QLatin1Char(' ')).toLower();
+    if (!m_mpv || m_defaultSubtitleLanguage == normalized)
+        return;
+    const QByteArray value = normalized.toUtf8();
+    const char *languages = value.constData();
+    const int result = mpv_set_property_async(m_mpv.get(), 0, "slang", MPV_FORMAT_STRING,
+                                             &languages);
+    if (result < 0) {
+        setError(QString::fromUtf8(mpv_error_string(result)));
+        return;
+    }
+    m_defaultSubtitleLanguage = normalized;
+    emit defaultSubtitleLanguageChanged();
 }
 
 void MpvVideo::setSubtitlesVisible(bool visible)

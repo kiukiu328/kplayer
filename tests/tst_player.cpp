@@ -26,6 +26,8 @@
 #include <QDir>
 #include <QSettings>
 #include <QScreen>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QUuid>
 
 #include <clocale>
@@ -111,13 +113,9 @@ class PlayerTests : public QObject
     {
         if (!window || !QTest::qWaitForWindowExposed(window))
             return false;
-#ifdef Q_OS_WIN
         // Shortcuts require an active native window, not just an exposed one.
         window->requestActivate();
         return QTest::qWaitForWindowActive(window);
-#else
-        return true;
-#endif
     }
 
     static QQuickItem *findItem(QQuickItem *parent, const QString &name)
@@ -140,6 +138,104 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void advancedSettingsPersistAndCancel()
+    {
+        QSettings().clear();
+        QList<QQmlError> warnings;
+        {
+            QQmlApplicationEngine engine;
+            connect(&engine, &QQmlEngine::warnings, this,
+                    [&](const QList<QQmlError> &items) { warnings.append(items); });
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            QVERIFY(video && dialog);
+            click(window, findItem(window->contentItem(), "videoStage"));
+            QTest::keyClick(window, Qt::Key_F5);
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+            auto *codes = findItem(window->contentItem(), "subtitleLanguageCodes");
+            QVERIFY(codes);
+            click(window, codes);
+            QTest::keyClick(window, Qt::Key_X);
+            QTest::keyClick(window, Qt::Key_C);
+            QTest::keyClick(window, Qt::Key_Z);
+            QCOMPARE(codes->property("text").toString(), QStringLiteral("xcz"));
+            QCOMPARE(video->speed(), 1.0);
+            codes->setProperty("text", " JA, JPN ");
+            QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+            QTRY_COMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
+            QTest::keyClick(window, Qt::Key_F5);
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QCOMPARE(codes->property("text").toString(), QStringLiteral("ja,jpn"));
+            codes->setProperty("text", "en");
+            QTest::keyClick(window, Qt::Key_Escape);
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *video = engine.rootObjects().first()->findChild<MpvVideo *>();
+            QVERIFY(video);
+            QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
+        }
+        QSettings().clear();
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void defaultSubtitleLanguageSelectsTrack()
+    {
+        const QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");
+        if (ffmpeg.isEmpty())
+            QSKIP("ffmpeg is needed to create the multilingual Matroska fixture");
+        QTemporaryDir directory;
+        const auto rawVideo = makeVideo(directory.filePath("video.y4m"));
+        QFile subtitles(directory.filePath("text.srt"));
+        QVERIFY(subtitles.open(QIODevice::WriteOnly));
+        subtitles.write("1\n00:00:00,000 --> 00:00:29,000\nSubtitle\n");
+        subtitles.close();
+        const QString media = directory.filePath("multilingual.mkv");
+        QProcess encoder;
+        encoder.start(ffmpeg, {"-v", "error", "-i", rawVideo.toLocalFile(),
+            "-i", subtitles.fileName(), "-i", subtitles.fileName(),
+            "-map", "0:v", "-map", "1:s", "-map", "2:s", "-c:v", "ffv1", "-c:s", "srt",
+            "-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=jpn",
+            "-disposition:s:0", "default", "-disposition:s:1", "0", media});
+        QVERIFY(encoder.waitForFinished(10000));
+        QCOMPARE(encoder.exitCode(), 0);
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", QUrl::fromLocalFile(media)}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(video);
+        video->setDefaultSubtitleLanguage("ja,jpn");
+        video->play();
+        QTRY_COMPARE(video->subtitleTracks().size(), 2);
+        const int english = video->subtitleTracks().first().toMap().value("id").toInt();
+        const int japanese = video->subtitleTracks().last().toMap().value("id").toInt();
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setSubtitleTrack(english);
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        video->stop();
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleLanguage("en,eng");
+        video->stop();
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        QCOMPARE(video->errorString(), QString{});
+    }
+
     void siblingDiscoveryOnlyAddsVideosFromOpenedFolders()
     {
         QTemporaryDir directory;
@@ -248,8 +344,16 @@ private slots:
         QTRY_COMPARE(video->speed(), 2.0);
         QTest::keyClick(window, Qt::Key_Z);
         QTRY_COMPARE(video->speed(), 1.0);
+        QTest::keyClick(window, Qt::Key_Z);
+        QTRY_COMPARE(video->speed(), 2.0);
+        QTest::keyClick(window, Qt::Key_Z);
+        QTRY_COMPARE(video->speed(), 1.0);
         video->setSpeed(0.2);
         QTest::keyClick(window, Qt::Key_X);
+        QTRY_COMPARE(video->speed(), 0.2);
+        QTest::keyClick(window, Qt::Key_Z);
+        QTRY_COMPARE(video->speed(), 1.0);
+        QTest::keyClick(window, Qt::Key_Z);
         QTRY_COMPARE(video->speed(), 0.2);
         video->setSpeed(5.0);
         QTest::keyClick(window, Qt::Key_C);
@@ -1971,6 +2075,11 @@ int main(int argc, char **argv)
     // Keep dialog interaction in Qt's event loop during automated tests.
     QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QGuiApplication app(argc, argv);
+    QTemporaryDir settingsDirectory;
+    QCoreApplication::setOrganizationName("KPlayerTests");
+    QCoreApplication::setApplicationName("KPlayerTests");
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
     std::setlocale(LC_NUMERIC, "C");
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     PlayerTests tests;
