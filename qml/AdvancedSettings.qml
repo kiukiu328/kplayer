@@ -11,6 +11,12 @@ Dialog {
     signal speedSaved(real speed, real maximum)
     signal languageSaved(string language)
     property int currentPage: 0
+    property point dragOffset: Qt.point(0, 0)
+    x: Math.max(0, Math.min(parent.width - width,
+                           (parent.width - width) / 2 + dragOffset.x))
+    y: Math.max(0, Math.min(parent.height - height,
+                           (parent.height - height) / 2 + dragOffset.y))
+    onAboutToShow: dragOffset = Qt.point(0, 0)
     readonly property var pageTitles: [qsTr("一般"), qsTr("播放"), qsTr("字幕")]
     title: qsTr("進階設定")
     modal: true
@@ -54,6 +60,28 @@ Dialog {
     }
     header: Item {
         implicitHeight: 60
+        MouseArea {
+            objectName: "settingsDragHandle"
+            anchors.fill: parent
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+            preventStealing: true
+            property point pressPosition
+            property point startPosition
+            onPressed: (mouse) => {
+                pressPosition = mapToItem(root.parent, mouse.x, mouse.y)
+                startPosition = Qt.point(root.x, root.y)
+            }
+            onPositionChanged: (mouse) => {
+                if (pressed) {
+                    const position = mapToItem(root.parent, mouse.x, mouse.y)
+                    root.dragOffset = Qt.point(
+                        startPosition.x + position.x - pressPosition.x
+                            - (root.parent.width - root.width) / 2,
+                        startPosition.y + position.y - pressPosition.y
+                            - (root.parent.height - root.height) / 2)
+                }
+            }
+        }
         Label {
             anchors.left: parent.left
             anchors.leftMargin: 24

@@ -14,7 +14,7 @@ mkdir -p "$output_dir"
 archive="kplayer-${pkgver}.tar.gz"
 tar -czf "$output_dir/$archive" \
     --transform="s,^,kplayer-${pkgver}/," \
-    -C "$project_dir" CMakeLists.txt README.md src qml assets/icons cmake packaging/linux
+    -C "$project_dir" CMakeLists.txt README.md src qml translations assets/icons cmake packaging/linux
 checksum=$(sha256sum "$output_dir/$archive")
 checksum=${checksum%% *}
 sed -e "s/^pkgver=.*/pkgver=$pkgver/" \

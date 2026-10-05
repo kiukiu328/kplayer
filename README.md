@@ -151,6 +151,9 @@ queued and the first valid entry starts playing immediately.
   toggles playback, M toggles mute, Left/Right seek 10 seconds, and Up/Down adjust
   volume by 5%. Text fields, focused controls, and playlist selection keep their
   own keyboard behavior.
+- In **Advanced Settings** (F5), drag the title bar to move the panel. Under
+  **General > Interface language**, choose Traditional Chinese or English and
+  Save to apply it immediately and remember it for the next launch.
 - The **字幕** menu shows/hides subtitles, loads external subtitle files, and
   selects embedded or external tracks by title/language/filename. Hiding subtitles
   keeps the selected track; selecting or loading a track makes it visible again.

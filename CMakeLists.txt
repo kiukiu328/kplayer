@@ -92,6 +92,13 @@ set(KPLAYER_SOURCES
     src/playback/Favorites.cpp
 )
 
+# Qt can create empty TS files when inputs are missing. Fail instead of shipping
+# a package whose language selector silently leaves the UI untranslated.
+foreach(language en zh_TW)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/translations/kplayer_${language}.ts")
+        message(FATAL_ERROR "Missing translation source: translations/kplayer_${language}.ts")
+    endif()
+endforeach()
 qt_add_lrelease(TS_FILES translations/kplayer_en.ts
     QM_FILES_OUTPUT_VARIABLE KPLAYER_TRANSLATIONS)
 qt_add_lrelease(TS_FILES translations/kplayer_zh_TW.ts

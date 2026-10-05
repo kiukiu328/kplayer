@@ -234,7 +234,6 @@ Window {
         id: advancedSettings
         objectName: "advancedSettingsDialog"
         parent: window.contentItem
-        anchors.centerIn: parent
         width: Math.min(900, window.width - 32)
         height: Math.min(600, window.height - 32)
         maximumSpeed: playbackPreferences.maximumSpeed

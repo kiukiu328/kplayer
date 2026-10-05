@@ -325,6 +325,52 @@ private slots:
         favorites->clear();
     }
 
+    void advancedSettingsCanBeDragged()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        QVERIFY(dialog);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        auto *handle = findItem(window->contentItem(), "settingsDragHandle");
+        QVERIFY(handle);
+        QSignalSpy moves(window, SIGNAL(windowMoveRequested()));
+        const QPointF centered(dialog->property("x").toReal(), dialog->property("y").toReal());
+        const auto drag = [&](QPoint delta) {
+            const QPoint start = handle->mapToScene({handle->width() / 2, handle->height() / 2}).toPoint();
+            const QPoint end(qBound(1, start.x() + delta.x(), window->width() - 1),
+                             qBound(1, start.y() + delta.y(), window->height() - 1));
+            QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+            QTest::mouseMove(window, end, 30);
+            QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+        };
+        drag({60, 40});
+        QTRY_COMPARE(dialog->property("x").toReal(), centered.x() + 60);
+        QTRY_COMPARE(dialog->property("y").toReal(), centered.y() + 40);
+        QCOMPARE(moves.count(), 0);
+        click(window, findItem(window->contentItem(), "settingsPage2"));
+        QCOMPARE(dialog->property("currentPage").toInt(), 2);
+        drag({-1000, -1000});
+        QTRY_COMPARE(dialog->property("x").toReal(), 0.0);
+        QTRY_COMPARE(dialog->property("y").toReal(), 0.0);
+        drag({2000, 2000});
+        QTRY_COMPARE(dialog->property("x").toReal(), window->width() - dialog->property("width").toReal());
+        QTRY_COMPARE(dialog->property("y").toReal(), window->height() - dialog->property("height").toReal());
+        window->resize(1100, 500);
+        QTRY_VERIFY(dialog->property("x").toReal() + dialog->property("width").toReal() <= window->width());
+        QTRY_VERIFY(dialog->property("y").toReal() + dialog->property("height").toReal() <= window->height());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QCOMPARE(dialog->property("x").toReal(), (window->width() - dialog->property("width").toReal()) / 2);
+        QCOMPARE(dialog->property("y").toReal(), (window->height() - dialog->property("height").toReal()) / 2);
+    }
+
     void advancedSettingsPersistAndCancel()
     {
         QSettings().clear();
