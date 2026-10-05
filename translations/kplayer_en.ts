@@ -3,6 +3,31 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>一般</source>
+            <translation>General</translation>
+        </message>
+        <message>
+            <source>播放</source>
+            <translation>Playback</translation>
+        </message>
+        <message>
+            <source>字幕</source>
+            <translation>Subtitles</translation>
+        </message>
+        <message>
+            <source>語言</source>
+            <translation>Language</translation>
+        </message>
+        <message>
+            <source>播放速度</source>
+            <translation>Playback speed</translation>
+        </message>
+        <message>
+            <source>字幕偏好</source>
+            <translation>Subtitle preferences</translation>
+        </message>
+
+        <message>
             <source>最高播放速度 (×)</source>
             <translation>Maximum playback speed (×)</translation>
         </message>

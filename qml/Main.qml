@@ -235,8 +235,8 @@ Window {
         objectName: "advancedSettingsDialog"
         parent: window.contentItem
         anchors.centerIn: parent
-        width: Math.min(480, window.width - 32)
-        height: Math.min(implicitHeight, window.height - 32)
+        width: Math.min(900, window.width - 32)
+        height: Math.min(600, window.height - 32)
         maximumSpeed: playbackPreferences.maximumSpeed
         playbackSpeed: videoStage.speed
         onSpeedSaved: (speed, maximum) => {

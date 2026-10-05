@@ -344,6 +344,7 @@ private slots:
             QTest::keyClick(window, Qt::Key_F5);
             QTRY_VERIFY(dialog->property("opened").toBool());
             QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+            click(window, findItem(window->contentItem(), "settingsPage2"));
             auto *codes = findItem(window->contentItem(), "subtitleLanguageCodes");
             QVERIFY(codes);
             click(window, codes);
