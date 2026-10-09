@@ -7,6 +7,7 @@ Item {
     property int edgeSize: 6
     property int cornerSize: 16
     signal resizeRequested(int edges)
+    visible: enabled
     z: 100
 
     Repeater {
@@ -42,6 +43,7 @@ Item {
             y: corner ? (modelData.top ? 0 : root.height - height)
                 : side ? root.cornerSize : (modelData.top ? 0 : root.height - height)
             acceptedButtons: Qt.LeftButton
+            hoverEnabled: true
             cursorShape: modelData.cursor
             onPressed: root.resizeRequested(resizeEdges)
         }

@@ -85,7 +85,8 @@ queued and the first valid entry starts playing immediately.
 - Hold the left mouse button and drag the play area to move the window.
 - Double-click the play area with the left mouse button to play or pause.
 - Drag any window edge or corner to resize. Resizing is available in the normal
-  window state and respects the minimum window size.
+  window state and respects the minimum window size. Hovering an edge or corner
+  shows the corresponding resize cursor.
 - Click the Playlist button to hide or show the playlist. Hiding it expands the
   play area and keeps the queue and current selection. Drag the divider at the
   playlist's left edge to resize it; its width is saved across launches.
@@ -192,6 +193,11 @@ queued and the first valid entry starts playing immediately.
   the selected media from the beginning.
 - Click the audio button to mute or unmute without changing the saved volume.
   The volume slider controls 0–100%; adjusting it above zero also unmutes audio.
+- Scroll up or down over the video area to raise or lower volume by 5% per
+  wheel notch. Raising volume also unmutes audio.
+- In fullscreen, move the pointer near the bottom to reveal playback controls,
+  or near the right edge to reveal the playlist. Move away to hide them again;
+  both appear over the video without changing its size.
 - Left-click Previous/Next to rewind/fast-forward 10 seconds. Right-click them
   to play the previous/next playlist entry. Navigation stops at the playlist
   boundaries, and reaching the end of a file automatically plays the next entry.

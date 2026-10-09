@@ -31,6 +31,7 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QUuid>
+#include <QWheelEvent>
 
 #include <clocale>
 
@@ -2111,6 +2112,15 @@ private slots:
                 QCOMPARE(bounds.top(), 0.0);
             if (edges & Qt::BottomEdge)
                 QCOMPARE(bounds.bottom(), frame->height());
+
+            const Qt::CursorShape expectedCursor = edges == Qt::LeftEdge || edges == Qt::RightEdge
+                    ? Qt::SizeHorCursor : edges == Qt::TopEdge || edges == Qt::BottomEdge
+                    ? Qt::SizeVerCursor : edges == (Qt::TopEdge | Qt::LeftEdge)
+                        || edges == (Qt::BottomEdge | Qt::RightEdge)
+                    ? Qt::SizeFDiagCursor : Qt::SizeBDiagCursor;
+            QTest::mouseMove(window, handle->mapToScene(
+                    {handle->width() / 2, handle->height() / 2}).toPoint());
+            QTRY_COMPARE(window->cursor().shape(), expectedCursor);
         }
 
         // Geometry bindings follow window resizing and keep the configured limits.
@@ -2187,7 +2197,7 @@ private slots:
         QTRY_VERIFY(!bar->isVisible());
         QTest::mouseMove(window, QPoint(window->width() / 2, window->height() - 2));
         QTRY_VERIFY(bar->isVisible());
-        QCOMPARE(stage->size(), QSizeF(window->size()));
+        QTRY_COMPARE(stage->size(), QSizeF(window->size()));
         QTest::mouseMove(window, QPoint(window->width() / 2, 100));
         QTRY_VERIFY(!bar->isVisible());
         QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
@@ -2235,6 +2245,7 @@ private slots:
         QTRY_VERIFY(bar->isVisible());
 
         QSignalSpy visibilityChanges(bar, &QQuickItem::visibleChanged);
+        QTRY_COMPARE(bar->mapToScene({0, bar->height()}).y(), qreal(window->height()));
         for (const char *name : {"playButton", "stopButton", "previousButton", "nextButton",
                                 "ejectButton", "positionSlider", "muteButton", "volumeSlider",
                                 "searchMediaButton", "playlistButton", "settingsButton",
@@ -2258,6 +2269,93 @@ private slots:
         QVERIFY(visibilityChanges.isEmpty());
         QTest::mouseMove(window, QPoint(window->width() / 2, 100));
         QTRY_VERIFY(!bar->isVisible());
+    }
+
+    void fullscreenPlaylistRevealsAtRightEdge()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        auto *divider = findItem(window->contentItem(), "playlistResizeHandle");
+        QVERIFY(panel && stage && divider);
+        const qreal savedWidth = panel->width();
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!panel->isVisible());
+        QTest::mouseMove(window, QPoint(window->width() - 2, 100));
+        QTRY_VERIFY(panel->isVisible());
+        QTRY_COMPARE(stage->size(), QSizeF(window->size()));
+        QTRY_COMPARE(panel->x() + panel->width(), qreal(window->width()));
+        QTRY_COMPARE(divider->x(), panel->x() - divider->width() / 2);
+        QVERIFY(!window->property("playlistVisible").toBool());
+
+        QSignalSpy visibilityChanges(panel, &QQuickItem::visibleChanged);
+        QTest::mouseMove(window, panel->mapToScene(
+                {panel->width() / 2, panel->height() / 2}).toPoint(), 20);
+        QTest::qWait(80);
+        QVERIFY(panel->isVisible());
+        QVERIFY(visibilityChanges.isEmpty());
+        QTest::mouseMove(window, divider->mapToScene(
+                {divider->width() / 2, divider->height() / 2}).toPoint(), 20);
+        QTRY_COMPARE(window->cursor().shape(), Qt::SplitHCursor);
+        QVERIFY(panel->isVisible());
+
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!panel->isVisible());
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        QTRY_VERIFY(panel->isVisible());
+        QCOMPARE(panel->width(), savedWidth);
+    }
+
+    void mouseWheelAdjustsVolume()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        QVERIFY(video && stage);
+        auto wheelAt = [window](QQuickItem *target, QPoint angle, QPoint pixels = {}) {
+            // Let prior asynchronous libmpv property updates reach the UI.
+            QTest::qWait(30);
+            const QPoint local = target->mapToScene(
+                    {target->width() / 2, target->height() / 2}).toPoint();
+            QTest::mouseMove(window, local);
+            QWheelEvent event(local, window->mapToGlobal(local), pixels, angle,
+                              Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(window, &event);
+        };
+        video->setVolume(50);
+        video->setMuted(true);
+        wheelAt(stage, {0, 120});
+        QTRY_COMPARE(video->volume(), 55.0);
+        QVERIFY(!video->muted());
+        wheelAt(stage, {0, -240});
+        QTRY_COMPARE(video->volume(), 45.0);
+        wheelAt(stage, {120, 0});
+        QCOMPARE(video->volume(), 45.0);
+        wheelAt(stage, {}, {0, 40});
+        QTRY_COMPARE(video->volume(), 50.0);
+        video->setVolume(98);
+        wheelAt(stage, {0, 120});
+        QTRY_COMPARE(video->volume(), 100.0);
+        video->setVolume(2);
+        wheelAt(stage, {0, -120});
+        QTRY_COMPARE(video->volume(), 0.0);
+
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        wheelAt(stage, {0, 120});
+        QTRY_COMPARE(video->volume(), 5.0);
     }
 
     void videoBackgroundIncludesLetterboxing()

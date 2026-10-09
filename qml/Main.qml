@@ -438,11 +438,7 @@ Window {
         onSkipTrackRequested: (offset) => window.skipTrack(offset)
         onSeekRequested: (seconds) => videoStage.seek(seconds)
         onMuteRequested: videoStage.muted = !videoStage.muted
-        onVolumeRequested: (offset) => {
-            videoStage.volume = Math.max(0, Math.min(100, videoStage.volume + offset))
-            if (offset > 0)
-                videoStage.muted = false
-        }
+        onVolumeRequested: (offset) => videoStage.adjustVolume(offset)
         onRepeatRequested: (mode) => window.repeatMode = mode
         onCopyPositionRequested: {
             clipboardText.text = window.formatTime(videoStage.position)
@@ -530,15 +526,12 @@ Window {
     Shortcut {
         sequence: "Up"
         enabled: window.playbackShortcutsEnabled
-        onActivated: {
-            videoStage.volume = Math.min(100, videoStage.volume + 5)
-            videoStage.muted = false
-        }
+        onActivated: videoStage.adjustVolume(5)
     }
     Shortcut {
         sequence: "Down"
         enabled: window.playbackShortcutsEnabled
-        onActivated: videoStage.volume = Math.max(0, videoStage.volume - 5)
+        onActivated: videoStage.adjustVolume(-5)
     }
 
     Shortcut {
@@ -672,8 +665,8 @@ Window {
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.right: playlist.left
-                anchors.rightMargin: window.playlistVisible ? Theme.panelDivider : 0
+                anchors.right: window.isFullscreen ? parent.right : playlist.left
+                anchors.rightMargin: !window.isFullscreen && playlist.visible ? Theme.panelDivider : 0
 
                 VideoStage {
                     id: videoStage
@@ -743,13 +736,15 @@ Window {
             }
 
             MouseArea {
+                id: playlistResizeHandle
                 objectName: "playlistResizeHandle"
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 x: playlist.x - width / 2
                 width: 8
                 z: 2
-                visible: window.playlistVisible
+                visible: playlist.visible
+                hoverEnabled: true
                 cursorShape: Qt.SplitHCursor
                 preventStealing: true
                 property real startX
@@ -772,14 +767,31 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                visible: window.playlistVisible
-                width: window.playlistVisible
+                z: 1
+                visible: window.playlistVisible || (window.isFullscreen
+                    && (playlistHover.hovered || editingSearch || menuOpen
+                        || draggingTracks || playlistResizeHandle.containsMouse
+                        || playlistResizeHandle.pressed))
+                width: visible
                     ? Math.max(360, Math.min(playbackPreferences.playlistWidth, parent.width - 400)) : 0
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
                 onTrackRequested: (index) => window.playTrack(index)
                 onAddRequested: window.openMedia(false)
                 onClearRequested: window.clearPlaylist()
+            }
+
+            Item {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: playlist.visible ? playlist.width + 16 : 16
+                z: 1
+                HoverHandler {
+                    id: playlistHover
+                    enabled: window.isFullscreen
+                    blocking: false
+                }
             }
         }
     }
@@ -789,6 +801,7 @@ Window {
         anchors.fill: parent
         surface: window.contentItem
         enabled: !window.isFullscreen
+        visible: enabled
         z: 50
         onMoveRequested: window.windowMoveRequested()
     }

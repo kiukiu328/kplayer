@@ -63,6 +63,11 @@ Rectangle {
     function stop() { video.stop() }
     function seek(seconds: real) { video.seek(seconds) }
     function seekRelative(seconds: real) { video.seekRelative(seconds) }
+    function adjustVolume(offset: real) {
+        video.volume = Math.max(0, Math.min(100, video.volume + offset))
+        if (offset > 0)
+            video.muted = false
+    }
 
     color: Theme.videoBackground
     MpvVideo {
@@ -154,6 +159,13 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+        onWheel: (wheel) => {
+            const steps = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y / 120
+                : wheel.pixelDelta.y / 40
+            wheel.accepted = steps !== 0
+            if (wheel.accepted)
+                root.adjustVolume(steps * 5)
+        }
         onClicked: (mouse) => {
             root.forceActiveFocus()
             if (mouse.button === Qt.RightButton) {
