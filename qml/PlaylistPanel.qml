@@ -511,95 +511,111 @@ Rectangle {
     }
     Rectangle {
         id: footer
+        objectName: "playlistFooter"
+        readonly property bool inlineSearch: width >= 24 + ordering.actionsWidth + 8 + 140
         anchors.bottom: parent.bottom
         width: parent.width
-        height: root.width < 450 ? Theme.playlistFooterHeight + 36 : Theme.playlistFooterHeight
+        height: Math.max(Theme.playlistFooterHeight,
+            24 + ordering.height + (inlineSearch ? 0 : 5 + search.height))
         color: Theme.footerBackground
         Rectangle {
             width: parent.width
             height: Theme.dividerWidth
             color: Theme.border
         }
-        Row {
+        Flow {
             id: ordering
+            objectName: "playlistActions"
+            readonly property real actionsWidth: moveButtons.width + spacing + actionButtons.width
             anchors.left: parent.left
             anchors.leftMargin: 12
             anchors.top: parent.top
             anchors.topMargin: 12
+            width: footer.inlineSearch ? actionsWidth : parent.width - 24
             spacing: 8
-            Repeater {
-                model: [
-                    { icon: "first", name: "moveTopButton", label: qsTr("Move to top") },
-                    { icon: "up", name: "moveUpButton", label: qsTr("Move up") },
-                    { icon: "down", name: "moveDownButton", label: qsTr("Move down") },
-                    { icon: "last", name: "moveBottomButton", label: qsTr("Move to bottom") }
-                ]
-                IconButton {
-                    required property var modelData
-                    required property int index
-                    objectName: modelData.name
-                    width: Theme.compactButtonSize
-                    height: Theme.compactButtonHeight
-                    iconName: modelData.icon
-                    label: modelData.label
-                    iconSize: 20
-                    backgroundColor: Theme.buttonBackground
-                    hoverColor: Theme.buttonHover
-                    iconColor: Theme.textMuted
-                    enabled: root.selectedRows.length > 0 && (index < 2
-                        ? root.selectedRows[0] > 0
-                        : root.selectedRows[root.selectedRows.length - 1] < root.playlistModel.count - 1)
-                    opacity: enabled ? 1 : 0.4
-                    onClicked: {
-                        const selected = root.selectedSourceIndex
-                        switch (index) {
-                        case 0: root.moveSelected(0); break;
-                        case 1: root.moveSelected(selected - 1); break;
-                        case 2: root.moveSelected(selected + 1); break;
-                        case 3: root.moveSelected(root.playlistModel.count - 1); break;
+            Row {
+                id: moveButtons
+                spacing: 8
+                Repeater {
+                    model: [
+                        { icon: "first", name: "moveTopButton", label: qsTr("Move to top") },
+                        { icon: "up", name: "moveUpButton", label: qsTr("Move up") },
+                        { icon: "down", name: "moveDownButton", label: qsTr("Move down") },
+                        { icon: "last", name: "moveBottomButton", label: qsTr("Move to bottom") }
+                    ]
+                    IconButton {
+                        required property var modelData
+                        required property int index
+                        objectName: modelData.name
+                        width: Theme.compactButtonSize
+                        height: Theme.compactButtonHeight
+                        iconName: modelData.icon
+                        label: modelData.label
+                        iconSize: 20
+                        backgroundColor: Theme.buttonBackground
+                        hoverColor: Theme.buttonHover
+                        iconColor: Theme.textMuted
+                        enabled: root.selectedRows.length > 0 && (index < 2
+                            ? root.selectedRows[0] > 0
+                            : root.selectedRows[root.selectedRows.length - 1] < root.playlistModel.count - 1)
+                        opacity: enabled ? 1 : 0.4
+                        onClicked: {
+                            const selected = root.selectedSourceIndex
+                            switch (index) {
+                            case 0: root.moveSelected(0); break;
+                            case 1: root.moveSelected(selected - 1); break;
+                            case 2: root.moveSelected(selected + 1); break;
+                            case 3: root.moveSelected(root.playlistModel.count - 1); break;
+                            }
                         }
                     }
                 }
             }
-            Repeater {
-                model: [
-                    { text: qsTr("新增"), label: qsTr("Add media"), name: "addPlaylistButton" },
-                    { text: qsTr("移除"), label: qsTr("Remove selected track"), name: "removePlaylistButton" },
-                    { text: qsTr("排序"), label: qsTr("Sort playlist"), name: "sortPlaylistButton" }
-                ]
-                Button {
-                    id: textButton
-                    required property var modelData
-                    required property int index
-                    objectName: modelData.name
-                    width: 45
-                    height: Theme.compactButtonHeight
-                    enabled: index === 0 || (index === 1
-                        ? root.selectedRows.length > 0 : root.playlistModel.count > 1)
-                    opacity: enabled ? 1 : 0.4
-                    Accessible.name: modelData.label
-                    ToolTip.text: modelData.label
-                    ToolTip.visible: hovered || activeFocus
-                    ToolTip.delay: 600
-                    ToolTip.timeout: 5000
-                    background: Rectangle {
-                        radius: Theme.controlRadius
-                        color: textButton.hovered || textButton.activeFocus
-                            ? Theme.buttonHover : Theme.buttonBackground
-                    }
-                    contentItem: Text {
-                        text: textButton.modelData.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.smallFontSize
-                        color: Theme.textPrimary
-                    }
-                    onClicked: {
-                        switch (index) {
-                        case 0: root.addRequested(); break;
-                        case 1: root.removeSelected(); break;
-                        case 2: sortOptions.popup(); break;
+            Row {
+                id: actionButtons
+                spacing: 8
+                Repeater {
+                    model: [
+                        { text: qsTr("新增"), label: qsTr("Add media"), name: "addPlaylistButton" },
+                        { text: qsTr("移除"), label: qsTr("Remove selected track"), name: "removePlaylistButton" },
+                        { text: qsTr("排序"), label: qsTr("Sort playlist"), name: "sortPlaylistButton" }
+                    ]
+                    Button {
+                        id: textButton
+                        required property var modelData
+                        required property int index
+                        objectName: modelData.name
+                        width: Math.max(45, contentItem.implicitWidth + 16)
+                        height: Theme.compactButtonHeight
+                        leftPadding: 8
+                        rightPadding: 8
+                        enabled: index === 0 || (index === 1
+                            ? root.selectedRows.length > 0 : root.playlistModel.count > 1)
+                        opacity: enabled ? 1 : 0.4
+                        Accessible.name: modelData.label
+                        ToolTip.text: modelData.label
+                        ToolTip.visible: hovered || activeFocus
+                        ToolTip.delay: 600
+                        ToolTip.timeout: 5000
+                        background: Rectangle {
+                            radius: Theme.controlRadius
+                            color: textButton.hovered || textButton.activeFocus
+                                ? Theme.buttonHover : Theme.buttonBackground
+                        }
+                        contentItem: Text {
+                            text: textButton.modelData.text
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.smallFontSize
+                            color: Theme.textPrimary
+                        }
+                        onClicked: {
+                            switch (index) {
+                            case 0: root.addRequested(); break;
+                            case 1: root.removeSelected(); break;
+                            case 2: sortOptions.popup(); break;
+                            }
                         }
                     }
                 }
@@ -608,12 +624,12 @@ Rectangle {
         TextField {
             id: search
             objectName: "playlistSearch"
-            anchors.left: root.width < 450 ? parent.left : ordering.right
-            anchors.leftMargin: root.width < 450 ? 12 : 8
+            anchors.left: footer.inlineSearch ? ordering.right : parent.left
+            anchors.leftMargin: footer.inlineSearch ? 8 : 12
             anchors.right: parent.right
             anchors.rightMargin: 12
-            anchors.top: root.width < 450 ? ordering.bottom : ordering.top
-            anchors.topMargin: root.width < 450 ? 5 : 0
+            anchors.top: footer.inlineSearch ? ordering.top : ordering.bottom
+            anchors.topMargin: footer.inlineSearch ? 0 : 5
             height: 35
             leftPadding: 8
             rightPadding: 30

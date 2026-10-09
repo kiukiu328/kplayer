@@ -147,6 +147,90 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void responsiveControlsFitInBothLanguages()
+    {
+        QQmlApplicationEngine engine;
+        QList<QQmlError> warnings;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&warnings](const QList<QQmlError> &errors) { warnings.append(errors); });
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto item = [window](const char *name) { return findItem(window->contentItem(), name); };
+        auto *preferences = window->findChild<QObject *>("playbackPreferences");
+        auto *language = engine.singletonInstance<AppLanguage *>("KPlayer", "AppLanguage");
+        QVERIFY(preferences && language);
+        const QVariant savedWidth = preferences->property("playlistWidth");
+        const QString savedLanguage = language->language();
+        const auto restore = qScopeGuard([&] {
+            preferences->setProperty("playlistWidth", savedWidth);
+            language->setLanguage(savedLanguage);
+        });
+        auto bounds = [](QQuickItem *control) {
+            return QRectF(control->mapToScene(QPointF()), control->size());
+        };
+        auto *panel = item("playlistPanel");
+        auto *footer = item("playlistFooter");
+        auto *search = item("playlistSearch");
+        auto *list = item("trackList");
+        auto *bar = item("playbackBar");
+        auto *timestamps = item("playbackTimestamps");
+        auto *transport = item("transportButtons");
+        auto *tools = item("playbackTools");
+        QVERIFY(panel && footer && search && list && bar && timestamps && transport && tools);
+        for (const QString &locale : {QStringLiteral("en"), QStringLiteral("zh_TW")}) {
+            language->setLanguage(locale);
+            for (const QSize size : {QSize(1225, 824), QSize(1100, 500), QSize(1600, 900)}) {
+                window->resize(size);
+                QTRY_COMPARE(window->size(), size);
+                for (const int width : {360, 449, 450, 472, 520, 1000}) {
+                    preferences->setProperty("playlistWidth", width);
+                    QSignalSpy frames(window, &QQuickWindow::frameSwapped);
+                    window->update();
+                    QTRY_VERIFY_WITH_TIMEOUT(!frames.isEmpty(), 5000);
+                    const QString context = QStringLiteral("%1 %2x%3 playlist %4")
+                            .arg(locale).arg(size.width()).arg(size.height()).arg(panel->width());
+                    QVERIFY2(search->width() >= 140, qPrintable(context));
+                    QVERIFY2(bounds(footer).contains(bounds(search)), qPrintable(context));
+                    QVERIFY2(!bounds(list).intersects(bounds(footer)), qPrintable(context));
+                    QList<QRectF> buttons;
+                    for (const char *name : {"moveTopButton", "moveUpButton", "moveDownButton",
+                                             "moveBottomButton", "addPlaylistButton",
+                                             "removePlaylistButton", "sortPlaylistButton"}) {
+                        auto *button = item(name);
+                        QVERIFY(button);
+                        const QRectF rect = bounds(button);
+                        QVERIFY2(bounds(footer).contains(rect), qPrintable(context));
+                        QVERIFY2(!rect.intersects(bounds(search)), qPrintable(context));
+                        for (const QRectF &other : buttons)
+                            QVERIFY2(!rect.intersects(other), qPrintable(context));
+                        buttons.append(rect);
+                        if (auto *content = button->property("contentItem").value<QQuickItem *>())
+                            QVERIFY2(content->width() >= content->implicitWidth(), qPrintable(context));
+                    }
+                    QVERIFY2(bounds(bar).contains(bounds(timestamps)), qPrintable(context));
+                    QVERIFY2(bounds(bar).contains(bounds(transport)), qPrintable(context));
+                    QVERIFY2(bounds(bar).contains(bounds(tools)), qPrintable(context));
+                    QVERIFY2(!bounds(timestamps).intersects(bounds(transport)), qPrintable(context));
+                    QVERIFY2(!bounds(timestamps).intersects(bounds(tools)), qPrintable(context));
+                    QVERIFY2(!bounds(transport).intersects(bounds(tools)), qPrintable(context));
+                    const QString capturePath = qEnvironmentVariable("KPLAYER_TEST_CAPTURE");
+                    if (!capturePath.isEmpty() && size == QSize(1225, 824)
+                            && (width == 360 || width == 520 || width == 1000))
+                        QVERIFY(window->grabWindow().save(QStringLiteral("%1.%2.%3.png")
+                                .arg(capturePath, locale).arg(width)));
+                }
+            }
+            window->setProperty("playlistVisible", false);
+            QTRY_VERIFY(!panel->isVisible());
+            QTRY_VERIFY(!bar->property("compact").toBool());
+            window->setProperty("playlistVisible", true);
+        }
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
+                 ? QString{} : warnings.first().toString()));
+    }
+
     void controlPanelControlsPlayback()
     {
         QTemporaryDir directory;

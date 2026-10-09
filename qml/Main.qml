@@ -217,6 +217,7 @@ Window {
     }
     Settings {
         id: playbackPreferences
+        objectName: "playbackPreferences"
         category: "playback"
         property real maximumSpeed: 16
         property real playlistWidth: Theme.playlistWidth
@@ -724,7 +725,7 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: Theme.seekHeight + Theme.transportHeight + 16
+                    height: playback.implicitHeight + 16
                     z: 1
                     HoverHandler {
                         id: bottomHover
@@ -740,7 +741,7 @@ Window {
                     visible: window.controlsVisible || (window.isFullscreen
                         && (bottomHover.hovered || playback.interacting || activeFocus
                             || appMenu.visible))
-                    height: visible ? Theme.seekHeight + Theme.transportHeight : 0
+                    height: visible ? implicitHeight : 0
                     playing: videoStage.playing
                     position: videoStage.position
                     duration: videoStage.duration

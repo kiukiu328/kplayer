@@ -13,6 +13,8 @@ Rectangle {
     property bool playlistVisible: true
     property bool controlPanelVisible: false
     readonly property bool interacting: positionSlider.pressed || volumeSlider.pressed
+    readonly property bool compact: width < 5 * Theme.transportButtonWidth
+        + Theme.toolButtonWidth + 56 + Theme.transportButtonWidth + timestamps.width + 30
     signal playPauseRequested()
     signal stopRequested()
     signal openRequested()
@@ -34,7 +36,8 @@ Rectangle {
             + minutes.toString().padStart(2, "0") + ":"
             + (total % 60).toString().padStart(2, "0")
     }
-    height: Theme.seekHeight + Theme.transportHeight
+    implicitHeight: Theme.seekHeight + Theme.transportHeight + (compact ? Theme.seekHeight : 0)
+    height: implicitHeight
     color: Theme.chromeBackground
     Rectangle {
         width: parent.width
@@ -176,6 +179,7 @@ Rectangle {
     }
     Row {
         id: transport
+        objectName: "transportButtons"
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         height: Theme.transportHeight - Theme.dividerWidth
@@ -191,7 +195,7 @@ Rectangle {
             IconButton {
                 required property var modelData
                 required property int index
-                width: Math.min(Theme.transportButtonWidth, root.width / 12)
+                width: root.compact ? 40 : Theme.transportButtonWidth
                 height: transport.height
                 iconName: modelData.icon
                 objectName: modelData.icon + "Button"
@@ -223,9 +227,11 @@ Rectangle {
         }
     }
     Row {
-        anchors.left: transport.right
-        anchors.leftMargin: 15
-        anchors.verticalCenter: transport.verticalCenter
+        id: timestamps
+        objectName: "playbackTimestamps"
+        x: root.compact ? (root.width - width) / 2 : transport.width + 15
+        y: root.compact ? seekBar.height + (Theme.seekHeight - height) / 2
+            : transport.y + (transport.height - height) / 2
         spacing: 8
         Text {
             text: root.formatTime(root.position)
@@ -248,13 +254,14 @@ Rectangle {
     }
     Row {
         id: tools
+        objectName: "playbackTools"
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: transport.height
         IconButton {
             objectName: "searchMediaButton"
             height: tools.height
-            width: Math.min(Theme.toolButtonWidth, root.width * 0.0645)
+            width: root.compact ? 40 : Theme.toolButtonWidth
             iconName: "searchList"
             label: qsTr("Search media")
             iconColor: Theme.accent
@@ -263,7 +270,7 @@ Rectangle {
         }
         IconButton {
             height: tools.height
-            width: Math.min(56, root.width * 0.0753)
+            width: root.compact ? 40 : 56
             objectName: "settingsButton"
             iconName: "settings"
             label: root.controlPanelVisible ? qsTr("Hide control panel") : qsTr("Show control panel")
@@ -275,7 +282,7 @@ Rectangle {
         IconButton {
             objectName: "playbackMenuButton"
             height: tools.height
-            width: Math.min(Theme.transportButtonWidth, root.width / 12)
+            width: root.compact ? 40 : Theme.transportButtonWidth
             iconName: "menu"
             label: root.playlistVisible ? qsTr("Hide playlist") : qsTr("Show playlist")
             iconColor: root.playlistVisible ? Theme.accent : Theme.iconMuted
