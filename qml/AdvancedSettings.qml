@@ -229,7 +229,7 @@ Dialog {
                             id: interfaceLanguage
                             objectName: "interfaceLanguageChoice"
                             Layout.preferredWidth: root.width < 650 ? 150 : 220
-                            model: [qsTr("繁體中文"), qsTr("English")]
+                            model: ["中文", "English"]
                             Accessible.name: qsTr("介面語言")
                         }
                     }
@@ -289,15 +289,15 @@ Dialog {
                         textRole: "label"
                         model: [
                             { label: qsTr("自動 / 自訂"), code: "" },
-                            { label: qsTr("中文"), code: "zh,zho,chi" },
-                            { label: qsTr("English"), code: "en,eng" },
-                            { label: qsTr("日本語"), code: "ja,jpn" },
-                            { label: qsTr("한국어"), code: "ko,kor" },
-                            { label: qsTr("Français"), code: "fr,fra,fre" },
-                            { label: qsTr("Deutsch"), code: "de,deu,ger" },
-                            { label: qsTr("Español"), code: "es,spa" },
-                            { label: qsTr("Português"), code: "pt,por" },
-                            { label: qsTr("Italiano"), code: "it,ita" }
+                            { label: "中文", code: "zh,zho,chi" },
+                            { label: "English", code: "en,eng" },
+                            { label: "日本語", code: "ja,jpn" },
+                            { label: "한국어", code: "ko,kor" },
+                            { label: "Français", code: "fr,fra,fre" },
+                            { label: "Deutsch", code: "de,deu,ger" },
+                            { label: "Español", code: "es,spa" },
+                            { label: "Português", code: "pt,por" },
+                            { label: "Italiano", code: "it,ita" }
                         ]
                         onActivated: languageCodes.text = model[currentIndex].code
                     }
