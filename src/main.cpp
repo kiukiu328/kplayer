@@ -2,7 +2,6 @@
 #include <QIcon>
 #include <QFontDatabase>
 #include <QDir>
-#include <QFileInfo>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
 #include <QCommandLineParser>
@@ -67,12 +66,7 @@ int main(int argc, char *argv[])
     QList<QUrl> startupFiles;
     for (const QString &argument : parser.positionalArguments())
         startupFiles.append(QUrl::fromUserInput(argument, QDir::currentPath(), QUrl::AssumeLocalFile));
-    // The optional sample stays idle. Files opened from Explorer start immediately.
-    const QString samplePath = QDir::current().filePath(QStringLiteral("assets/dummy.mp4"));
-    const QUrl mediaSource = startupFiles.isEmpty() && QFileInfo::exists(samplePath)
-        ? QUrl::fromLocalFile(samplePath) : QUrl{};
     engine.setInitialProperties({
-        {QStringLiteral("mediaSource"), mediaSource},
         {QStringLiteral("startupFiles"), QVariant::fromValue(startupFiles)}
     });
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,

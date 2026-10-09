@@ -33,6 +33,24 @@ bool hasTransportStreamHeader(const QFileInfo &entry)
     }
     return false;
 }
+
+QList<QUrl> folderVideos(const QDir &folder)
+{
+    QCollator collator(QLocale(QLocale::English, QLocale::UnitedStates));
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    collator.setNumericMode(true);
+    auto entries = folder.entryInfoList(QDir::Files | QDir::Readable, QDir::NoSort);
+    std::stable_sort(entries.begin(), entries.end(), [&](const auto &a, const auto &b) {
+        return collator.compare(a.fileName(), b.fileName()) < 0;
+    });
+    QList<QUrl> videos;
+    for (const QFileInfo &entry : entries) {
+        if (VideoFormats::extensions().contains(entry.suffix().toLower())
+            && hasTransportStreamHeader(entry))
+            videos.append(QUrl::fromLocalFile(entry.absoluteFilePath()));
+    }
+    return videos;
+}
 }
 
 int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &files)
@@ -41,9 +59,6 @@ int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &f
         return 0;
     QSet<QString> visited;
     QList<QUrl> siblings;
-    QCollator collator(QLocale(QLocale::English, QLocale::UnitedStates));
-    collator.setCaseSensitivity(Qt::CaseInsensitive);
-    collator.setNumericMode(true);
     for (const QUrl &url : files) {
         const QFileInfo file(url.toLocalFile());
         if (!url.isLocalFile() || !file.isFile()
@@ -57,20 +72,51 @@ int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &f
         if (visited.contains(key))
             continue;
         visited.insert(key);
-        auto entries = folder.entryInfoList(QDir::Files | QDir::Readable, QDir::NoSort);
-        std::stable_sort(entries.begin(), entries.end(), [&](const auto &a, const auto &b) {
-            return collator.compare(a.fileName(), b.fileName()) < 0;
-        });
-        for (const QFileInfo &entry : entries) {
-            if (VideoFormats::extensions().contains(entry.suffix().toLower())
-                && hasTransportStreamHeader(entry))
-                siblings.append(QUrl::fromLocalFile(entry.absoluteFilePath()));
-        }
+        siblings.append(folderVideos(folder));
     }
     const int added = playlist->appendUniqueUrls(siblings);
     // The opened file is already in the queue; include it in the natural order
     // instead of leaving it ahead of earlier episodes. Sorting preserves playback.
     if (added > 0)
         playlist->sortByTitle();
+    return added;
+}
+
+int VideoLibrary::addFolderPlaylist(PlaylistCollection *playlists, const QUrl &url)
+{
+    if (!playlists || !url.isLocalFile() || !QFileInfo(url.toLocalFile()).isDir())
+        return -1;
+    const QDir folder(url.toLocalFile());
+    const QList<QUrl> videos = folderVideos(folder);
+    if (videos.isEmpty())
+        return -1;
+    QString baseName = folder.dirName();
+    if (baseName.isEmpty())
+        baseName = QDir::toNativeSeparators(folder.absolutePath());
+    QString name = baseName;
+    for (int number = 2; !playlists->nameAvailable(name); ++number)
+        name = QStringLiteral("%1 (%2)").arg(baseName).arg(number);
+    const int index = playlists->addPlaylist(name);
+    playlists->currentPlaylist()->appendUrls(videos);
+    return index;
+}
+
+int VideoLibrary::addDroppedUrls(PlaylistCollection *playlists, const QList<QUrl> &urls)
+{
+    if (!playlists)
+        return 0;
+    // Files retain their explicit order in the original queue; each folder gets its own tab.
+    int added = playlists->currentPlaylist()->appendUrls(urls);
+    QSet<QString> visited;
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isDir())
+            continue;
+        const QString key = PlaylistModel::sourceKey(url);
+        if (visited.contains(key))
+            continue;
+        visited.insert(key);
+        if (addFolderPlaylist(playlists, url) >= 0)
+            added += playlists->currentPlaylist()->count();
+    }
     return added;
 }

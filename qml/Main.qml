@@ -55,6 +55,7 @@ Window {
         && !controlPanel.active
         && !playlist.menuOpen
         && !mediaDialog.visible
+        && !folderDialog.visible
         && !subtitleDialog.visible && !subtitleMenu.visible
         && !appMenu.visible && !infoDialog.visible
         && !advancedSettings.visible && !videoAdjustments.visible
@@ -87,7 +88,7 @@ Window {
                 break
             }
         }
-        videoLibrary.addSiblingVideos(mediaPlaylist, files)
+        library.addSiblingVideos(mediaPlaylist, files)
     }
 
     function openSubtitles() {
@@ -208,7 +209,11 @@ Window {
             playTrack(0)
     }
 
-    PlaylistCollection { id: playlists; objectName: "playlistCollection" }
+    PlaylistCollection {
+        id: playlists
+        objectName: "playlistCollection"
+        persistent: true
+    }
     Favorites { id: favorites; objectName: "favorites" }
     Settings {
         id: preferences
@@ -237,7 +242,7 @@ Window {
         subtitleLanguage: preferences.defaultLanguage
         onLanguageSaved: (language) => preferences.defaultLanguage = language
     }
-    VideoLibrary { id: videoLibrary; objectName: "videoLibrary" }
+    VideoLibrary { id: library; objectName: "videoLibrary" }
     ControlPanel {
         id: controlPanel
         objectName: "controlPanelWindow"
@@ -258,10 +263,13 @@ Window {
         function onCurrentPlaylistChanged() { videoStage.stop() }
     }
     Component.onCompleted: {
-        if (mediaSource.toString().length > 0)
-            mediaPlaylist.appendUrls([mediaSource])
-        if (startupFiles.length > 0)
+        if (startupFiles.length > 0) {
+            playlists.currentIndex = 0
+            playlists.defaultPlaylist.clear()
             Qt.callLater(() => window.addOpenedFiles(startupFiles))
+        } else if (mediaSource.toString().length > 0) {
+            mediaPlaylist.appendUrls([mediaSource])
+        }
     }
     Action {
         id: associateVideosAction
@@ -303,6 +311,15 @@ Window {
                 for (let file of selectedFiles)
                     videoStage.addSubtitle(file)
             }
+        }
+    }
+    FolderDialog {
+        id: folderDialog
+        objectName: "playlistFolderDialog"
+        title: qsTr("新增資料夾為播放清單")
+        onAccepted: {
+            if (library.addFolderPlaylist(playlists, selectedFolder) < 0)
+                videoStage.showHint(qsTr("此資料夾沒有支援的影片"))
         }
     }
     SubtitleMenu {
@@ -497,6 +514,7 @@ Window {
             && !controlPanel.active
             && !playlist.editingSearch && !playlist.menuOpen
             && !appMenu.visible && !mediaDialog.visible
+            && !folderDialog.visible
             && !infoDialog.visible
             && !subtitleDialog.visible && !subtitleMenu.visible
             && !advancedSettings.visible
@@ -816,8 +834,10 @@ Window {
                     ? Math.max(360, Math.min(playbackPreferences.playlistWidth, parent.width - 400)) : 0
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
+                videoLibrary: library
                 onTrackRequested: (index) => window.playTrack(index)
                 onAddRequested: window.openMedia(false)
+                onAddFolderRequested: folderDialog.open()
                 onClearRequested: window.clearPlaylist()
             }
 

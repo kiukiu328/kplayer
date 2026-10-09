@@ -346,6 +346,14 @@
     <context>
         <name>Main</name>
         <message>
+            <source>新增資料夾為播放清單</source>
+            <translation>新增資料夾為播放清單</translation>
+        </message>
+        <message>
+            <source>此資料夾沒有支援的影片</source>
+            <translation>此資料夾沒有支援的影片</translation>
+        </message>
+        <message>
             <location filename="../qml/Main.qml" line="31" />
             <source>已加入預設字幕語言：%1</source>
             <translation>已加入預設字幕語言：%1</translation>
@@ -745,6 +753,18 @@ Right click: next track</source>
     </context>
     <context>
         <name>PlaylistPanel</name>
+        <message>
+            <source>新增資料夾…</source>
+            <translation>新增資料夾…</translation>
+        </message>
+        <message>
+            <source>將目前播放清單另存為…</source>
+            <translation>將目前播放清單另存為…</translation>
+        </message>
+        <message>
+            <source>拖曳檔案或資料夾到此處</source>
+            <translation>拖曳檔案或資料夾到此處</translation>
+        </message>
         <message>
             <location filename="../qml/PlaylistPanel.qml" line="63" />
             <location filename="../qml/PlaylistPanel.qml" line="65" />

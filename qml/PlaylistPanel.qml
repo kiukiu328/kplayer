@@ -7,8 +7,10 @@ Rectangle {
     objectName: "playlistPanel"
     required property PlaylistModel playlistModel
     required property PlaylistCollection playlistCollection
+    required property VideoLibrary videoLibrary
     signal trackRequested(int index)
     signal addRequested()
+    signal addFolderRequested()
     signal clearRequested()
     readonly property bool editingSearch: search.activeFocus
     readonly property bool menuOpen: playlistOptions.visible || sortOptions.visible
@@ -128,7 +130,8 @@ Rectangle {
         selectSource(selected)
     }
 
-    function editPlaylistName(create: bool) {
+    function editPlaylistName(create: bool, saveCurrent: bool) {
+        playlistNameDialog.saveCurrent = saveCurrent
         playlistNameDialog.editIndex = create ? -1 : playlistCollection.currentIndex
         if (create) {
             let number = 1
@@ -181,22 +184,8 @@ Rectangle {
         width: parent.width
         height: Theme.playlistHeaderHeight
         PlaylistTab {
-            objectName: "addMediaTab"
-            width: root.width / 3
-            height: header.height
-            label: qsTr("瀏覽器")
-            color: Theme.chromeBackground
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Add media to playlist")
-            Accessible.onPressAction: root.addRequested()
-            activeFocusOnTab: true
-            Keys.onReturnPressed: root.addRequested()
-            Keys.onSpacePressed: root.addRequested()
-            TapHandler { onTapped: root.addRequested() }
-        }
-        PlaylistTab {
             id: selectedHeader
-            width: root.width / 3
+            width: root.width
             height: header.height
             label: qsTr("播放清單")
             selected: true
@@ -209,17 +198,6 @@ Rectangle {
                 rotation: -45
                 name: "play"
                 color: Theme.accent
-            }
-        }
-        Rectangle {
-            width: root.width - selectedHeader.width * 2
-            height: header.height
-            color: Theme.chromeBackground
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: Theme.dividerWidth
-                color: Theme.border
             }
         }
     }
@@ -459,7 +437,7 @@ Rectangle {
             width: parent.width - 32
             horizontalAlignment: Text.AlignHCenter
             text: root.playlistModel.count === 0
-                ? qsTr("Drag files here to add to playlist") : qsTr("No matching tracks")
+                ? qsTr("拖曳檔案或資料夾到此處") : qsTr("No matching tracks")
             wrapMode: Text.Wrap
             visible: trackList.count === 0
             color: Theme.textMuted
@@ -494,7 +472,7 @@ Rectangle {
         anchors.fill: parent
         onEntered: (drag) => { drag.accepted = drag.hasUrls }
         onDropped: (drop) => {
-            if (drop.hasUrls && root.playlistModel.appendUrls(drop.urls) > 0)
+            if (drop.hasUrls && root.videoLibrary.addDroppedUrls(root.playlistCollection, drop.urls) > 0)
                 drop.acceptProposedAction()
             else
                 drop.accepted = false
@@ -709,9 +687,20 @@ Rectangle {
         PlayerMenuSeparator {}
         PlayerMenuItem {
             objectName: "addNamedPlaylistMenuItem"
-            text: "+"
+            text: qsTr("新增播放清單")
             Accessible.name: qsTr("新增播放清單")
-            onTriggered: root.editPlaylistName(true)
+            onTriggered: root.editPlaylistName(true, false)
+        }
+        PlayerMenuItem {
+            objectName: "addFolderPlaylistMenuItem"
+            text: qsTr("新增資料夾…")
+            onTriggered: root.addFolderRequested()
+        }
+        PlayerMenuItem {
+            objectName: "saveCurrentPlaylistMenuItem"
+            text: qsTr("將目前播放清單另存為…")
+            enabled: root.playlistModel.count > 0
+            onTriggered: root.editPlaylistName(true, true)
         }
         PlayerMenuItem {
             objectName: "deleteNamedPlaylistMenuItem"
@@ -723,20 +712,22 @@ Rectangle {
             objectName: "editNamedPlaylistMenuItem"
             text: qsTr("編輯專輯")
             enabled: root.playlistCollection.currentIndex > 0
-            onTriggered: root.editPlaylistName(false)
+            onTriggered: root.editPlaylistName(false, false)
         }
     }
     Dialog {
         id: playlistNameDialog
         objectName: "playlistNameDialog"
         property int editIndex: -1
+        property bool saveCurrent: false
         readonly property bool validName: root.playlistCollection.nameAvailable(
             playlistName.text, editIndex)
         parent: Overlay.overlay
         anchors.centerIn: parent
         width: 320
         modal: true
-        title: editIndex < 0 ? qsTr("新增播放清單") : qsTr("編輯專輯")
+        title: saveCurrent ? qsTr("將目前播放清單另存為…")
+            : editIndex < 0 ? qsTr("新增播放清單") : qsTr("編輯專輯")
         standardButtons: Dialog.Ok | Dialog.Cancel
         palette.window: Theme.menuBackground
         palette.windowText: Theme.menuText
@@ -753,7 +744,9 @@ Rectangle {
             playlistName.selectAll()
         }
         onAccepted: {
-            if (editIndex < 0)
+            if (saveCurrent)
+                root.playlistCollection.saveCurrentPlaylistAs(playlistName.text)
+            else if (editIndex < 0)
                 root.playlistCollection.addPlaylist(playlistName.text)
             else
                 root.playlistCollection.renamePlaylist(editIndex, playlistName.text)

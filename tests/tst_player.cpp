@@ -147,6 +147,260 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void init()
+    {
+        QSettings().remove("playlists");
+    }
+
+    void savedPlaylistsPreserveQueuesAcrossRestarts()
+    {
+        QTemporaryDir directory;
+        const QUrl local = makeVideo(directory.filePath("episode.y4m"));
+        const QUrl remote("https://example.com/episode2.mp4");
+        {
+            PlaylistCollection playlists;
+            playlists.setPersistent(true);
+            auto *original = playlists.currentPlaylist();
+            original->appendUrls({remote, local, remote});
+            original->setCurrentIndex(2);
+            QCOMPARE(playlists.saveCurrentPlaylistAs("  Saved  "), 1);
+            auto *saved = playlists.currentPlaylist();
+            QVERIFY(saved != original);
+            QCOMPARE(saved->count(), 3);
+            QCOMPARE(saved->currentIndex(), 2);
+            QCOMPARE(playlists.saveCurrentPlaylistAs("saved"), -1);
+            QVERIFY(saved->moveTrack(1, 0));
+            QCOMPARE(original->data(original->index(0), PlaylistModel::SourceRole).toUrl(), remote);
+            QVERIFY(playlists.renamePlaylist(1, "Episodes"));
+            original->clear();
+            QCOMPARE(saved->count(), 3);
+            QCOMPARE(playlists.addPlaylist("Remove me"), 2);
+            QVERIFY(playlists.removePlaylist(2));
+        }
+        // An unavailable local file remains in the saved queue for later use.
+        QVERIFY(QFile::remove(local.toLocalFile()));
+        {
+            PlaylistCollection restored;
+            restored.setPersistent(true);
+            QCOMPARE(restored.count(), 2);
+            QCOMPARE(restored.currentIndex(), 1);
+            QCOMPARE(restored.defaultPlaylist()->count(), 0);
+            restored.setCurrentIndex(1);
+            QCOMPARE(restored.currentName(), QStringLiteral("Episodes"));
+            auto *saved = restored.currentPlaylist();
+            QCOMPARE(saved->count(), 3);
+            QCOMPARE(saved->data(saved->index(0), PlaylistModel::SourceRole).toUrl(), local);
+            QCOMPARE(saved->data(saved->index(1), PlaylistModel::SourceRole).toUrl(), remote);
+            QCOMPARE(saved->data(saved->index(2), PlaylistModel::SourceRole).toUrl(), remote);
+            QCOMPARE(saved->currentIndex(), 2);
+            QCOMPARE(saved->appendUniqueUrls({remote}), 0);
+            saved->clear();
+        }
+        PlaylistCollection empty;
+        empty.setPersistent(true);
+        empty.setCurrentIndex(1);
+        QCOMPARE(empty.currentPlaylist()->count(), 0);
+    }
+
+    void startupRestoresLastPlaylistUnlessOpeningVideo()
+    {
+        QTemporaryDir previousDirectory;
+        QTemporaryDir openedDirectory;
+        const QUrl first = makeVideo(previousDirectory.filePath("first.y4m"));
+        const QUrl second = makeVideo(previousDirectory.filePath("second.y4m"));
+        const QUrl opened = makeVideo(openedDirectory.filePath("episode10.y4m"));
+        const QUrl sibling = makeVideo(openedDirectory.filePath("episode2.y4m"));
+        {
+            PlaylistCollection playlists;
+            playlists.setPersistent(true);
+            playlists.defaultPlaylist()->appendUrls({first, second, first});
+            playlists.defaultPlaylist()->setCurrentIndex(2);
+            playlists.addPlaylist("Saved");
+            playlists.currentPlaylist()->appendUrls({second});
+            playlists.setCurrentIndex(0);
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *playlists = window->findChild<PlaylistCollection *>();
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(playlists && video);
+            QCOMPARE(playlists->count(), 2);
+            QCOMPARE(playlists->currentIndex(), 0);
+            QCOMPARE(playlists->defaultPlaylist()->count(), 3);
+            QCOMPARE(playlists->defaultPlaylist()->currentIndex(), 2);
+            QCOMPARE(playlists->defaultPlaylist()->data(playlists->defaultPlaylist()->index(1),
+                                                       PlaylistModel::SourceRole).toUrl(), second);
+            QCOMPARE(video->source(), first);
+            QVERIFY(video->stopped());
+            playlists->setCurrentIndex(1);
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *playlists = window->findChild<PlaylistCollection *>();
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(playlists && video);
+            QCOMPARE(playlists->currentIndex(), 1);
+            QCOMPARE(playlists->currentName(), QStringLiteral("Saved"));
+            QCOMPARE(playlists->defaultPlaylist()->count(), 3);
+            QCOMPARE(video->source(), second);
+            QVERIFY(video->stopped());
+        }
+        {
+            QQmlApplicationEngine engine;
+            QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+            engine.setInitialProperties({{"startupFiles", QVariant::fromValue(QList<QUrl>{opened})}});
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *playlists = window->findChild<PlaylistCollection *>();
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(playlists && video);
+            QTRY_VERIFY(video->playing() && video->mediaLoaded());
+            QCOMPARE(playlists->currentIndex(), 0);
+            auto *queue = playlists->defaultPlaylist();
+            QCOMPARE(queue->count(), 2);
+            QCOMPARE(queue->indexOfSource(sibling), 0);
+            QCOMPARE(queue->currentSource(), opened);
+            QCOMPARE(queue->indexOfSource(first), -1);
+            QCOMPARE(queue->indexOfSource(second), -1);
+            QCOMPARE(video->source(), opened);
+            QCOMPARE(video->loadRevision(), quint64(1));
+            QCOMPARE(playlists->count(), 2);
+            playlists->setCurrentIndex(1);
+            QCOMPARE(playlists->currentPlaylist()->count(), 1);
+            QCOMPARE(playlists->currentPlaylist()->currentSource(), second);
+            playlists->setCurrentIndex(0);
+            QVERIFY2(warnings.isEmpty(), "Startup playlist replacement generated QML warnings");
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *playlists = window->findChild<PlaylistCollection *>();
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(playlists && video);
+            QCOMPARE(playlists->currentIndex(), 0);
+            QCOMPARE(playlists->defaultPlaylist()->count(), 2);
+            QCOMPARE(video->source(), opened);
+            QVERIFY(video->stopped());
+        }
+    }
+
+    void folderImportsCreateNaturallySortedIndependentPlaylists()
+    {
+        QTemporaryDir directory;
+        QDir folder(directory.path());
+        QVERIFY(folder.mkpath("Series/nested"));
+        QVERIFY(folder.mkdir("empty"));
+        const QUrl ten = makeVideo(directory.filePath("Series/episode10.y4m"));
+        const QUrl two = makeVideo(directory.filePath("Series/episode2.y4m"));
+        makeVideo(directory.filePath("Series/nested/episode1.y4m"));
+        QFile source(directory.filePath("Series/source.ts"));
+        QVERIFY(source.open(QIODevice::WriteOnly));
+        source.write("export const x = 1;");
+        source.close();
+        PlaylistCollection playlists;
+        QAbstractItemModelTester tester(&playlists,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        const QUrl original("https://example.com/original.mp4");
+        playlists.currentPlaylist()->appendUrls({original});
+        VideoLibrary library;
+        const QUrl series = QUrl::fromLocalFile(directory.filePath("Series"));
+        QCOMPARE(library.addFolderPlaylist(&playlists, series), 1);
+        QCOMPARE(playlists.currentName(), QStringLiteral("Series"));
+        QCOMPARE(playlists.currentPlaylist()->count(), 2);
+        QCOMPARE(playlists.currentPlaylist()->currentSource(), two);
+        QCOMPARE(playlists.currentPlaylist()->data(playlists.currentPlaylist()->index(1),
+                                                  PlaylistModel::SourceRole).toUrl(), ten);
+        QCOMPARE(playlists.defaultPlaylist()->currentSource(), original);
+        QCOMPARE(library.addFolderPlaylist(&playlists, QUrl::fromLocalFile(directory.filePath("empty"))), -1);
+        QCOMPARE(library.addFolderPlaylist(&playlists, QUrl("https://example.com/folder")), -1);
+        QCOMPARE(playlists.count(), 2);
+        playlists.setCurrentIndex(0);
+        QCOMPARE(library.addDroppedUrls(&playlists, {two, series, series}), 3);
+        QCOMPARE(playlists.defaultPlaylist()->count(), 2);
+        QCOMPARE(playlists.currentName(), QStringLiteral("Series (2)"));
+        QCOMPARE(playlists.count(), 3);
+        QCOMPARE(playlists.currentPlaylist()->count(), 2);
+    }
+
+    void playlistFolderAndSaveActions()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("episode2.y4m"));
+        const QUrl second = makeVideo(directory.filePath("episode10.y4m"));
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        QVERIFY(!item("addMediaTab"));
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        auto *menu = window->findChild<QObject *>("playlistOptionsMenu");
+        auto *dialog = window->findChild<QObject *>("playlistNameDialog");
+        auto *folderDialog = window->findChild<QObject *>("playlistFolderDialog");
+        QVERIFY(playlists && menu && dialog && folderDialog);
+        auto *original = playlists->currentPlaylist();
+        original->appendUrls({second, first});
+        original->setCurrentIndex(1);
+        click(window, item("playlistOptionsButton"));
+        QTRY_VERIFY(menu->property("opened").toBool());
+        click(window, item("saveCurrentPlaylistMenuItem"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        item("playlistNameField")->setProperty("text", "Saved queue");
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(playlists->count(), 2);
+        QCOMPARE(playlists->currentPlaylist()->count(), 3);
+        QCOMPARE(playlists->currentPlaylist()->currentIndex(), 1);
+        QCOMPARE(original->count(), 3);
+        click(window, item("playlistOptionsButton"));
+        QTRY_VERIFY(menu->property("opened").toBool());
+        click(window, item("addFolderPlaylistMenuItem"));
+        QTRY_VERIFY(folderDialog->property("visible").toBool());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(folderDialog, "close"));
+        QVERIFY(folderDialog->setProperty("selectedFolder", QUrl::fromLocalFile(directory.path())));
+        QVERIFY(QMetaObject::invokeMethod(folderDialog, "accepted"));
+        QTRY_COMPARE(playlists->count(), 3);
+        QCOMPARE(playlists->currentPlaylist()->count(), 2);
+        QCOMPARE(playlists->currentPlaylist()->currentSource(), first);
+        QVERIFY(exposeWindow(window));
+        auto *panel = item("playlistPanel");
+        const QPoint point = panel->mapToScene({panel->width() / 2, panel->height() / 2}).toPoint();
+        QMimeData files;
+        files.setUrls({QUrl::fromLocalFile(directory.path())});
+        QDragEnterEvent enter(point, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &enter);
+        QVERIFY(enter.isAccepted());
+        QDropEvent drop(point, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &drop);
+        QVERIFY(drop.isAccepted());
+        QCOMPARE(playlists->count(), 4);
+        QCOMPARE(playlists->currentPlaylist()->count(), 2);
+        click(window, item("playlistOptionsButton"));
+        QTRY_VERIFY(menu->property("opened").toBool());
+        const QString capturePath = qEnvironmentVariable("KPLAYER_PLAYLIST_CAPTURE");
+        if (!capturePath.isEmpty())
+            QVERIFY(window->grabWindow().save(capturePath));
+        QVERIFY2(warnings.isEmpty(), "Playlist folder/save actions generated QML warnings");
+    }
+
     void responsiveControlsFitInBothLanguages()
     {
         QQmlApplicationEngine engine;
@@ -410,7 +664,9 @@ private slots:
             QVERIFY(hasDialogText(QStringLiteral("Save")));
             QVERIFY(hasDialogText(QStringLiteral("Cancel")));
             QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
-            QCOMPARE(findItem(window->contentItem(), "addMediaTab")->property("label").toString(), QStringLiteral("Browse"));
+            QVERIFY(!findItem(window->contentItem(), "addMediaTab"));
+            QCOMPARE(window->findChild<QObject *>("playlistFolderDialog")->property("title").toString(),
+                     QStringLiteral("Add folder as playlist"));
             QCOMPARE(findItem(window->contentItem(), "playlistTab0")->property("label").toString(), QStringLiteral("Default"));
             QCOMPARE(QSettings().value("interface/language").toString(), QStringLiteral("en"));
         }

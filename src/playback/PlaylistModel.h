@@ -45,6 +45,7 @@ signals:
     void currentSourceChanged();
 
 private:
+    friend class PlaylistCollection;
     int appendUrlsImpl(const QList<QUrl> &urls, bool unique);
     struct Track { QUrl source; QString title; QString key; };
     QList<Track> m_tracks;
@@ -61,6 +62,7 @@ class PlaylistCollection : public QAbstractListModel
     Q_PROPERTY(PlaylistModel *currentPlaylist READ currentPlaylist NOTIFY currentPlaylistChanged)
     Q_PROPERTY(PlaylistModel *defaultPlaylist READ defaultPlaylist CONSTANT)
     Q_PROPERTY(QString currentName READ currentName NOTIFY currentNameChanged)
+    Q_PROPERTY(bool persistent READ persistent WRITE setPersistent NOTIFY persistentChanged)
 
 public:
     explicit PlaylistCollection(QObject *parent = nullptr);
@@ -75,8 +77,11 @@ public:
     PlaylistModel *currentPlaylist() const { return m_playlists.at(m_currentIndex).model; }
     PlaylistModel *defaultPlaylist() const { return m_playlists.first().model; }
     QString currentName() const { return m_playlists.at(m_currentIndex).name; }
+    bool persistent() const { return m_persistent; }
+    void setPersistent(bool persistent);
     Q_INVOKABLE bool nameAvailable(const QString &name, int exceptIndex = -1) const;
     Q_INVOKABLE int addPlaylist(const QString &name);
+    Q_INVOKABLE int saveCurrentPlaylistAs(const QString &name);
     Q_INVOKABLE bool renamePlaylist(int index, const QString &name);
     Q_INVOKABLE bool removePlaylist(int index);
 
@@ -85,11 +90,17 @@ signals:
     void currentIndexChanged();
     void currentPlaylistChanged();
     void currentNameChanged();
+    void persistentChanged();
 
 private:
     struct Playlist { QString name; PlaylistModel *model; };
     QList<Playlist> m_playlists;
     int m_currentIndex = 0;
+    bool m_persistent = false;
+    bool m_loading = false;
+    void watchPlaylist(PlaylistModel *model);
+    void savePlaylists() const;
+    void loadPlaylists();
 };
 
 // Filtering changes the view only; playback always uses the original queue.

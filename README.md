@@ -28,14 +28,15 @@ native Windows build, runtime deployment, and Windows file associations.
   speed, repeat modes, and A–B looping.
 - **Timeline previews:** hover or drag to preview a frame without interrupting
   the current playback.
-- **Playlists and favorites:** drag and drop files, search and reorder the queue,
-  use named playlists, and save favorite files or URLs.
+- **Playlists and favorites:** drag and drop files or folders, search and reorder
+  the queue, save the current queue as a named playlist, and save favorite files
+  or URLs.
 - **Audio and video adjustments:** equalizer presets, picture controls, aspect
   ratios, and PNG frame capture.
 - **Desktop interface:** fullscreen, always on top, a resizable playlist, and
   English and Traditional Chinese interface languages.
 
-Named playlists currently last for the session. Favorites, interface language,
+All playlists, their track order, the last active playlist, favorites, interface language,
 subtitle language preferences, and playlist width are saved across launches.
 
 ## Getting started
@@ -49,11 +50,21 @@ media arguments:
 ./build/KPlayer "https://example.com/video.mp4"
 ```
 
-Launching without arguments opens an idle player. Use **Open Media** (`Ctrl+O`)
+Launching without arguments restores the last active playlist, including the
+default queue, with playback stopped. Launching by opening a video file replaces
+the default queue with that file and its sibling videos and starts playback;
+saved named playlists remain available. Use **Open Media** (`Ctrl+O`)
 to select files, or drop files onto the playlist to queue them. Opening a local
 video also adds other videos from its immediate folder in natural filename
 order; subfolders are not scanned. Adding or dropping files into the playlist
 preserves their explicit order and does not interrupt playback.
+
+Drop a folder onto the playlist, or choose **Add folder…** from the playlist's
+dropdown menu, to create a playlist named after that folder. Only supported
+videos directly inside the folder are included, in natural filename order.
+Choose **Save current playlist as…** in the same menu to copy the full queue
+into a new named playlist. Both folder playlists and saved queues remain
+available after restarting KPlayer.
 
 The default interface language is Traditional Chinese. To switch to English,
 press `F5`, choose **General > Interface language**, and save. The change applies
