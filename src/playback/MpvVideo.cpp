@@ -345,6 +345,33 @@ void MpvVideo::setAspectRatio(const QString &ratio)
     emit aspectRatioChanged();
 }
 
+void MpvVideo::adjustFrameSize(int widthSteps, int heightSteps)
+{
+    setFrameSize(m_frameWidthScale + widthSteps * 0.02,
+                 m_frameHeightScale + heightSteps * 0.02);
+}
+
+void MpvVideo::resetFrameSize()
+{
+    setFrameSize(1.0, 1.0);
+}
+
+void MpvVideo::setFrameSize(double widthScale, double heightScale)
+{
+    // Keep repeated key presses reversible and prevent a zero-sized picture.
+    widthScale = std::clamp(std::round(widthScale * 100) / 100, 0.1, 4.0);
+    heightScale = std::clamp(std::round(heightScale * 100) / 100, 0.1, 4.0);
+    if (!m_mpv || (qFuzzyCompare(widthScale, m_frameWidthScale)
+                   && qFuzzyCompare(heightScale, m_frameHeightScale)))
+        return;
+    if (!setControlProperty("video-scale-x", QString::number(widthScale))
+        || !setControlProperty("video-scale-y", QString::number(heightScale)))
+        return;
+    m_frameWidthScale = widthScale;
+    m_frameHeightScale = heightScale;
+    emit frameSizeChanged();
+}
+
 void MpvVideo::setVideoAdjustment(const char *name, int value, int &current)
 {
     value = std::clamp(value, -100, 100);

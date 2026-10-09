@@ -26,6 +26,8 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(double maximumSpeed READ maximumSpeed WRITE setMaximumSpeed NOTIFY maximumSpeedChanged)
     Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
     Q_PROPERTY(QString aspectRatio READ aspectRatio WRITE setAspectRatio NOTIFY aspectRatioChanged)
+    Q_PROPERTY(double frameWidthScale READ frameWidthScale NOTIFY frameSizeChanged)
+    Q_PROPERTY(double frameHeightScale READ frameHeightScale NOTIFY frameSizeChanged)
     Q_PROPERTY(int brightness READ brightness WRITE setBrightness NOTIFY videoAdjustmentsChanged)
     Q_PROPERTY(int contrast READ contrast WRITE setContrast NOTIFY videoAdjustmentsChanged)
     Q_PROPERTY(int saturation READ saturation WRITE setSaturation NOTIFY videoAdjustmentsChanged)
@@ -73,6 +75,10 @@ public:
     void setSpeed(double speed);
     QString aspectRatio() const { return m_aspectRatio; }
     void setAspectRatio(const QString &ratio);
+    double frameWidthScale() const { return m_frameWidthScale; }
+    double frameHeightScale() const { return m_frameHeightScale; }
+    Q_INVOKABLE void adjustFrameSize(int widthSteps, int heightSteps);
+    Q_INVOKABLE void resetFrameSize();
     int brightness() const { return m_brightness; }
     void setBrightness(int value);
     int contrast() const { return m_contrast; }
@@ -141,6 +147,7 @@ signals:
     void speedChanged();
     void maximumSpeedChanged();
     void aspectRatioChanged();
+    void frameSizeChanged();
     void videoAdjustmentsChanged();
     void audioControlsChanged();
     void videoFiltersChanged();
@@ -166,6 +173,7 @@ private:
     void updateSubtitleTracks(const mpv_node &node);
     void clearSubtitleTracks();
     void setVideoAdjustment(const char *name, int value, int &current);
+    void setFrameSize(double widthScale, double heightScale);
     bool setControlProperty(const char *name, const QString &value);
     void updateEqualizer();
     void updateVideoFilters();
@@ -187,6 +195,8 @@ private:
     double m_speed = 1.0;
     double m_lastSpeed = 1.0;
     QString m_aspectRatio = QStringLiteral("no");
+    double m_frameWidthScale = 1.0;
+    double m_frameHeightScale = 1.0;
     int m_brightness = 0;
     int m_contrast = 0;
     int m_saturation = 0;

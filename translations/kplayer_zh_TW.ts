@@ -938,6 +938,10 @@ Double click to play</source>
     <context>
         <name>VideoStage</name>
         <message>
+            <source>Frame size: %1% × %2%</source>
+            <translation>畫面大小：%1% × %2%</translation>
+        </message>
+        <message>
             <source>Frame saved: %1</source>
             <translation>畫面已儲存：%1</translation>
         </message>

@@ -14,6 +14,8 @@ Rectangle {
     property alias maximumSpeed: video.maximumSpeed
     property alias speed: video.speed
     property alias aspectRatio: video.aspectRatio
+    readonly property real frameWidthScale: video.frameWidthScale
+    readonly property real frameHeightScale: video.frameHeightScale
     property alias brightness: video.brightness
     property alias contrast: video.contrast
     property alias saturation: video.saturation
@@ -48,6 +50,10 @@ Rectangle {
     function cycleSubtitle() { video.cycleSubtitle() }
     function toggleSpeed() { video.toggleSpeed() }
     function resetVideoAdjustments() { video.resetVideoAdjustments() }
+    function adjustFrameSize(widthSteps: int, heightSteps: int) {
+        video.adjustFrameSize(widthSteps, heightSteps)
+    }
+    function resetFrameSize() { video.resetFrameSize() }
     function stepFrame(forward: bool) { video.stepFrame(forward) }
     function setLoopPoint(end: bool, seconds: real) { video.setLoopPoint(end, seconds) }
     function clearLoop() { video.clearLoop() }
@@ -78,6 +84,8 @@ Rectangle {
         onSpeedChanged: root.showHint(speed.toFixed(1) + "x")
         onAspectRatioChanged: root.showHint(aspectRatio === "no"
             ? qsTr("Original aspect ratio") : qsTr("Aspect ratio: %1").arg(aspectRatio))
+        onFrameSizeChanged: root.showHint(qsTr("Frame size: %1% × %2%")
+            .arg(Math.round(frameWidthScale * 100)).arg(Math.round(frameHeightScale * 100)))
         onVolumeChanged: root.showHint(qsTr("Volume: %1%").arg(Math.round(volume)))
         onMutedChanged: root.showHint(muted ? qsTr("Muted") : qsTr("Unmuted"))
         onSubtitlesVisibleChanged: root.showHint(subtitlesVisible

@@ -540,6 +540,41 @@ Window {
         onActivated: videoStage.toggleSpeed()
     }
     Shortcut {
+        sequence: "Num+5"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.resetFrameSize()
+    }
+    Shortcut {
+        sequence: "Num+4"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.adjustFrameSize(-1, 0)
+    }
+    Shortcut {
+        sequence: "Num+6"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.adjustFrameSize(1, 0)
+    }
+    Shortcut {
+        sequence: "Num+8"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.adjustFrameSize(0, 1)
+    }
+    Shortcut {
+        sequence: "Num+2"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.adjustFrameSize(0, -1)
+    }
+    Shortcut {
+        sequence: "Num+9"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.adjustFrameSize(1, 1)
+    }
+    Shortcut {
+        sequence: "Num+1"
+        enabled: window.playbackShortcutsEnabled
+        onActivated: videoStage.adjustFrameSize(-1, -1)
+    }
+    Shortcut {
         sequence: "X"
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.speed = Math.round((videoStage.speed - 0.1) * 10) / 10

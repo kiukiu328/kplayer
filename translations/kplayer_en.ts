@@ -975,6 +975,10 @@ Double click to play</translation>
     <context>
         <name>VideoStage</name>
         <message>
+            <source>Frame size: %1% × %2%</source>
+            <translation>Frame size: %1% × %2%</translation>
+        </message>
+        <message>
             <source>Frame saved: %1</source>
             <translation>Frame saved: %1</translation>
         </message>

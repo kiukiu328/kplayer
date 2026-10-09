@@ -1963,6 +1963,124 @@ private slots:
         QTRY_VERIFY(QGuiApplication::modalWindow() == nullptr);
     }
 
+    void numpadShortcutsResizeVideoFrame()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("frame-size.y4m"), true);
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        auto *search = findItem(window->contentItem(), "playlistSearch");
+        auto *settings = window->findChild<QObject *>("advancedSettingsDialog");
+        QVERIFY(video && stage && search && settings);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        QTRY_VERIFY(!video->playing());
+        QTRY_VERIFY(previewBrightness(window, video) > 160);
+        click(window, stage);
+        const QSize windowSize = window->size();
+        auto press = [window](Qt::Key key) {
+            QTest::keyClick(window, key, Qt::KeypadModifier);
+        };
+        const QList<Qt::Key> keys{Qt::Key_4, Qt::Key_6, Qt::Key_8, Qt::Key_2,
+                                  Qt::Key_9, Qt::Key_1, Qt::Key_5};
+        const QList<QSizeF> sizes{{0.98, 1.0}, {1.0, 1.0}, {1.0, 1.02}, {1.0, 1.0},
+                                  {1.02, 1.02}, {1.0, 1.0}, {1.0, 1.0}};
+        for (qsizetype i = 0; i < keys.size(); ++i) {
+            press(keys[i]);
+            QTRY_COMPARE(video->frameWidthScale(), sizes[i].width());
+            QTRY_COMPARE(video->frameHeightScale(), sizes[i].height());
+        }
+        press(Qt::Key_9);
+        press(Qt::Key_5);
+        QTRY_COMPARE(video->frameWidthScale(), 1.0);
+        QTRY_COMPARE(video->frameHeightScale(), 1.0);
+
+        // Inspect the rendered picture, not just the exposed scale properties.
+        auto pictureSize = [window, video]() {
+            const QImage image = window->grabWindow();
+            if (image.isNull())
+                return QSize{};
+            const qreal sx = qreal(image.width()) / window->width();
+            const qreal sy = qreal(image.height()) / window->height();
+            const QPointF origin = video->mapToScene({0, 0});
+            const QRect area(qRound(origin.x() * sx), qRound(origin.y() * sy),
+                             qRound(video->width() * sx), qRound(video->height() * sy));
+            if (!image.rect().contains(area))
+                return QSize{};
+            int width = 0, height = 0;
+            for (int x = area.left(); x <= area.right(); ++x)
+                width += qGray(image.pixel(x, area.center().y())) > 140;
+            for (int y = area.top(); y <= area.bottom(); ++y)
+                height += qGray(image.pixel(area.center().x(), y)) > 140;
+            return QSize(width, height);
+        };
+        const QSize originalPicture = pictureSize();
+        QVERIFY(originalPicture.width() > 100 && originalPicture.height() > 100);
+        for (int i = 0; i < 10; ++i)
+            press(Qt::Key_4);
+        QTRY_COMPARE(video->frameWidthScale(), 0.8);
+        QTRY_VERIFY(qAbs(pictureSize().width() - originalPicture.width() * 0.8) < 3);
+        QTRY_VERIFY(qAbs(pictureSize().height() - originalPicture.height()) < 3);
+        for (int i = 0; i < 10; ++i)
+            press(Qt::Key_2);
+        QTRY_COMPARE(video->frameHeightScale(), 0.8);
+        QTRY_VERIFY(qAbs(pictureSize().height() - originalPicture.height() * 0.8) < 3);
+        QCOMPARE(window->size(), windowSize);
+        press(Qt::Key_5);
+        QTRY_COMPARE(video->frameWidthScale(), 1.0);
+        QTRY_COMPARE(video->frameHeightScale(), 1.0);
+        QTRY_VERIFY(qAbs(pictureSize().width() - originalPicture.width()) < 3);
+        QTRY_VERIFY(qAbs(pictureSize().height() - originalPicture.height()) < 3);
+
+        // Top-row digits and focused text fields retain their normal behavior.
+        for (Qt::Key key : keys)
+            QTest::keyClick(window, key);
+        QCOMPARE(video->frameWidthScale(), 1.0);
+        QCOMPARE(video->frameHeightScale(), 1.0);
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        QTRY_VERIFY(search->hasActiveFocus());
+        for (Qt::Key key : keys)
+            press(key);
+        QCOMPARE(search->property("text").toString(), QStringLiteral("4682915"));
+        QCOMPARE(video->frameWidthScale(), 1.0);
+        QCOMPARE(video->frameHeightScale(), 1.0);
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_F5);
+        QTRY_VERIFY(settings->property("opened").toBool());
+        press(Qt::Key_9);
+        QCOMPARE(video->frameWidthScale(), 1.0);
+        QCOMPARE(video->frameHeightScale(), 1.0);
+        QVERIFY(QMetaObject::invokeMethod(settings, "close"));
+        click(window, stage);
+        window->showFullScreen();
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        press(Qt::Key_9);
+        QTRY_COMPARE(video->frameWidthScale(), 1.02);
+        QTRY_COMPARE(video->frameHeightScale(), 1.02);
+        press(Qt::Key_5);
+        QTRY_COMPARE(video->frameWidthScale(), 1.0);
+        QTRY_COMPARE(video->frameHeightScale(), 1.0);
+
+        video->adjustFrameSize(-1000, 1000);
+        QCOMPARE(video->frameWidthScale(), 0.1);
+        QCOMPARE(video->frameHeightScale(), 4.0);
+        video->setAspectRatio("4:3");
+        video->setBrightness(10);
+        video->resetFrameSize();
+        QCOMPARE(video->frameWidthScale(), 1.0);
+        QCOMPARE(video->frameHeightScale(), 1.0);
+        QCOMPARE(video->aspectRatio(), QStringLiteral("4:3"));
+        QCOMPARE(video->brightness(), 10);
+        QCOMPARE(video->errorString(), QString{});
+    }
+
     void keyboardShortcutsRespectPlaylistSearch()
     {
         QTemporaryDir directory;

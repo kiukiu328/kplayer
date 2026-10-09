@@ -181,6 +181,14 @@ queued and the first valid entry starts playing immediately.
   | Ctrl+Backspace | Seek to the midpoint |
   | Shift+Backspace | Seek to 30 seconds before the end |
   | D / F | Previous / next frame (pauses playback) |
+  | Numpad 5 | Reset video frame width and height to 100% |
+  | Numpad 4 / 6 | Reduce / increase video frame width by 2% |
+  | Numpad 2 / 8 | Reduce / increase video frame height by 2% |
+  | Numpad 1 / 9 | Reduce / increase both video frame dimensions by 2% |
+
+  Frame resizing uses the numeric keypad with Num Lock on, keeps the picture
+  centered, and works in fullscreen too. Each dimension is limited to 10–400%
+  of its normal display size; enlarging past the play area crops the picture.
 
   Bindings were checked against [PotPlayer's bundled English menu definitions](https://github.com/Onemeshnik/PotPlayer-Median-subtitles-installer/blob/master/%7Bapp%7D/Language/English.ini).
   Playback speed also appears in the Playback menu. **Custom playback speed…**
