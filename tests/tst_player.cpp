@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEnterEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -32,6 +33,10 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <QWheelEvent>
+#include <QScopeGuard>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 
 #include <clocale>
 
@@ -502,6 +507,48 @@ private slots:
         QTRY_VERIFY(dialog->property("opened").toBool());
         QCOMPARE(dialog->property("x").toReal(), (window->width() - dialog->property("width").toReal()) / 2);
         QCOMPARE(dialog->property("y").toReal(), (window->height() - dialog->property("height").toReal()) / 2);
+    }
+
+    void advancedSettingsDropdownHoverIsReadable()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        QVERIFY(dialog);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        for (const char *name : {"interfaceLanguageChoice", "subtitleLanguageChoice"}) {
+            if (QString::fromLatin1(name) == "subtitleLanguageChoice")
+                click(window, findItem(window->contentItem(), "settingsPage2"));
+            auto *combo = findItem(window->contentItem(), QString::fromLatin1(name));
+            QVERIFY(combo);
+            click(window, combo);
+            auto *option = findItem(window->contentItem(), QString::fromLatin1(name) + "Option1");
+            QTRY_VERIFY(option && option->isVisible());
+            QTest::mouseMove(window, option->mapToScene(
+                    {option->width() / 2, option->height() / 2}).toPoint());
+            QTRY_VERIFY(option->property("hovered").toBool());
+            QTRY_VERIFY(option->property("highlighted").toBool());
+            auto *text = option->property("contentItem").value<QQuickItem *>();
+            auto *background = option->property("background").value<QQuickItem *>();
+            QVERIFY(text && background);
+            const QColor foregroundColor = text->property("color").value<QColor>();
+            const QColor backgroundColor = background->property("color").value<QColor>();
+            QVERIFY(qGray(foregroundColor.rgb()) - qGray(backgroundColor.rgb()) > 100);
+            QVERIFY(!option->property("text").toString().isEmpty());
+            const QString captureDirectory = qEnvironmentVariable("KPLAYER_SETTINGS_CAPTURE");
+            if (!captureDirectory.isEmpty()) {
+                QSignalSpy frames(window, &QQuickWindow::frameSwapped);
+                window->update();
+                QTRY_VERIFY(!frames.isEmpty());
+                QVERIFY(window->grabWindow().save(QDir(captureDirectory).filePath(
+                        QString::fromLatin1(name) + ".png")));
+            }
+            QTest::keyClick(window, Qt::Key_Escape);
+        }
     }
 
     void advancedSettingsPersistAndCancel()
@@ -1582,6 +1629,44 @@ private slots:
         video->stop();
     }
 
+    void playlistDividerCursorWorksOutsideFullscreen()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        window->setProperty("alwaysOnTop", true);
+        window->setPosition(window->screen()->availableGeometry().topLeft() + QPoint(24, 24));
+        QVERIFY(exposeWindow(window));
+        auto *handle = findItem(window->contentItem(), "playlistResizeHandle");
+        QVERIFY(handle);
+        for (const auto state : {QWindow::Windowed, QWindow::Maximized}) {
+            if (state == QWindow::Maximized)
+                window->showMaximized();
+            QTRY_COMPARE(window->visibility(), state);
+            QSignalSpy frames(window, &QQuickWindow::frameSwapped);
+            window->update();
+            QTRY_VERIFY(!frames.isEmpty());
+            QVERIFY(handle->isVisible());
+            auto hoverDivider = [window, handle] {
+                const QPoint point = handle->mapToScene(
+                        {handle->width() / 2, handle->height() / 2}).toPoint();
+                QEnterEvent enter(point, point, window->mapToGlobal(point));
+                QCoreApplication::sendEvent(window, &enter);
+                QTest::mouseMove(window, QPoint(100, 100));
+                QTest::mouseMove(window, point);
+                return handle->property("containsMouse").toBool()
+                        && window->cursor().shape() == Qt::SplitHCursor;
+            };
+            QTRY_VERIFY(hoverDivider());
+            // Moving away must restore the normal cursor.
+            QTest::mouseMove(window, QPoint(100, 100));
+            QTRY_COMPARE(window->cursor().shape(), Qt::ArrowCursor);
+        }
+        window->setProperty("playlistVisible", false);
+        QTRY_VERIFY(!handle->isVisible());
+    }
+
     void playlistRangeDragAndResize()
     {
         QTemporaryDir directory;
@@ -2083,6 +2168,10 @@ private slots:
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        // Native pointer input must reach this window even if a running player is pinned.
+        window->setProperty("alwaysOnTop", true);
+        // Repeated test windows cascade beyond the desktop; keep every edge reachable.
+        window->setPosition(window->screen()->availableGeometry().topLeft() + QPoint(24, 24));
         QVERIFY(exposeWindow(window));
         auto *frame = findItem(window->contentItem(), QStringLiteral("windowResizeFrame"));
         QVERIFY(frame && frame->isEnabled());
@@ -2096,6 +2185,10 @@ private slots:
             {QStringLiteral("resizeBottomLeft"), Qt::BottomEdge | Qt::LeftEdge},
             {QStringLiteral("resizeBottomRight"), Qt::BottomEdge | Qt::RightEdge}
         };
+        const QPoint originalCursorPosition = QCursor::pos();
+        const auto restoreCursor = qScopeGuard([originalCursorPosition] {
+            QCursor::setPos(originalCursorPosition);
+        });
         for (const auto &[name, edges] : handles) {
             auto *handle = findItem(frame, name);
             QVERIFY2(handle, qPrintable(name));
@@ -2118,9 +2211,32 @@ private slots:
                     ? Qt::SizeVerCursor : edges == (Qt::TopEdge | Qt::LeftEdge)
                         || edges == (Qt::BottomEdge | Qt::RightEdge)
                     ? Qt::SizeFDiagCursor : Qt::SizeBDiagCursor;
-            QTest::mouseMove(window, handle->mapToScene(
-                    {handle->width() / 2, handle->height() / 2}).toPoint());
+            // Synthetic Qt mouse events do not exercise Windows' WM_SETCURSOR.
+            QCursor::setPos(window->mapToGlobal(handle->mapToScene(
+                    {handle->width() / 2, handle->height() / 2}).toPoint()));
+#ifdef Q_OS_WIN
+            window->raise();
+            const int nativeCursorId = expectedCursor == Qt::SizeHorCursor ? 32644
+                    : expectedCursor == Qt::SizeVerCursor ? 32645
+                    : expectedCursor == Qt::SizeFDiagCursor ? 32642 : 32643;
+            const HCURSOR expectedNativeCursor = static_cast<HCURSOR>(LoadImageW(
+                    nullptr, MAKEINTRESOURCEW(nativeCursorId), IMAGE_CURSOR,
+                    0, 0, LR_DEFAULTSIZE | LR_SHARED));
+            auto nativeCursorMatches = [window, handle, expectedNativeCursor] {
+                // Check this thread's cursor immediately after the native request;
+                // the global desktop cursor can change while other apps are in use.
+                QCursor::setPos(window->mapToGlobal(handle->mapToScene(
+                        {handle->width() / 2, handle->height() / 2}).toPoint()));
+                SendMessageW(reinterpret_cast<HWND>(window->winId()), WM_SETCURSOR,
+                             window->winId(), MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+                return GetCursor() == expectedNativeCursor;
+            };
+            QTRY_VERIFY2(nativeCursorMatches(), qPrintable(name + " at "
+                    + QString::number(QCursor::pos().x()) + ","
+                    + QString::number(QCursor::pos().y())));
+#else
             QTRY_COMPARE(window->cursor().shape(), expectedCursor);
+#endif
         }
 
         // Geometry bindings follow window resizing and keep the configured limits.

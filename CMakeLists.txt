@@ -76,6 +76,8 @@ foreach(icon IN LISTS KPLAYER_ICONS)
 endforeach()
 
 set(KPLAYER_SOURCES
+    src/integration/WindowResizeCursor.h
+    src/integration/WindowResizeCursor.cpp
     src/integration/AppLanguage.h
     src/integration/AppLanguage.cpp
     src/playback/MpvVideo.h

@@ -115,6 +115,27 @@ Dialog {
         }
     }
 
+    component SettingsComboBox: ComboBox {
+        id: combo
+        delegate: ItemDelegate {
+            id: entry
+            required property var model
+            required property int index
+            objectName: combo.objectName + "Option" + index
+            width: ListView.view.width
+            text: model[combo.textRole]
+            font.weight: combo.currentIndex === index ? Font.DemiBold : Font.Normal
+            highlighted: combo.highlightedIndex === index
+            hoverEnabled: combo.hoverEnabled
+            palette.text: Theme.textPrimary
+            palette.highlightedText: Theme.accent
+            background: Rectangle {
+                color: entry.highlighted || entry.hovered || entry.down
+                    ? Theme.chromeHover : Theme.searchBackground
+            }
+        }
+    }
+
     contentItem: RowLayout {
         spacing: 0
         Rectangle {
@@ -202,7 +223,7 @@ Dialog {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                         }
-                        ComboBox {
+                        SettingsComboBox {
                             id: interfaceLanguage
                             objectName: "interfaceLanguageChoice"
                             Layout.preferredWidth: root.width < 650 ? 150 : 220
@@ -259,7 +280,7 @@ Dialog {
                         color: Theme.textPrimary
                         font.pixelSize: Theme.smallFontSize
                     }
-                    ComboBox {
+                    SettingsComboBox {
                         id: languageChoice
                         objectName: "subtitleLanguageChoice"
                         width: parent.width

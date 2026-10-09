@@ -9,6 +9,7 @@ Item {
     signal resizeRequested(int edges)
     visible: enabled
     z: 100
+    WindowResizeCursor { frame: root }
 
     Repeater {
         model: [
@@ -30,6 +31,7 @@ Item {
               left: false, top: false, corner: true }
         ]
         MouseArea {
+            id: handle
             required property var modelData
             readonly property int resizeEdges: modelData.edges
             readonly property bool corner: modelData.corner === true
@@ -45,6 +47,9 @@ Item {
             acceptedButtons: Qt.LeftButton
             hoverEnabled: true
             cursorShape: modelData.cursor
+            HoverHandler {
+                cursorShape: handle.cursorShape
+            }
             onPressed: root.resizeRequested(resizeEdges)
         }
     }

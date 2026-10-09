@@ -656,6 +656,7 @@ Window {
         }
 
         Item {
+            id: playerBody
             anchors.top: titleBar.bottom
             anchors.topMargin: window.isFullscreen ? 0 : Theme.dividerWidth
             anchors.bottom: parent.bottom
@@ -738,15 +739,20 @@ Window {
             MouseArea {
                 id: playlistResizeHandle
                 objectName: "playlistResizeHandle"
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                x: playlist.x - width / 2
+                // Keep this handle above the window drag surface in every window state.
+                parent: window.contentItem
+                x: playerBody.parent.x + playerBody.x + playlist.x - width / 2
+                y: playerBody.parent.y + playerBody.y + playlist.y
+                height: playlist.height
                 width: 8
-                z: 2
+                z: 60
                 visible: playlist.visible
                 hoverEnabled: true
                 cursorShape: Qt.SplitHCursor
                 preventStealing: true
+                HoverHandler {
+                    cursorShape: Qt.SplitHCursor
+                }
                 property real startX
                 property real startWidth
                 onPressed: (mouse) => {
@@ -757,7 +763,7 @@ Window {
                     if (pressed) {
                         const currentX = mapToItem(window.contentItem, mouse.x, mouse.y).x
                         playbackPreferences.playlistWidth = Math.max(360,
-                            Math.min(parent.width - 400, startWidth + startX - currentX))
+                            Math.min(playerBody.width - 400, startWidth + startX - currentX))
                     }
                 }
             }
