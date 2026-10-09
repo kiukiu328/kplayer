@@ -122,7 +122,7 @@ queued and the first valid entry starts playing immediately.
   It includes shortcut labels, checked states, separators, and nested menus;
   Press Escape or click outside to dismiss it.
   Open (開啟) contains file queueing, search, and Clear Playlist actions.
-  Settings offers repeat off, repeat current track, or repeat the playlist;
+  The Playback menu offers repeat off, repeat current track, or repeat the playlist;
   manual Previous/Next track navigation still stops at the queue boundaries.
   The pin button toggles Always on Top and highlights while enabled.
 - **我的最愛** saves the current file or URL as a favorite across launches. Click a
@@ -142,6 +142,19 @@ queued and the first valid entry starts playing immediately.
 - In **Advanced Settings** (F5), drag the title bar to move the panel. Under
   **General > Interface language**, choose Traditional Chinese or English and
   Save to apply it immediately and remember it for the next launch.
+- The bottom settings button opens a floating **Control Panel** with Audio,
+  Video, Subtitle, and Playback tabs. Drag its title bar to move it, use the pin
+  to keep it on top, and drag the yellow title-bar slider to change this panel's
+  opacity (25–100%). Close or Escape hides the panel; F5 still opens Advanced Settings.
+  Audio provides a ten-band equalizer with presets, preamp, mute, and volume.
+  Video provides brightness, contrast, saturation, hue, soften, sharpen, deblock,
+  and PNG frame capture. Subtitle provides font, size, vertical position,
+  left/center/right alignment, and timing in 0.1-second steps. Font and alignment
+  controls apply to plain text subtitles; styled ASS and bitmap tracks may retain
+  their own styling. Playback provides ±5/±30-second seeking, speed, and A–B
+  looping. Click A and B to mark the current playback positions; Undo clears
+  the loop, and stopping or changing files clears it automatically.
+  Adjustments apply immediately for the current session.
 - The **字幕** menu shows/hides subtitles, loads external subtitle files, and
   selects embedded or external tracks by title/language/filename. Hiding subtitles
   keeps the selected track; selecting or loading a track makes it visible again.

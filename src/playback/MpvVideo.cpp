@@ -124,6 +124,8 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
              std::pair{"background", "color"},
              std::pair{"background-color", "#101010"},
              std::pair{"osd-level", "0"},
+             std::pair{"sub-font", "Segoe UI"},
+             std::pair{"sub-font-size", "18"},
              std::pair{"terminal", "no"}}) {
         const int result = mpv_set_option_string(m_mpv.get(), name, value);
         if (result < 0) {
@@ -233,6 +235,7 @@ void MpvVideo::play()
 
 void MpvVideo::stop()
 {
+    clearLoop();
     clearSubtitleTracks();
     setPosition(0);
     setDuration(0);
@@ -360,12 +363,221 @@ void MpvVideo::setVideoAdjustment(const char *name, int value, int &current)
 void MpvVideo::setBrightness(int value) { setVideoAdjustment("brightness", value, m_brightness); }
 void MpvVideo::setContrast(int value) { setVideoAdjustment("contrast", value, m_contrast); }
 void MpvVideo::setSaturation(int value) { setVideoAdjustment("saturation", value, m_saturation); }
+void MpvVideo::setHue(int value) { setVideoAdjustment("hue", value, m_hue); }
 
 void MpvVideo::resetVideoAdjustments()
 {
     setBrightness(0);
     setContrast(0);
     setSaturation(0);
+    setHue(0);
+}
+
+bool MpvVideo::setControlProperty(const char *name, const QString &value)
+{
+    if (!m_mpv)
+        return false;
+    const QByteArray encoded = value.toUtf8();
+    const char *text = encoded.constData();
+    const int result = mpv_set_property_async(m_mpv.get(), 0, name, MPV_FORMAT_STRING, &text);
+    if (result < 0)
+        setError(QString::fromUtf8(mpv_error_string(result)));
+    return result >= 0;
+}
+
+void MpvVideo::setEqualizerEnabled(bool enabled)
+{
+    if (m_equalizerEnabled == enabled)
+        return;
+    m_equalizerEnabled = enabled;
+    updateEqualizer();
+    emit audioControlsChanged();
+}
+
+void MpvVideo::setEqualizerBands(const QVariantList &bands)
+{
+    if (bands.size() != 10)
+        return;
+    QVariantList normalized;
+    for (const auto &band : bands) {
+        bool valid = false;
+        const double value = band.toDouble(&valid);
+        if (!valid || !std::isfinite(value))
+            return;
+        normalized.append(std::clamp(value, -12.0, 12.0));
+    }
+    if (m_equalizerBands == normalized)
+        return;
+    m_equalizerBands = normalized;
+    updateEqualizer();
+    emit audioControlsChanged();
+}
+
+void MpvVideo::setPreamp(double value)
+{
+    if (!std::isfinite(value))
+        return;
+    value = std::clamp(value, -12.0, 12.0);
+    if (m_preamp == value)
+        return;
+    m_preamp = value;
+    updateEqualizer();
+    emit audioControlsChanged();
+}
+
+void MpvVideo::updateEqualizer()
+{
+    if (!m_mpv)
+        return;
+    // Replace only our labeled filter; leave other audio processing untouched.
+    if (!m_equalizerEnabled) {
+        if (m_equalizerApplied) {
+            const char *command[] = {"af", "remove", "@kplayer-eq", nullptr};
+            mpv_command_async(m_mpv.get(), 0, command);
+            m_equalizerApplied = false;
+        }
+        return;
+    }
+    static constexpr int frequencies[] = {60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000};
+    QStringList filters;
+    for (int i = 0; i < 10; ++i)
+        filters.append(QStringLiteral("equalizer=f=%1:t=o:w=1:g=%2")
+                           .arg(frequencies[i]).arg(m_equalizerBands[i].toDouble()));
+    filters.append(QStringLiteral("volume=%1dB").arg(m_preamp));
+    const QByteArray filter = (QStringLiteral("@kplayer-eq:lavfi=[")
+                              + filters.join(',') + ']').toUtf8();
+    const char *command[] = {"af", "add", filter.constData(), nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 0, command);
+    if (result < 0)
+        setError(QString::fromUtf8(mpv_error_string(result)));
+    else
+        m_equalizerApplied = true;
+}
+
+void MpvVideo::setVideoFilter(bool enabled, bool &current)
+{
+    if (current == enabled)
+        return;
+    current = enabled;
+    updateVideoFilters();
+    emit videoFiltersChanged();
+}
+
+void MpvVideo::setSoften(bool enabled) { setVideoFilter(enabled, m_soften); }
+void MpvVideo::setSharpen(bool enabled) { setVideoFilter(enabled, m_sharpen); }
+void MpvVideo::setDeblock(bool enabled) { setVideoFilter(enabled, m_deblock); }
+
+void MpvVideo::updateVideoFilters()
+{
+    if (!m_mpv)
+        return;
+    QStringList filters;
+    if (m_soften) filters.append(QStringLiteral("gblur=sigma=0.7"));
+    if (m_sharpen) filters.append(QStringLiteral("unsharp=5:5:0.5:5:5:0"));
+    if (m_deblock) filters.append(QStringLiteral("deblock=filter=weak:block=8"));
+    if (filters.isEmpty()) {
+        if (m_videoFiltersApplied) {
+            const char *command[] = {"vf", "remove", "@kplayer-video", nullptr};
+            mpv_command_async(m_mpv.get(), 0, command);
+            m_videoFiltersApplied = false;
+        }
+        return;
+    }
+    const QByteArray filter = (QStringLiteral("@kplayer-video:lavfi=[")
+                              + filters.join(',') + ']').toUtf8();
+    const char *command[] = {"vf", "add", filter.constData(), nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 0, command);
+    if (result < 0)
+        setError(QString::fromUtf8(mpv_error_string(result)));
+    else
+        m_videoFiltersApplied = true;
+}
+
+void MpvVideo::setSubtitleFont(const QString &font)
+{
+    const QString normalized = font.trimmed();
+    if (normalized.isEmpty() || normalized == m_subtitleFont
+        || !setControlProperty("sub-font", normalized))
+        return;
+    m_subtitleFont = normalized;
+    emit subtitleStyleChanged();
+}
+
+void MpvVideo::setSubtitleFontSize(int size)
+{
+    size = std::clamp(size, 8, 72);
+    if (size == m_subtitleFontSize || !setControlProperty("sub-font-size", QString::number(size)))
+        return;
+    m_subtitleFontSize = size;
+    emit subtitleStyleChanged();
+}
+
+void MpvVideo::setSubtitlePosition(int position)
+{
+    position = std::clamp(position, 0, 100);
+    if (position == m_subtitlePosition || !setControlProperty("sub-pos", QString::number(position)))
+        return;
+    m_subtitlePosition = position;
+    emit subtitleStyleChanged();
+}
+
+void MpvVideo::setSubtitleAlignment(int alignment)
+{
+    alignment = std::clamp(alignment, -1, 1);
+    static const QStringList names{"left", "center", "right"};
+    if (alignment == m_subtitleAlignment || !setControlProperty("sub-align-x", names[alignment + 1]))
+        return;
+    m_subtitleAlignment = alignment;
+    emit subtitleStyleChanged();
+}
+
+void MpvVideo::setSubtitleDelay(double delay)
+{
+    if (!std::isfinite(delay))
+        return;
+    delay = std::clamp(delay, -60.0, 60.0);
+    if (delay == m_subtitleDelay || !setControlProperty("sub-delay", QString::number(delay)))
+        return;
+    m_subtitleDelay = delay;
+    emit subtitleStyleChanged();
+}
+
+void MpvVideo::setLoopPoint(bool end, double seconds)
+{
+    if (!m_seekable || !std::isfinite(seconds))
+        return;
+    seconds = std::clamp(seconds, 0.0, m_duration);
+    // A complete loop must have a positive duration.
+    if ((end && m_loopA >= 0 && seconds <= m_loopA)
+        || (!end && m_loopB >= 0 && seconds >= m_loopB))
+        return;
+    if (!setControlProperty(end ? "ab-loop-b" : "ab-loop-a", QString::number(seconds)))
+        return;
+    (end ? m_loopB : m_loopA) = seconds;
+    emit loopPointsChanged();
+}
+
+void MpvVideo::clearLoop()
+{
+    if (m_loopA < 0 && m_loopB < 0)
+        return;
+    setControlProperty("ab-loop-a", QStringLiteral("no"));
+    setControlProperty("ab-loop-b", QStringLiteral("no"));
+    m_loopA = m_loopB = -1;
+    emit loopPointsChanged();
+}
+
+void MpvVideo::captureFrame(const QUrl &file)
+{
+    if (!m_mpv || !m_mediaLoaded || !file.isLocalFile() || !m_captureFile.isEmpty())
+        return;
+    const QByteArray path = file.toLocalFile().toUtf8();
+    const char *command[] = {"screenshot-to-file", path.constData(), "subtitles", nullptr};
+    const int result = mpv_command_async(m_mpv.get(), 1001, command);
+    if (result < 0)
+        setError(QString::fromUtf8(mpv_error_string(result)));
+    else
+        m_captureFile = file;
 }
 
 void MpvVideo::setDefaultSubtitleLanguage(const QString &language)
@@ -596,6 +808,11 @@ void MpvVideo::processEvents()
     while (const auto *event = mpv_wait_event(m_mpv.get(), 0)) {
         if (event->event_id == MPV_EVENT_NONE)
             break;
+        if (event->event_id == MPV_EVENT_COMMAND_REPLY && event->reply_userdata == 1001) {
+            const QUrl file = std::exchange(m_captureFile, QUrl{});
+            if (event->error >= 0)
+                emit frameCaptured(file);
+        }
         if ((event->event_id == MPV_EVENT_COMMAND_REPLY
              || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY) && event->error < 0)
             setError(QString::fromUtf8(mpv_error_string(event->error)));

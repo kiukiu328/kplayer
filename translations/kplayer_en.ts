@@ -532,6 +532,10 @@
     <context>
         <name>PlaybackBar</name>
         <message>
+            <source>Control Panel</source>
+            <translation>Control Panel</translation>
+        </message>
+        <message>
             <location filename="../qml/PlaybackBar.qml" line="72" />
             <source>Seek: %1 / %2</source>
             <translation>Seek: %1 / %2</translation>
@@ -971,6 +975,10 @@ Double click to play</translation>
     <context>
         <name>VideoStage</name>
         <message>
+            <source>Frame saved: %1</source>
+            <translation>Frame saved: %1</translation>
+        </message>
+        <message>
             <location filename="../qml/VideoStage.qml" line="56" />
             <source>Original aspect ratio</source>
             <translation>Original aspect ratio</translation>
@@ -1014,6 +1022,205 @@ Double click to play</translation>
             <location filename="../qml/VideoStage.qml" line="63" />
             <source>No subtitles</source>
             <translation>No subtitles</translation>
+        </message>
+    </context>
+    <context>
+        <name>ControlPanel</name>
+        <message>
+            <source>(Custom)</source>
+            <translation>(Custom)</translation>
+        </message>
+        <message>
+            <source>Audio</source>
+            <translation>Audio</translation>
+        </message>
+        <message>
+            <source>Video</source>
+            <translation>Video</translation>
+        </message>
+        <message>
+            <source>Subtitle</source>
+            <translation>Subtitle</translation>
+        </message>
+        <message>
+            <source>Playback</source>
+            <translation>Playback</translation>
+        </message>
+        <message>
+            <source>(Default)</source>
+            <translation>(Default)</translation>
+        </message>
+        <message>
+            <source>Rock</source>
+            <translation>Rock</translation>
+        </message>
+        <message>
+            <source>Pop</source>
+            <translation>Pop</translation>
+        </message>
+        <message>
+            <source>Classical</source>
+            <translation>Classical</translation>
+        </message>
+        <message>
+            <source>Control Panel</source>
+            <translation>Control Panel</translation>
+        </message>
+        <message>
+            <source>Panel opacity</source>
+            <translation>Panel opacity</translation>
+        </message>
+        <message>
+            <source>Opacity: %1%</source>
+            <translation>Opacity: %1%</translation>
+        </message>
+        <message>
+            <source>Always on top</source>
+            <translation>Always on top</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Equalizer</source>
+            <translation>Equalizer</translation>
+        </message>
+        <message>
+            <source>Preset</source>
+            <translation>Preset</translation>
+        </message>
+        <message>
+            <source>VOL</source>
+            <translation>VOL</translation>
+        </message>
+        <message>
+            <source>Mute</source>
+            <translation>Mute</translation>
+        </message>
+        <message>
+            <source>Equalizer %1 Hz</source>
+            <translation>Equalizer %1 Hz</translation>
+        </message>
+        <message>
+            <source>MST</source>
+            <translation>MST</translation>
+        </message>
+        <message>
+            <source>Preamp</source>
+            <translation>Preamp</translation>
+        </message>
+        <message>
+            <source>Volume</source>
+            <translation>Volume</translation>
+        </message>
+        <message>
+            <source>Brightness</source>
+            <translation>Brightness</translation>
+        </message>
+        <message>
+            <source>Contrast</source>
+            <translation>Contrast</translation>
+        </message>
+        <message>
+            <source>Saturation</source>
+            <translation>Saturation</translation>
+        </message>
+        <message>
+            <source>Color</source>
+            <translation>Color</translation>
+        </message>
+        <message>
+            <source>Default</source>
+            <translation>Default</translation>
+        </message>
+        <message>
+            <source>Soften</source>
+            <translation>Soften</translation>
+        </message>
+        <message>
+            <source>Sharpen</source>
+            <translation>Sharpen</translation>
+        </message>
+        <message>
+            <source>Deblock</source>
+            <translation>Deblock</translation>
+        </message>
+        <message>
+            <source>Capture</source>
+            <translation>Capture</translation>
+        </message>
+        <message>
+            <source>Font</source>
+            <translation>Font</translation>
+        </message>
+        <message>
+            <source>Position</source>
+            <translation>Position</translation>
+        </message>
+        <message>
+            <source>▲Up</source>
+            <translation>▲Up</translation>
+        </message>
+        <message>
+            <source>▼Down</source>
+            <translation>▼Down</translation>
+        </message>
+        <message>
+            <source>◀Left</source>
+            <translation>◀Left</translation>
+        </message>
+        <message>
+            <source>▶Right</source>
+            <translation>▶Right</translation>
+        </message>
+        <message>
+            <source>Sync</source>
+            <translation>Sync</translation>
+        </message>
+        <message>
+            <source>Slower</source>
+            <translation>Slower</translation>
+        </message>
+        <message>
+            <source>Faster</source>
+            <translation>Faster</translation>
+        </message>
+        <message>
+            <source>Seek</source>
+            <translation>Seek</translation>
+        </message>
+        <message>
+            <source>Seek %1 seconds</source>
+            <translation>Seek %1 seconds</translation>
+        </message>
+        <message>
+            <source>Speed</source>
+            <translation>Speed</translation>
+        </message>
+        <message>
+            <source>A-B</source>
+            <translation>A-B</translation>
+        </message>
+        <message>
+            <source>Set loop start at current position</source>
+            <translation>Set loop start at current position</translation>
+        </message>
+        <message>
+            <source>Set loop end at current position</source>
+            <translation>Set loop end at current position</translation>
+        </message>
+        <message>
+            <source>Undo</source>
+            <translation>Undo</translation>
+        </message>
+        <message>
+            <source>Save captured frame</source>
+            <translation>Save captured frame</translation>
+        </message>
+        <message>
+            <source>PNG image (*.png)</source>
+            <translation>PNG image (*.png)</translation>
         </message>
     </context>
 </TS>

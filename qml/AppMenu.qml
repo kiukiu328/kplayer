@@ -151,18 +151,21 @@ PlayerMenu {
         }
         PlayerMenuSeparator {}
         PlayerMenuItem {
+            objectName: "repeatOffMenuItem"
             text: qsTr("不重複")
             checkable: true
             checked: root.repeatMode === 0
             onTriggered: root.repeatRequested(0)
         }
         PlayerMenuItem {
+            objectName: "repeatTrackMenuItem"
             text: qsTr("重複目前檔案")
             checkable: true
             checked: root.repeatMode === 1
             onTriggered: root.repeatRequested(1)
         }
         PlayerMenuItem {
+            objectName: "repeatPlaylistMenuItem"
             text: qsTr("重複播放清單")
             checkable: true
             checked: root.repeatMode === 2

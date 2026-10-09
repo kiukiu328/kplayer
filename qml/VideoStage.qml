@@ -17,6 +17,20 @@ Rectangle {
     property alias brightness: video.brightness
     property alias contrast: video.contrast
     property alias saturation: video.saturation
+    property alias hue: video.hue
+    property alias equalizerEnabled: video.equalizerEnabled
+    property alias equalizerBands: video.equalizerBands
+    property alias preamp: video.preamp
+    property alias soften: video.soften
+    property alias sharpen: video.sharpen
+    property alias deblock: video.deblock
+    property alias subtitleFont: video.subtitleFont
+    property alias subtitleFontSize: video.subtitleFontSize
+    property alias subtitlePosition: video.subtitlePosition
+    property alias subtitleAlignment: video.subtitleAlignment
+    property alias subtitleDelay: video.subtitleDelay
+    property alias loopA: video.loopA
+    property alias loopB: video.loopB
     property alias defaultSubtitleLanguage: video.defaultSubtitleLanguage
     property alias subtitlesVisible: video.subtitlesVisible
     property alias subtitleTracks: video.subtitleTracks
@@ -35,6 +49,9 @@ Rectangle {
     function toggleSpeed() { video.toggleSpeed() }
     function resetVideoAdjustments() { video.resetVideoAdjustments() }
     function stepFrame(forward: bool) { video.stepFrame(forward) }
+    function setLoopPoint(end: bool, seconds: real) { video.setLoopPoint(end, seconds) }
+    function clearLoop() { video.clearLoop() }
+    function captureFrame(file: url) { video.captureFrame(file) }
     signal moveRequested()
     signal fullscreenRequested()
     signal playPauseRequested()
@@ -52,6 +69,7 @@ Rectangle {
         id: video
         anchors.fill: parent
         onEndOfFile: root.endOfFile()
+        onFrameCaptured: (file) => root.showHint(qsTr("Frame saved: %1").arg(file.toString()))
         onSpeedChanged: root.showHint(speed.toFixed(1) + "x")
         onAspectRatioChanged: root.showHint(aspectRatio === "no"
             ? qsTr("Original aspect ratio") : qsTr("Aspect ratio: %1").arg(aspectRatio))

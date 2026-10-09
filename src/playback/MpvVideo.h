@@ -29,6 +29,20 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(int brightness READ brightness WRITE setBrightness NOTIFY videoAdjustmentsChanged)
     Q_PROPERTY(int contrast READ contrast WRITE setContrast NOTIFY videoAdjustmentsChanged)
     Q_PROPERTY(int saturation READ saturation WRITE setSaturation NOTIFY videoAdjustmentsChanged)
+    Q_PROPERTY(int hue READ hue WRITE setHue NOTIFY videoAdjustmentsChanged)
+    Q_PROPERTY(bool equalizerEnabled READ equalizerEnabled WRITE setEqualizerEnabled NOTIFY audioControlsChanged)
+    Q_PROPERTY(QVariantList equalizerBands READ equalizerBands WRITE setEqualizerBands NOTIFY audioControlsChanged)
+    Q_PROPERTY(double preamp READ preamp WRITE setPreamp NOTIFY audioControlsChanged)
+    Q_PROPERTY(bool soften READ soften WRITE setSoften NOTIFY videoFiltersChanged)
+    Q_PROPERTY(bool sharpen READ sharpen WRITE setSharpen NOTIFY videoFiltersChanged)
+    Q_PROPERTY(bool deblock READ deblock WRITE setDeblock NOTIFY videoFiltersChanged)
+    Q_PROPERTY(QString subtitleFont READ subtitleFont WRITE setSubtitleFont NOTIFY subtitleStyleChanged)
+    Q_PROPERTY(int subtitleFontSize READ subtitleFontSize WRITE setSubtitleFontSize NOTIFY subtitleStyleChanged)
+    Q_PROPERTY(int subtitlePosition READ subtitlePosition WRITE setSubtitlePosition NOTIFY subtitleStyleChanged)
+    Q_PROPERTY(int subtitleAlignment READ subtitleAlignment WRITE setSubtitleAlignment NOTIFY subtitleStyleChanged)
+    Q_PROPERTY(double subtitleDelay READ subtitleDelay WRITE setSubtitleDelay NOTIFY subtitleStyleChanged)
+    Q_PROPERTY(double loopA READ loopA NOTIFY loopPointsChanged)
+    Q_PROPERTY(double loopB READ loopB NOTIFY loopPointsChanged)
     Q_PROPERTY(QString defaultSubtitleLanguage READ defaultSubtitleLanguage WRITE setDefaultSubtitleLanguage NOTIFY defaultSubtitleLanguageChanged)
     Q_PROPERTY(bool subtitlesVisible READ subtitlesVisible WRITE setSubtitlesVisible NOTIFY subtitlesVisibleChanged)
     Q_PROPERTY(QVariantList subtitleTracks READ subtitleTracks NOTIFY subtitleTracksChanged)
@@ -65,6 +79,35 @@ public:
     void setContrast(int value);
     int saturation() const { return m_saturation; }
     void setSaturation(int value);
+    int hue() const { return m_hue; }
+    void setHue(int value);
+    bool equalizerEnabled() const { return m_equalizerEnabled; }
+    void setEqualizerEnabled(bool enabled);
+    QVariantList equalizerBands() const { return m_equalizerBands; }
+    void setEqualizerBands(const QVariantList &bands);
+    double preamp() const { return m_preamp; }
+    void setPreamp(double value);
+    bool soften() const { return m_soften; }
+    void setSoften(bool enabled);
+    bool sharpen() const { return m_sharpen; }
+    void setSharpen(bool enabled);
+    bool deblock() const { return m_deblock; }
+    void setDeblock(bool enabled);
+    QString subtitleFont() const { return m_subtitleFont; }
+    void setSubtitleFont(const QString &font);
+    int subtitleFontSize() const { return m_subtitleFontSize; }
+    void setSubtitleFontSize(int size);
+    int subtitlePosition() const { return m_subtitlePosition; }
+    void setSubtitlePosition(int position);
+    int subtitleAlignment() const { return m_subtitleAlignment; }
+    void setSubtitleAlignment(int alignment);
+    double subtitleDelay() const { return m_subtitleDelay; }
+    void setSubtitleDelay(double delay);
+    double loopA() const { return m_loopA; }
+    double loopB() const { return m_loopB; }
+    Q_INVOKABLE void setLoopPoint(bool end, double seconds);
+    Q_INVOKABLE void clearLoop();
+    Q_INVOKABLE void captureFrame(const QUrl &file);
     Q_INVOKABLE void resetVideoAdjustments();
     Q_INVOKABLE void toggleSpeed();
     QString defaultSubtitleLanguage() const { return m_defaultSubtitleLanguage; }
@@ -99,6 +142,11 @@ signals:
     void maximumSpeedChanged();
     void aspectRatioChanged();
     void videoAdjustmentsChanged();
+    void audioControlsChanged();
+    void videoFiltersChanged();
+    void subtitleStyleChanged();
+    void loopPointsChanged();
+    void frameCaptured(const QUrl &file);
     void defaultSubtitleLanguageChanged();
     void subtitlesVisibleChanged();
     void subtitleTracksChanged();
@@ -118,6 +166,10 @@ private:
     void updateSubtitleTracks(const mpv_node &node);
     void clearSubtitleTracks();
     void setVideoAdjustment(const char *name, int value, int &current);
+    bool setControlProperty(const char *name, const QString &value);
+    void updateEqualizer();
+    void updateVideoFilters();
+    void setVideoFilter(bool enabled, bool &current);
 
     // The renderer retains the handle until its OpenGL context is freed.
     std::shared_ptr<mpv_handle> m_mpv;
@@ -138,6 +190,23 @@ private:
     int m_brightness = 0;
     int m_contrast = 0;
     int m_saturation = 0;
+    int m_hue = 0;
+    bool m_equalizerEnabled = false;
+    QVariantList m_equalizerBands{0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    double m_preamp = 0;
+    bool m_equalizerApplied = false;
+    bool m_soften = false;
+    bool m_sharpen = false;
+    bool m_deblock = false;
+    bool m_videoFiltersApplied = false;
+    QString m_subtitleFont = QStringLiteral("Segoe UI");
+    int m_subtitleFontSize = 18;
+    int m_subtitlePosition = 100;
+    int m_subtitleAlignment = 0;
+    double m_subtitleDelay = 0;
+    double m_loopA = -1;
+    double m_loopB = -1;
+    QUrl m_captureFile;
     QString m_defaultSubtitleLanguage;
     bool m_subtitlesVisible = true;
     QVariantList m_subtitleTracks;

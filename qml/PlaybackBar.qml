@@ -277,7 +277,7 @@ Rectangle {
             width: Math.min(56, root.width * 0.0753)
             objectName: "settingsButton"
             iconName: "settings"
-            label: qsTr("Settings")
+            label: qsTr("Control Panel")
             iconColor: Theme.iconMuted
             rightDivider: true
             onClicked: root.settingsRequested()

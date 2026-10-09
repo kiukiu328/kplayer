@@ -495,6 +495,10 @@
     <context>
         <name>PlaybackBar</name>
         <message>
+            <source>Control Panel</source>
+            <translation>控制面板</translation>
+        </message>
+        <message>
             <location filename="../qml/PlaybackBar.qml" line="72" />
             <source>Seek: %1 / %2</source>
             <translation>播放位置：%1 / %2</translation>
@@ -934,6 +938,10 @@ Double click to play</source>
     <context>
         <name>VideoStage</name>
         <message>
+            <source>Frame saved: %1</source>
+            <translation>畫面已儲存：%1</translation>
+        </message>
+        <message>
             <location filename="../qml/VideoStage.qml" line="56" />
             <source>Original aspect ratio</source>
             <translation>原始比例</translation>
@@ -977,6 +985,205 @@ Double click to play</source>
             <location filename="../qml/VideoStage.qml" line="63" />
             <source>No subtitles</source>
             <translation>無字幕</translation>
+        </message>
+    </context>
+    <context>
+        <name>ControlPanel</name>
+        <message>
+            <source>(Custom)</source>
+            <translation>（自訂）</translation>
+        </message>
+        <message>
+            <source>Audio</source>
+            <translation>音訊</translation>
+        </message>
+        <message>
+            <source>Video</source>
+            <translation>視訊</translation>
+        </message>
+        <message>
+            <source>Subtitle</source>
+            <translation>字幕</translation>
+        </message>
+        <message>
+            <source>Playback</source>
+            <translation>播放</translation>
+        </message>
+        <message>
+            <source>(Default)</source>
+            <translation>（預設）</translation>
+        </message>
+        <message>
+            <source>Rock</source>
+            <translation>搖滾</translation>
+        </message>
+        <message>
+            <source>Pop</source>
+            <translation>流行</translation>
+        </message>
+        <message>
+            <source>Classical</source>
+            <translation>古典</translation>
+        </message>
+        <message>
+            <source>Control Panel</source>
+            <translation>控制面板</translation>
+        </message>
+        <message>
+            <source>Panel opacity</source>
+            <translation>面板透明度</translation>
+        </message>
+        <message>
+            <source>Opacity: %1%</source>
+            <translation>透明度：%1%</translation>
+        </message>
+        <message>
+            <source>Always on top</source>
+            <translation>保持最上層</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>關閉</translation>
+        </message>
+        <message>
+            <source>Equalizer</source>
+            <translation>等化器</translation>
+        </message>
+        <message>
+            <source>Preset</source>
+            <translation>預設</translation>
+        </message>
+        <message>
+            <source>VOL</source>
+            <translation>音量</translation>
+        </message>
+        <message>
+            <source>Mute</source>
+            <translation>靜音</translation>
+        </message>
+        <message>
+            <source>Equalizer %1 Hz</source>
+            <translation>等化器 %1 Hz</translation>
+        </message>
+        <message>
+            <source>MST</source>
+            <translation>增益</translation>
+        </message>
+        <message>
+            <source>Preamp</source>
+            <translation>前級增益</translation>
+        </message>
+        <message>
+            <source>Volume</source>
+            <translation>音量</translation>
+        </message>
+        <message>
+            <source>Brightness</source>
+            <translation>亮度</translation>
+        </message>
+        <message>
+            <source>Contrast</source>
+            <translation>對比</translation>
+        </message>
+        <message>
+            <source>Saturation</source>
+            <translation>飽和度</translation>
+        </message>
+        <message>
+            <source>Color</source>
+            <translation>色相</translation>
+        </message>
+        <message>
+            <source>Default</source>
+            <translation>預設</translation>
+        </message>
+        <message>
+            <source>Soften</source>
+            <translation>柔化</translation>
+        </message>
+        <message>
+            <source>Sharpen</source>
+            <translation>銳化</translation>
+        </message>
+        <message>
+            <source>Deblock</source>
+            <translation>去方塊</translation>
+        </message>
+        <message>
+            <source>Capture</source>
+            <translation>擷取</translation>
+        </message>
+        <message>
+            <source>Font</source>
+            <translation>字型</translation>
+        </message>
+        <message>
+            <source>Position</source>
+            <translation>位置</translation>
+        </message>
+        <message>
+            <source>▲Up</source>
+            <translation>▲上</translation>
+        </message>
+        <message>
+            <source>▼Down</source>
+            <translation>▼下</translation>
+        </message>
+        <message>
+            <source>◀Left</source>
+            <translation>◀左</translation>
+        </message>
+        <message>
+            <source>▶Right</source>
+            <translation>▶右</translation>
+        </message>
+        <message>
+            <source>Sync</source>
+            <translation>同步</translation>
+        </message>
+        <message>
+            <source>Slower</source>
+            <translation>較慢</translation>
+        </message>
+        <message>
+            <source>Faster</source>
+            <translation>較快</translation>
+        </message>
+        <message>
+            <source>Seek</source>
+            <translation>跳轉</translation>
+        </message>
+        <message>
+            <source>Seek %1 seconds</source>
+            <translation>跳轉 %1 秒</translation>
+        </message>
+        <message>
+            <source>Speed</source>
+            <translation>速度</translation>
+        </message>
+        <message>
+            <source>A-B</source>
+            <translation>A-B</translation>
+        </message>
+        <message>
+            <source>Set loop start at current position</source>
+            <translation>將目前位置設為循環起點</translation>
+        </message>
+        <message>
+            <source>Set loop end at current position</source>
+            <translation>將目前位置設為循環終點</translation>
+        </message>
+        <message>
+            <source>Undo</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Save captured frame</source>
+            <translation>儲存擷取畫面</translation>
+        </message>
+        <message>
+            <source>PNG image (*.png)</source>
+            <translation>PNG 圖片 (*.png)</translation>
         </message>
     </context>
 </TS>

@@ -52,10 +52,11 @@ Window {
     onIsFullscreenChanged: videoStage.showHint(isFullscreen
         ? qsTr("Fullscreen") : qsTr("Fullscreen off"))
     readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
+        && !controlPanel.active
         && !playlist.menuOpen
         && !mediaDialog.visible
         && !subtitleDialog.visible && !subtitleMenu.visible
-        && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
+        && !appMenu.visible && !infoDialog.visible
         && !advancedSettings.visible && !videoAdjustments.visible
         && !hasInteractiveFocus()
 
@@ -98,7 +99,6 @@ Window {
 
     function focusPlaylistSearch() {
         appMenu.close()
-        settingsMenu.close()
         playlistVisible = true
         Qt.callLater(() => playlist.focusSearch())
     }
@@ -109,7 +109,6 @@ Window {
     }
 
     function showAppMenu(fromBottom: bool) {
-        settingsMenu.close()
         if (appMenu.visible) {
             appMenu.dismiss()
             return
@@ -127,24 +126,24 @@ Window {
     }
 
     function showContextMenu(x: real, y: real) {
-        settingsMenu.close()
         appMenu.dismiss()
         appMenu.popup(Math.max(8, Math.min(x, window.width - appMenu.width - 8)),
             Math.max(8, Math.min(y, window.height - appMenu.height - 8)))
     }
 
-    function showSettingsMenu() {
+    function showControlPanel() {
         appMenu.close()
-        const point = playback.mapToItem(window.contentItem,
-            playback.width - settingsMenu.width - 8, 0)
-        settingsMenu.x = Math.max(8, point.x)
-        settingsMenu.y = Math.max(8, point.y - settingsMenu.height - 8)
-        settingsMenu.open()
+        subtitleMenu.close()
+        if (!controlPanel.positioned) {
+            controlPanel.x = window.x + window.width - controlPanel.width - 24
+            controlPanel.y = window.y + Math.max(24, window.height - controlPanel.height - playback.height - 16)
+            controlPanel.positioned = true
+        }
+        controlPanel.open()
     }
 
     function showAdvancedSettings() {
         appMenu.dismiss()
-        settingsMenu.close()
         subtitleMenu.close()
         advancedSettings.open()
     }
@@ -241,6 +240,12 @@ Window {
         onLanguageSaved: (language) => preferences.defaultLanguage = language
     }
     VideoLibrary { id: videoLibrary; objectName: "videoLibrary" }
+    ControlPanel {
+        id: controlPanel
+        objectName: "controlPanelWindow"
+        transientParent: window
+        player: videoStage
+    }
     VideoAdjustments {
         id: videoAdjustments
         objectName: "videoAdjustmentsDialog"
@@ -478,40 +483,6 @@ Window {
             color: Theme.textPrimary
         }
     }
-    PlayerMenu {
-        id: settingsMenu
-        objectName: "playbackSettingsMenu"
-        parent: window.contentItem
-        PlayerMenuItem { text: qsTr("重複播放"); enabled: false }
-        PlayerMenuItem {
-            objectName: "repeatOffMenuItem"
-            text: qsTr("不重複")
-            checkable: true
-            autoExclusive: true
-            checked: window.repeatMode === 0
-            onTriggered: window.repeatMode = 0
-        }
-        PlayerMenuItem {
-            objectName: "repeatTrackMenuItem"
-            text: qsTr("重複目前檔案")
-            checkable: true
-            autoExclusive: true
-            checked: window.repeatMode === 1
-            onTriggered: window.repeatMode = 1
-        }
-        PlayerMenuItem {
-            objectName: "repeatPlaylistMenuItem"
-            text: qsTr("重複播放清單")
-            checkable: true
-            autoExclusive: true
-            checked: window.repeatMode === 2
-            onTriggered: window.repeatMode = 2
-        }
-        PlayerMenuSeparator {}
-        PlayerMenuItem { action: preferencesAction }
-        PlayerMenuItem { action: associateVideosAction }
-    }
-
     Shortcut { sequence: "Ctrl+O"; onActivated: openMediaAction.trigger() }
     Shortcut { sequence: "Ctrl+L"; onActivated: showPlaylistAction.trigger() }
     Shortcut {
@@ -528,8 +499,9 @@ Window {
     Shortcut {
         sequence: "Escape"
         enabled: window.visibility === Window.FullScreen
+            && !controlPanel.active
             && !playlist.editingSearch && !playlist.menuOpen
-            && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible
+            && !appMenu.visible && !mediaDialog.visible
             && !infoDialog.visible
             && !subtitleDialog.visible && !subtitleMenu.visible
             && !advancedSettings.visible
@@ -740,7 +712,7 @@ Window {
                     width: parent.width
                     visible: window.controlsVisible || (window.isFullscreen
                         && (bottomHover.hovered || playback.interacting || activeFocus
-                            || appMenu.visible || settingsMenu.visible))
+                            || appMenu.visible))
                     height: visible ? Theme.seekHeight + Theme.transportHeight : 0
                     playing: videoStage.playing
                     position: videoStage.position
@@ -752,7 +724,7 @@ Window {
                     playlistVisible: window.playlistVisible
                     onPlaylistRequested: window.playlistVisible = !window.playlistVisible
                     onSearchRequested: window.focusPlaylistSearch()
-                    onSettingsRequested: window.showSettingsMenu()
+                    onSettingsRequested: window.showControlPanel()
                     onMenuRequested: window.showAppMenu(true)
                     onMuteRequested: videoStage.muted = !videoStage.muted
                     onVolumeRequested: (value) => {

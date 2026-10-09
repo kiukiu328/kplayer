@@ -140,6 +140,138 @@ class PlayerTests : public QObject
     }
 
 private slots:
+    void controlPanelControlsPlayback()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("panel.y4m"));
+        QQmlApplicationEngine engine;
+        QList<QQmlError> warnings;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&warnings](const QList<QQmlError> &errors) { warnings.append(errors); });
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *panel = window->findChild<QQuickWindow *>("controlPanelWindow");
+        auto *advanced = window->findChild<QObject *>("advancedSettingsDialog");
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(panel && advanced && video);
+        auto item = [panel](const char *name) { return findItem(panel->contentItem(), name); };
+        QVERIFY(!panel->isVisible());
+        click(window, findItem(window->contentItem(), "settingsButton"));
+        QVERIFY(exposeWindow(panel));
+        QVERIFY(!advanced->property("visible").toBool());
+        QCOMPARE(panel->title(), QStringLiteral("控制面板"));
+        auto *language = engine.singletonInstance<AppLanguage *>("KPlayer", "AppLanguage");
+        language->setLanguage("en");
+        QTRY_COMPARE(panel->title(), QStringLiteral("Control Panel"));
+
+        // Real pointer input changes only the floating panel's native opacity.
+        auto *opacity = item("controlPanelOpacitySlider");
+        QVERIFY(opacity);
+        QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
+                         opacity->mapToScene({opacity->width() / 2, opacity->height() / 2}).toPoint());
+        QTRY_VERIFY(panel->opacity() > 0.25 && panel->opacity() < 0.9);
+        QCOMPARE(window->opacity(), 1.0);
+        panel->setProperty("panelOpacity", 1.0);
+        click(panel, item("controlPanelPinButton"));
+        QVERIFY(panel->flags().testFlag(Qt::WindowStaysOnTopHint));
+        click(panel, item("controlPanelPinButton"));
+        QVERIFY(!panel->flags().testFlag(Qt::WindowStaysOnTopHint));
+        QVERIFY(exposeWindow(panel));
+
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        QTRY_VERIFY(!video->playing());
+        click(panel, item("panelEqualizerCheck"));
+        QVERIFY(video->equalizerEnabled());
+        auto *band = item("panelEqualizerBand0");
+        QTRY_VERIFY(band->isEnabled());
+        band->forceActiveFocus();
+        QTRY_VERIFY(band->hasActiveFocus());
+        QTest::keyClick(panel, Qt::Key_Up);
+        QTRY_COMPARE(video->equalizerBands().first().toDouble(), 0.5);
+        click(panel, item("panelEqualizerCheck"));
+        QVERIFY(!video->equalizerEnabled());
+
+        click(panel, item("controlPanelTab1"));
+        auto *brightness = item("panelbrightnessSlider");
+        brightness->forceActiveFocus();
+        QTest::keyClick(panel, Qt::Key_Left);
+        QTRY_COMPARE(video->brightness(), -1);
+        video->setSoften(true);
+        video->setSharpen(true);
+        video->setDeblock(true);
+        QSignalSpy captured(video, &MpvVideo::frameCaptured);
+        const QUrl capture = QUrl::fromLocalFile(directory.filePath("capture.png"));
+        video->captureFrame(capture);
+        QTRY_COMPARE(captured.size(), 1);
+        QVERIFY(!QImage(capture.toLocalFile()).isNull());
+        video->setSoften(false);
+        video->setSharpen(false);
+        video->setDeblock(false);
+
+        click(panel, item("controlPanelTab2"));
+        click(panel, item("panelSubtitleSlower"));
+        QCOMPARE(video->subtitleDelay(), 0.1);
+        click(panel, item("panelSubtitleFaster"));
+        QCOMPARE(video->subtitleDelay(), 0.0);
+        video->setSubtitleFontSize(24);
+        QTRY_COMPARE(item("panelSubtitleSize")->property("value").toInt(), 24);
+
+        click(panel, item("controlPanelTab3"));
+        click(panel, item("panelSpeedFaster"));
+        QTRY_COMPARE(video->speed(), 1.1);
+        click(panel, item("panelSpeedDefault"));
+        QTRY_COMPARE(video->speed(), 1.0);
+        video->seek(2);
+        QTRY_VERIFY(video->position() >= 2 && video->position() < 3);
+        click(panel, item("panelLoopA"));
+        QCOMPARE(video->loopA(), video->position());
+        video->seek(5);
+        QTRY_VERIFY(video->position() >= 5 && video->position() < 6);
+        click(panel, item("panelLoopB"));
+        QCOMPARE(video->loopB(), video->position());
+        video->play();
+        video->seek(4);
+        QTRY_VERIFY_WITH_TIMEOUT(video->position() < 3, 5000);
+        video->togglePause();
+        click(panel, item("panelLoopUndo"));
+        QCOMPARE(video->loopA(), -1.0);
+        QCOMPARE(video->loopB(), -1.0);
+
+        // Optional artifacts let visual review use the actual rendered QML.
+        const QString screenshots = qEnvironmentVariable("KPLAYER_TEST_SCREENSHOTS");
+        if (!screenshots.isEmpty()) {
+            QVERIFY(QDir().mkpath(screenshots));
+            for (int tab = 0; tab < 4; ++tab) {
+                click(panel, item(qPrintable(QString("controlPanelTab%1").arg(tab))));
+                QVERIFY(panel->grabWindow().save(QDir(screenshots).filePath(QString("panel-%1.png").arg(tab))));
+            }
+        }
+        click(panel, item("controlPanelCloseButton"));
+        QTRY_VERIFY(!panel->isVisible());
+        // Exercise the equalizer on a loaded audio stream, not only video-only media.
+        video->setSource(makeAudio(directory.filePath("equalizer.wav")));
+        video->setEqualizerEnabled(true);
+        video->setPreamp(3);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->playing() && video->position() > 0.1);
+        QCOMPARE(video->errorString(), QString{});
+        video->setEqualizerEnabled(false);
+        video->stop();
+        QVERIFY(exposeWindow(window));
+        QTest::keyClick(window, Qt::Key_F5);
+        QTRY_VERIFY(advanced->property("opened").toBool());
+        QVERIFY(!panel->isVisible());
+        QCOMPARE(video->errorString(), QString{});
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()
+                 ? QString{} : warnings.first().toString()));
+        language->setLanguage("zh_TW");
+    }
+
     void interfaceLanguageSwitchesAndPersists()
     {
         QSettings().clear();
@@ -651,6 +783,8 @@ private slots:
         const int secondId = video->subtitleTracks().last().toMap().value("id").toInt();
         QTRY_COMPARE(video->subtitleTrack(), secondId);
         QVERIFY(video->subtitleTracks().last().toMap().value("label").toString().contains("中文.srt"));
+        // QTest mouse input does not restore native activation after a Windows file picker.
+        QVERIFY(exposeWindow(window));
         click(window, findItem(window->contentItem(), "videoStage"));
         QTest::keyClick(window, Qt::Key_H, Qt::AltModifier);
         QTRY_VERIFY(!video->subtitlesVisible());
@@ -1876,10 +2010,12 @@ private slots:
         QTRY_VERIFY(!window->property("alwaysOnTop").toBool());
         QVERIFY(!window->flags().testFlag(Qt::WindowStaysOnTopHint));
 
-        auto *settings = window->findChild<QObject *>("playbackSettingsMenu");
+        auto *settings = window->findChild<QObject *>("playbackSubmenu");
         auto *appMenu = window->findChild<QObject *>("appMenu");
         QVERIFY(settings && appMenu);
-        click(window, item("settingsButton"));
+        click(window, item("appMenuButton"));
+        QTRY_VERIFY(appMenu->property("opened").toBool());
+        click(window, menuItemAt(appMenu, 6));
         QTRY_VERIFY(settings->property("opened").toBool());
         QTRY_VERIFY(item("repeatTrackMenuItem"));
         click(window, item("repeatTrackMenuItem"));
@@ -1895,7 +2031,9 @@ private slots:
         QCOMPARE(playlist->currentIndex(), 0);
         QCOMPARE(video->source(), first);
 
-        click(window, item("settingsButton"));
+        click(window, item("appMenuButton"));
+        QTRY_VERIFY(appMenu->property("opened").toBool());
+        click(window, menuItemAt(appMenu, 6));
         QTRY_VERIFY(settings->property("opened").toBool());
         click(window, item("repeatPlaylistMenuItem"));
         QTRY_COMPARE(window->property("repeatMode").toInt(), 2);
@@ -1908,7 +2046,9 @@ private slots:
         QTRY_VERIFY(video->playing() && video->seekable());
         QCOMPARE(video->source(), first);
 
-        click(window, item("settingsButton"));
+        click(window, item("appMenuButton"));
+        QTRY_VERIFY(appMenu->property("opened").toBool());
+        click(window, menuItemAt(appMenu, 6));
         QTRY_VERIFY(settings->property("opened").toBool());
         click(window, item("repeatOffMenuItem"));
         QTRY_COMPARE(window->property("repeatMode").toInt(), 0);
