@@ -1,0 +1,7 @@
+set(PLAYER "${CMAKE_INSTALL_PREFIX}/KPlayer.exe")
+set(QT_BIN "@_qt_bin@")
+set(MPV_BIN "@_mpv_lib_dir@/../bin")
+set(WINDEPLOYQT "@WINDEPLOYQT_EXECUTABLE@")
+set(OBJDUMP "@KPLAYER_OBJDUMP@")
+set(QML_DIR "@CMAKE_CURRENT_SOURCE_DIR@/qml")
+include("@CMAKE_CURRENT_SOURCE_DIR@/cmake/DeployWindows.cmake")

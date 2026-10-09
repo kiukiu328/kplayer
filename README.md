@@ -159,6 +159,40 @@ that page from the application menu or run `KPlayer.exe --register-file-types`.
 Existing default choices are preserved. After moving the executable, launch it
 once from its new location to update registration.
 
+### Windows MSI installer
+
+MSI packaging uses CMake 3.30 or newer and WiX Toolset 4, in addition to the
+MSYS2 UCRT64 dependencies above. Install a current [.NET SDK](https://dotnet.microsoft.com/download)
+and WiX 4 once in PowerShell:
+
+```powershell
+dotnet tool install --global wix --version 4.0.6 --allow-roll-forward
+```
+
+Open a new PowerShell terminal so the WiX tool is on `PATH`, then build:
+
+```powershell
+.\scripts\build-msi.ps1
+```
+
+The installer is written to
+`build-windows-msi/msi/KPlayer-0.1.0-windows-x64.msi`, with the version taken
+from `CMakeLists.txt`. The script builds the current source in Release mode and
+packages the executable, Qt plugins and QML imports, libmpv, and runtime DLLs
+in a clean staging directory. Tests, sample media, and build files are excluded.
+
+Use `-Msys2Root 'D:\msys64'`, `-BuildDirectory 'build-custom-msi'`, or
+`-WixRoot 'C:\tools\wix'` to override the tool and output locations. You can
+also configure manually with `-DKPLAYER_BUILD_MSI=ON`, build `KPlayer`, then run
+`cpack --config build-windows-msi/CPackConfig.cmake -C Release -G WIX`.
+
+Double-click the MSI to install using Windows Installer's basic progress UI.
+Installation requires administrator approval, defaults to
+`C:\Program Files\KPlayer`, and creates a Start menu shortcut. Newer releases
+replace the previous installation; rebuilding the same version can also replace
+it. Uninstall from **Settings > Apps > Installed apps**. File type registration
+runs when each user first launches KPlayer, as described above.
+
 ## Controls
 
 Most playback shortcuts apply when focus is in the video area. Text fields and

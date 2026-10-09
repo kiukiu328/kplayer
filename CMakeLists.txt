@@ -179,6 +179,11 @@ if(WIN32)
     endif()
 endif()
 
+option(KPLAYER_BUILD_MSI "Enable Windows MSI packaging with CPack and WiX 4" OFF)
+if(KPLAYER_BUILD_MSI)
+    include(cmake/PackageWindows.cmake)
+endif()
+
 option(KPLAYER_BUILD_TESTS "Build playlist and playback interaction tests" OFF)
 if(KPLAYER_BUILD_TESTS)
     enable_testing()
