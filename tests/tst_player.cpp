@@ -1716,8 +1716,8 @@ private slots:
         QTest::mouseMove(window, handlePoint + QPoint(70, 0), 50);
         QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, handlePoint + QPoint(70, 0));
         QTRY_COMPARE(panel->width(), originalWidth - 70);
-        click(window, item("playlistButton"));
-        click(window, item("playlistButton"));
+        click(window, item("playbackMenuButton"));
+        click(window, item("playbackMenuButton"));
         QCOMPARE(panel->width(), originalWidth - 70);
         // Restore the saved width for other layout tests.
         const QPoint restorePoint = center(handle);
@@ -1757,7 +1757,7 @@ private slots:
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
         QVERIFY(exposeWindow(window));
         auto *panel = findItem(window->contentItem(), QStringLiteral("playlistPanel"));
-        auto *button = findItem(window->contentItem(), QStringLiteral("playlistButton"));
+        auto *button = findItem(window->contentItem(), QStringLiteral("playbackMenuButton"));
         auto *stage = findItem(window->contentItem(), QStringLiteral("videoStage"));
         auto *playlist = window->findChild<PlaylistModel *>();
         auto *video = window->findChild<MpvVideo *>();
@@ -2109,7 +2109,7 @@ private slots:
         const double position = video->position();
         const double volume = video->volume();
         const bool muted = video->muted();
-        click(window, item("playlistButton"));
+        click(window, item("playbackMenuButton"));
         QTRY_VERIFY(!window->property("playlistVisible").toBool());
         QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
         QTRY_VERIFY(window->property("playlistVisible").toBool());
@@ -2482,7 +2482,7 @@ private slots:
         QTRY_COMPARE(bar->mapToScene({0, bar->height()}).y(), qreal(window->height()));
         for (const char *name : {"playButton", "stopButton", "previousButton", "nextButton",
                                 "ejectButton", "positionSlider", "muteButton", "volumeSlider",
-                                "searchMediaButton", "playlistButton", "settingsButton",
+                                "searchMediaButton", "settingsButton",
                                 "playbackMenuButton"}) {
             auto *control = findItem(bar, QString::fromLatin1(name));
             QVERIFY2(control && control->isEnabled(), name);

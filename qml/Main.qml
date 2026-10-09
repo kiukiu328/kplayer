@@ -108,20 +108,13 @@ Window {
         mediaPlaylist.clear()
     }
 
-    function showAppMenu(fromBottom: bool) {
+    function showAppMenu() {
         if (appMenu.visible) {
             appMenu.dismiss()
             return
         }
-        if (fromBottom) {
-            const point = playback.mapToItem(window.contentItem,
-                playback.width - appMenu.width - 8, 0)
-            appMenu.x = Math.max(8, point.x)
-            appMenu.y = Math.max(8, point.y - appMenu.height - 8)
-        } else {
-            appMenu.x = Theme.windowBorder
-            appMenu.y = Theme.windowBorder + titleBar.height
-        }
+        appMenu.x = Theme.windowBorder
+        appMenu.y = Theme.windowBorder + titleBar.height
         appMenu.open()
     }
 
@@ -131,9 +124,13 @@ Window {
             Math.max(8, Math.min(y, window.height - appMenu.height - 8)))
     }
 
-    function showControlPanel() {
+    function toggleControlPanel() {
         appMenu.close()
         subtitleMenu.close()
+        if (controlPanel.visible) {
+            controlPanel.hide()
+            return
+        }
         if (!controlPanel.positioned) {
             controlPanel.x = window.x + window.width - controlPanel.width - 24
             controlPanel.y = window.y + Math.max(24, window.height - controlPanel.height - playback.height - 16)
@@ -677,7 +674,7 @@ Window {
             menuOpen: appMenu.visible
             mediaName: window.mediaPlaylist.currentTitle
             mediaFormat: window.mediaPlaylist.currentFormat
-            onMenuRequested: window.showAppMenu(false)
+            onMenuRequested: window.showAppMenu()
             onPinRequested: window.alwaysOnTop = !window.alwaysOnTop
             onMinimizeRequested: window.showMinimized()
             onMaximizeRequested: {
@@ -751,10 +748,10 @@ Window {
                     volume: videoStage.volume
                     mediaSource: window.mediaPlaylist.currentSource
                     playlistVisible: window.playlistVisible
+                    controlPanelVisible: controlPanel.visible
                     onPlaylistRequested: window.playlistVisible = !window.playlistVisible
                     onSearchRequested: window.focusPlaylistSearch()
-                    onSettingsRequested: window.showControlPanel()
-                    onMenuRequested: window.showAppMenu(true)
+                    onSettingsRequested: window.toggleControlPanel()
                     onMuteRequested: videoStage.muted = !videoStage.muted
                     onVolumeRequested: (value) => {
                         videoStage.volume = value

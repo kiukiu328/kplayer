@@ -532,8 +532,12 @@
     <context>
         <name>PlaybackBar</name>
         <message>
-            <source>Control Panel</source>
-            <translation>Control Panel</translation>
+            <source>Hide control panel</source>
+            <translation>Hide control panel</translation>
+        </message>
+        <message>
+            <source>Show control panel</source>
+            <translation>Show control panel</translation>
         </message>
         <message>
             <location filename="../qml/PlaybackBar.qml" line="72" />

@@ -87,7 +87,7 @@ queued and the first valid entry starts playing immediately.
 - Drag any window edge or corner to resize. Resizing is available in the normal
   window state and respects the minimum window size. Hovering an edge or corner
   shows the corresponding resize cursor.
-- Click the Playlist button to hide or show the playlist. Hiding it expands the
+- Click the bottom Menu button to hide or show the playlist. Hiding it expands the
   play area and keeps the queue and current selection. Drag the divider at the
   playlist's left edge to resize it; its width is saved across launches.
 - Drag one or more files onto the playlist to append them in drop order.
@@ -118,8 +118,8 @@ queued and the first valid entry starts playing immediately.
   playlist, **編輯專輯** to rename it, and **刪除專輯** to delete it. The default
   playlist (預設) cannot be renamed or deleted. Switching playlists stops playback
   and restores that playlist's queue and current track; tabs also switch playlists.
-- Click the top-left KPlayer button, right-click it or the video area, or use the
-  bottom Menu button to open the reference-style Traditional Chinese menu.
+- Click the top-left KPlayer button, or right-click it or the video area, to open
+  the reference-style Traditional Chinese menu.
   It includes shortcut labels, checked states, separators, and nested menus;
   Press Escape or click outside to dismiss it.
   Open (開啟) contains file queueing, search, and Clear Playlist actions.
@@ -143,7 +143,7 @@ queued and the first valid entry starts playing immediately.
 - In **Advanced Settings** (F5), drag the title bar to move the panel. Under
   **General > Interface language**, choose Traditional Chinese or English and
   Save to apply it immediately and remember it for the next launch.
-- The bottom settings button opens a floating **Control Panel** with Audio,
+- The bottom settings button shows or hides a floating **Control Panel** with Audio,
   Video, Subtitle, and Playback tabs. Drag its title bar to move it, use the pin
   to keep it on top, and drag the yellow title-bar slider to change this panel's
   opacity (25–100%). Close or Escape hides the panel; F5 still opens Advanced Settings.

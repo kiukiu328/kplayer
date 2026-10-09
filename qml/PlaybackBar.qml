@@ -11,6 +11,7 @@ Rectangle {
     property real volume: 100
     property url mediaSource
     property bool playlistVisible: true
+    property bool controlPanelVisible: false
     readonly property bool interacting: positionSlider.pressed || volumeSlider.pressed
     signal playPauseRequested()
     signal stopRequested()
@@ -24,7 +25,6 @@ Rectangle {
     signal playlistRequested()
     signal searchRequested()
     signal settingsRequested()
-    signal menuRequested()
 
     function formatTime(seconds: real): string {
         const total = Math.floor(Math.max(0, seconds))
@@ -262,23 +262,13 @@ Rectangle {
             onClicked: root.searchRequested()
         }
         IconButton {
-            objectName: "playlistButton"
-            height: tools.height
-            width: Math.min(Theme.toolButtonWidth, root.width * 0.0645)
-            iconName: "list"
-            label: root.playlistVisible ? qsTr("Hide playlist") : qsTr("Show playlist")
-            iconColor: root.playlistVisible ? Theme.accent : Theme.iconMuted
-            backgroundColor: root.playlistVisible ? Theme.chromeHover : Theme.transparent
-            iconSize: 22
-            onClicked: root.playlistRequested()
-        }
-        IconButton {
             height: tools.height
             width: Math.min(56, root.width * 0.0753)
             objectName: "settingsButton"
             iconName: "settings"
-            label: qsTr("Control Panel")
-            iconColor: Theme.iconMuted
+            label: root.controlPanelVisible ? qsTr("Hide control panel") : qsTr("Show control panel")
+            iconColor: root.controlPanelVisible ? Theme.accent : Theme.iconMuted
+            backgroundColor: root.controlPanelVisible ? Theme.chromeHover : Theme.transparent
             rightDivider: true
             onClicked: root.settingsRequested()
         }
@@ -287,9 +277,11 @@ Rectangle {
             height: tools.height
             width: Math.min(Theme.transportButtonWidth, root.width / 12)
             iconName: "menu"
-            label: qsTr("Menu")
+            label: root.playlistVisible ? qsTr("Hide playlist") : qsTr("Show playlist")
+            iconColor: root.playlistVisible ? Theme.accent : Theme.iconMuted
+            backgroundColor: root.playlistVisible ? Theme.chromeHover : Theme.transparent
             iconSize: 24
-            onClicked: root.menuRequested()
+            onClicked: root.playlistRequested()
         }
     }
 }
