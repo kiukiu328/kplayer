@@ -10,7 +10,7 @@ Window {
     minimumWidth: isFullscreen ? 0 : 1100
     minimumHeight: isFullscreen ? 0 : 500
     visible: true
-    title: "KPlayer"
+    title: qsTr("KPlayer")
     color: Theme.border
     flags: Qt.Window | Qt.FramelessWindowHint
         | (alwaysOnTop ? Qt.WindowStaysOnTopHint : 0)
@@ -171,7 +171,7 @@ Window {
 
     function showInformation(about: bool) {
         infoDialog.title = about ? qsTr("程式資訊") : qsTr("媒體資訊")
-        infoText.text = about ? "KPlayer 0.1.0\n" + qsTr("使用 Qt Quick 與 libmpv 的媒體播放器")
+        infoText.text = about ? qsTr("KPlayer %1\n%2").arg("0.1.0").arg(qsTr("使用 Qt Quick 與 libmpv 的媒體播放器"))
             : qsTr("檔案：") + decodeURIComponent(mediaPlaylist.currentSource.toString())
               + "\n\n" + qsTr("長度：") + formatTime(videoStage.duration)
               + "\n" + qsTr("位置：") + formatTime(videoStage.position)
@@ -463,6 +463,7 @@ Window {
         width: Math.min(420, window.width - 32)
         modal: true
         standardButtons: Dialog.Close
+        onOpened: standardButton(Dialog.Close).text = Qt.binding(() => qsTr("Close"))
         palette.window: Theme.chromeBackground
         palette.windowText: Theme.textPrimary
         palette.text: Theme.textPrimary

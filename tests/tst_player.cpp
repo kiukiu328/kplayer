@@ -1,5 +1,6 @@
 #include "MpvVideo.h"
 #include "MpvPreview.h"
+#include "MpvErrors.h"
 #include "PlaylistModel.h"
 #include "Favorites.h"
 #include "VideoLibrary.h"
@@ -289,9 +290,21 @@ private slots:
             QVERIFY(exposeWindow(window));
             auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
             QVERIFY(dialog);
+            auto hasDialogText = [dialog](const QString &text) {
+                for (auto *child : dialog->findChildren<QObject *>()) {
+                    if (child->property("text").toString() == text)
+                        return true;
+                }
+                return false;
+            };
             QCOMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("zh_TW"));
+            QCOMPARE(dialog->property("pageTitles").value<QJSValue>().toVariant().toStringList(),
+                     QStringList({"一般", "播放", "字幕"}));
+            QCOMPARE(MpvErrors::description(MPV_ERROR_LOADING_FAILED), QStringLiteral("無法載入媒體"));
             QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
             QTRY_VERIFY(dialog->property("opened").toBool());
+            QVERIFY(hasDialogText(QStringLiteral("儲存")));
+            QVERIFY(hasDialogText(QStringLiteral("取消")));
             auto *choice = findItem(window->contentItem(), "interfaceLanguageChoice");
             QVERIFY(choice);
             choice->setProperty("currentIndex", 1);
@@ -304,6 +317,15 @@ private slots:
             QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
             QTRY_COMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("en"));
             QCOMPARE(dialog->property("title").toString(), QStringLiteral("Advanced settings"));
+            QCOMPARE(dialog->property("pageTitles").value<QJSValue>().toVariant().toStringList(),
+                     QStringList({"General", "Playback", "Subtitles"}));
+            QCOMPARE(MpvErrors::description(MPV_ERROR_LOADING_FAILED), QStringLiteral("Could not load media"));
+            QCOMPARE(MpvErrors::description(-999), QStringLiteral("Unknown player error (-999)"));
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QVERIFY(hasDialogText(QStringLiteral("Save")));
+            QVERIFY(hasDialogText(QStringLiteral("Cancel")));
+            QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
             QCOMPARE(findItem(window->contentItem(), "addMediaTab")->property("label").toString(), QStringLiteral("Browse"));
             QCOMPARE(findItem(window->contentItem(), "playlistTab0")->property("label").toString(), QStringLiteral("Default"));
             QCOMPARE(QSettings().value("interface/language").toString(), QStringLiteral("en"));

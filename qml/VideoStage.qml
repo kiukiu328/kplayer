@@ -120,7 +120,7 @@ Rectangle {
         Text {
             height: Theme.watermarkSize
             verticalAlignment: Text.AlignVCenter
-            text: "KPlayer"
+            text: qsTr("KPlayer")
             font.family: Theme.fontFamily
             font.pixelSize: Theme.watermarkFontSize
             color: Theme.watermark

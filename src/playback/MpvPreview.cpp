@@ -1,4 +1,5 @@
 #include "MpvPreview.h"
+#include "MpvErrors.h"
 
 #include <QOpenGLContext>
 #include <QLoggingCategory>
@@ -57,7 +58,7 @@ public:
                 };
                 const int result = mpv_render_context_create(&m_context, m_mpv.get(), params);
                 if (result < 0) {
-                    emit failed(QString::fromUtf8(mpv_error_string(result)));
+                    emit failed(MpvErrors::description(result));
                 } else {
                     mpv_render_context_set_update_callback(m_context, [](void *context) {
                         emit static_cast<MpvPreviewRenderer *>(context)->frameReady();
@@ -77,7 +78,7 @@ public:
             mpv_render_context_update(m_context);
             const int result = mpv_render_context_render(m_context, params);
             if (result < 0)
-                emit failed(QString::fromUtf8(mpv_error_string(result)));
+                emit failed(MpvErrors::description(result));
             else if (m_revision)
                 emit frameRendered(m_revision);
         } else {
@@ -109,7 +110,7 @@ MpvPreview::MpvPreview(QQuickItem *parent) : QQuickFramebufferObject(parent)
 
     auto *handle = mpv_create();
     if (!handle) {
-        setError(QStringLiteral("Preview is unavailable."));
+        setError(tr("Preview is unavailable."));
         return;
     }
     m_mpv = {handle, mpv_terminate_destroy};
@@ -124,14 +125,14 @@ MpvPreview::MpvPreview(QQuickItem *parent) : QQuickFramebufferObject(parent)
              std::pair{"demuxer-readahead-secs", "0"}}) {
         const int result = mpv_set_option_string(handle, name, value);
         if (result < 0) {
-            setError(QString::fromUtf8(mpv_error_string(result)));
+            setError(MpvErrors::description(result));
             m_mpv.reset();
             return;
         }
     }
     const int result = mpv_initialize(handle);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         m_mpv.reset();
         return;
     }
@@ -234,7 +235,7 @@ bool MpvPreview::submitCommand(Command command, const char **arguments)
         return true;
     m_command = Command::None;
     m_failedSource = m_source;
-    setError(QString::fromUtf8(mpv_error_string(result)));
+    setError(MpvErrors::description(result));
     return false;
 }
 
@@ -332,7 +333,7 @@ void MpvPreview::processEvents()
                 m_loading = false;
                 m_seeking = false;
                 m_seekStarted = false;
-                setError(QString::fromUtf8(mpv_error_string(event->error)));
+                setError(MpvErrors::description(event->error));
                 setReady(false);
             }
         } else if (event->event_id == MPV_EVENT_GET_PROPERTY_REPLY
@@ -381,8 +382,8 @@ void MpvPreview::processEvents()
                 m_loaded = false;
                 m_seeking = false;
                 m_seekStarted = false;
-                setError(QStringLiteral("No preview available: %1")
-                             .arg(QString::fromUtf8(mpv_error_string(end->error))));
+                setError(tr("No preview available: %1")
+                             .arg(MpvErrors::description(end->error)));
                 setReady(false);
             }
         }

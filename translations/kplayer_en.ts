@@ -76,6 +76,54 @@
             <source>選擇語言或輸入語言代碼，以逗號分隔優先順序。留空使用自動選擇。儲存後會在下次開啟影片時套用。</source>
             <translation>Choose a language or enter comma-separated codes in priority order. Leave blank for automatic selection. Saved changes apply the next time you open a video.</translation>
         </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
+        </message>
+        <message>
+            <source>繁體中文</source>
+            <translation>Traditional Chinese</translation>
+        </message>
+        <message>
+            <source>English</source>
+            <translation>English</translation>
+        </message>
+        <message>
+            <source>日本語</source>
+            <translation>Japanese</translation>
+        </message>
+        <message>
+            <source>한국어</source>
+            <translation>Korean</translation>
+        </message>
+        <message>
+            <source>Français</source>
+            <translation>French</translation>
+        </message>
+        <message>
+            <source>Deutsch</source>
+            <translation>German</translation>
+        </message>
+        <message>
+            <source>Español</source>
+            <translation>Spanish</translation>
+        </message>
+        <message>
+            <source>Português</source>
+            <translation>Portuguese</translation>
+        </message>
+        <message>
+            <source>Italiano</source>
+            <translation>Italian</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>Save</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
@@ -286,6 +334,14 @@
             <location filename="../src/integration/FileAssociations.cpp" line="110" />
             <source>Could not open Windows Default apps. Open Settings → Apps → Default apps and choose KPlayer.</source>
             <translation>Could not open Windows Default apps. Open Settings → Apps → Default apps and choose KPlayer.</translation>
+        </message>
+        <message>
+            <source>KPlayer video</source>
+            <translation>KPlayer video</translation>
+        </message>
+        <message>
+            <source>Play videos with KPlayer</source>
+            <translation>Play videos with KPlayer</translation>
         </message>
     </context>
     <context>
@@ -520,6 +576,20 @@
             <source>重複播放清單</source>
             <translation>Repeat playlist</translation>
         </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
+        </message>
+        <message>
+            <source>KPlayer %1
+%2</source>
+            <translation>KPlayer %1
+%2</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
     </context>
     <context>
         <name>MpvVideo</name>
@@ -527,6 +597,18 @@
             <location filename="../src/playback/MpvVideo.cpp" line="485" />
             <source>Subtitle %1</source>
             <translation>Subtitle %1</translation>
+        </message>
+        <message>
+            <source>Cannot create the mpv player.</source>
+            <translation>Cannot create the mpv player.</translation>
+        </message>
+        <message>
+            <source>Cannot initialize mpv: %1</source>
+            <translation>Cannot initialize mpv: %1</translation>
+        </message>
+        <message>
+            <source>Cannot play %1: %2</source>
+            <translation>Cannot play %1: %2</translation>
         </message>
     </context>
     <context>
@@ -842,6 +924,14 @@ Double click to play</translation>
             <source>Title: Z–A</source>
             <translation>Title: Z–A</translation>
         </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
     </context>
     <context>
         <name>SubtitleMenu</name>
@@ -933,6 +1023,10 @@ Double click to play</translation>
             <location filename="../qml/TitleBar.qml" line="80" />
             <source>Close</source>
             <translation>Close</translation>
+        </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
         </message>
     </context>
     <context>
@@ -1030,6 +1124,10 @@ Double click to play</translation>
             <location filename="../qml/VideoStage.qml" line="63" />
             <source>No subtitles</source>
             <translation>No subtitles</translation>
+        </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
         </message>
     </context>
     <context>
@@ -1229,6 +1327,130 @@ Double click to play</translation>
         <message>
             <source>PNG image (*.png)</source>
             <translation>PNG image (*.png)</translation>
+        </message>
+    </context>
+    <context>
+        <name>MpvErrors</name>
+        <message>
+            <source>Success</source>
+            <translation>Success</translation>
+        </message>
+        <message>
+            <source>Event queue is full</source>
+            <translation>Event queue is full</translation>
+        </message>
+        <message>
+            <source>Out of memory</source>
+            <translation>Out of memory</translation>
+        </message>
+        <message>
+            <source>Player is not initialized</source>
+            <translation>Player is not initialized</translation>
+        </message>
+        <message>
+            <source>Invalid parameter</source>
+            <translation>Invalid parameter</translation>
+        </message>
+        <message>
+            <source>Option not found</source>
+            <translation>Option not found</translation>
+        </message>
+        <message>
+            <source>Unsupported option format</source>
+            <translation>Unsupported option format</translation>
+        </message>
+        <message>
+            <source>Could not set option</source>
+            <translation>Could not set option</translation>
+        </message>
+        <message>
+            <source>Property not found</source>
+            <translation>Property not found</translation>
+        </message>
+        <message>
+            <source>Unsupported property format</source>
+            <translation>Unsupported property format</translation>
+        </message>
+        <message>
+            <source>Property is unavailable</source>
+            <translation>Property is unavailable</translation>
+        </message>
+        <message>
+            <source>Could not access property</source>
+            <translation>Could not access property</translation>
+        </message>
+        <message>
+            <source>Command failed</source>
+            <translation>Command failed</translation>
+        </message>
+        <message>
+            <source>Could not load media</source>
+            <translation>Could not load media</translation>
+        </message>
+        <message>
+            <source>Could not initialize audio output</source>
+            <translation>Could not initialize audio output</translation>
+        </message>
+        <message>
+            <source>Could not initialize video output</source>
+            <translation>Could not initialize video output</translation>
+        </message>
+        <message>
+            <source>No audio or video to play</source>
+            <translation>No audio or video to play</translation>
+        </message>
+        <message>
+            <source>Unknown media format</source>
+            <translation>Unknown media format</translation>
+        </message>
+        <message>
+            <source>Operation is unsupported</source>
+            <translation>Operation is unsupported</translation>
+        </message>
+        <message>
+            <source>Operation is not implemented</source>
+            <translation>Operation is not implemented</translation>
+        </message>
+        <message>
+            <source>Player error</source>
+            <translation>Player error</translation>
+        </message>
+        <message>
+            <source>Unknown player error (%1)</source>
+            <translation>Unknown player error (%1)</translation>
+        </message>
+    </context>
+    <context>
+        <name>MpvPreview</name>
+        <message>
+            <source>Preview is unavailable.</source>
+            <translation>Preview is unavailable.</translation>
+        </message>
+        <message>
+            <source>No preview available: %1</source>
+            <translation>No preview available: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MpvRenderer</name>
+        <message>
+            <source>Cannot initialize video rendering: %1</source>
+            <translation>Cannot initialize video rendering: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>main</name>
+        <message>
+            <source>KPlayer media player</source>
+            <translation>KPlayer media player</translation>
+        </message>
+        <message>
+            <source>Files or URLs to open and play</source>
+            <translation>Files or URLs to open and play</translation>
+        </message>
+        <message>
+            <source>Register video file types and open Windows Default apps</source>
+            <translation>Register video file types and open Windows Default apps</translation>
         </message>
     </context>
 </TS>

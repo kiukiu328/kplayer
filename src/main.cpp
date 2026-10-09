@@ -10,6 +10,7 @@
 #include <QTimer>
 
 #include "FileAssociations.h"
+#include "AppLanguage.h"
 
 #include <clocale>
 #include <cstdlib>
@@ -37,14 +38,17 @@ int main(int argc, char *argv[])
     QGuiApplication::setDesktopFileName(QStringLiteral("kplayer"));
     QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/KPlayer/icons/kplayer.svg")));
 
+    // Load the saved language before CLI help and Windows registration run.
+    QQmlApplicationEngine engine;
+    engine.singletonInstance<AppLanguage *>("KPlayer", "AppLanguage");
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("KPlayer media player"));
+    parser.setApplicationDescription(QCoreApplication::translate("main", "KPlayer media player"));
     parser.addHelpOption();
     parser.addPositionalArgument(QStringLiteral("media"),
-                                QStringLiteral("Files or URLs to open and play"),
+                                QCoreApplication::translate("main", "Files or URLs to open and play"),
                                 QStringLiteral("[media…]"));
     const QCommandLineOption registerTypes(QStringLiteral("register-file-types"),
-        QStringLiteral("Register video file types and open Windows Default apps"));
+        QCoreApplication::translate("main", "Register video file types and open Windows Default apps"));
     parser.addOption(registerTypes);
     parser.process(app);
 
@@ -60,7 +64,6 @@ int main(int argc, char *argv[])
             qWarning().noquote() << associations.errorString();
     }
 
-    QQmlApplicationEngine engine;
     QList<QUrl> startupFiles;
     for (const QString &argument : parser.positionalArguments())
         startupFiles.append(QUrl::fromUserInput(argument, QDir::currentPath(), QUrl::AssumeLocalFile));

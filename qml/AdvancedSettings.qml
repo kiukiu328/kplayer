@@ -34,6 +34,8 @@ Dialog {
     palette.highlightedText: Theme.chromeBackground
 
     onOpened: {
+        standardButton(Dialog.Save).text = Qt.binding(() => qsTr("Save"))
+        standardButton(Dialog.Cancel).text = Qt.binding(() => qsTr("Cancel"))
         speedLimit.value = Math.round(maximumSpeed * 10)
         customSpeed.value = Math.round(playbackSpeed * 10)
         interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
@@ -146,7 +148,7 @@ Dialog {
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                 spacing: 8
                 Label {
-                    text: "KPlayer"
+                    text: qsTr("KPlayer")
                     color: Theme.textPrimary
                     font.pixelSize: 22
                     font.bold: true
@@ -227,7 +229,7 @@ Dialog {
                             id: interfaceLanguage
                             objectName: "interfaceLanguageChoice"
                             Layout.preferredWidth: root.width < 650 ? 150 : 220
-                            model: ["繁體中文", "English"]
+                            model: [qsTr("繁體中文"), qsTr("English")]
                             Accessible.name: qsTr("介面語言")
                         }
                     }
@@ -288,14 +290,14 @@ Dialog {
                         model: [
                             { label: qsTr("自動 / 自訂"), code: "" },
                             { label: qsTr("中文"), code: "zh,zho,chi" },
-                            { label: "English", code: "en,eng" },
-                            { label: "日本語", code: "ja,jpn" },
-                            { label: "한국어", code: "ko,kor" },
-                            { label: "Français", code: "fr,fra,fre" },
-                            { label: "Deutsch", code: "de,deu,ger" },
-                            { label: "Español", code: "es,spa" },
-                            { label: "Português", code: "pt,por" },
-                            { label: "Italiano", code: "it,ita" }
+                            { label: qsTr("English"), code: "en,eng" },
+                            { label: qsTr("日本語"), code: "ja,jpn" },
+                            { label: qsTr("한국어"), code: "ko,kor" },
+                            { label: qsTr("Français"), code: "fr,fra,fre" },
+                            { label: qsTr("Deutsch"), code: "de,deu,ger" },
+                            { label: qsTr("Español"), code: "es,spa" },
+                            { label: qsTr("Português"), code: "pt,por" },
+                            { label: qsTr("Italiano"), code: "it,ita" }
                         ]
                         onActivated: languageCodes.text = model[currentIndex].code
                     }

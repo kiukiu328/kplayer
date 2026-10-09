@@ -44,7 +44,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            text: "KPlayer"
+            text: qsTr("KPlayer")
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
             color: Theme.textPrimary

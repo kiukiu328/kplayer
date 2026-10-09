@@ -1,4 +1,5 @@
 #include "MpvVideo.h"
+#include "MpvErrors.h"
 
 #include <QDebug>
 #include <QFileInfo>
@@ -56,8 +57,8 @@ public:
                 };
                 const int result = mpv_render_context_create(&m_context, m_mpv.get(), params);
                 if (result < 0) {
-                    emit failed(QStringLiteral("Cannot initialize video rendering: %1")
-                                    .arg(QString::fromUtf8(mpv_error_string(result))));
+                    emit failed(tr("Cannot initialize video rendering: %1")
+                                    .arg(MpvErrors::description(result)));
                 } else {
                     mpv_render_context_set_update_callback(m_context, [](void *ctx) {
                         // Only queue a GUI update from mpv's worker thread.
@@ -78,7 +79,7 @@ public:
                 const int result = mpv_command_async(m_mpv.get(), 0,
                                                      m_stopped || path.isEmpty() ? stop : load);
                 if (result < 0)
-                    emit failed(QString::fromUtf8(mpv_error_string(result)));
+                    emit failed(MpvErrors::description(result));
             }
             auto *fbo = framebufferObject();
             mpv_opengl_fbo target{static_cast<int>(fbo->handle()),
@@ -115,7 +116,7 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
 {
     auto *handle = mpv_create();
     if (!handle) {
-        setError(QStringLiteral("Cannot create the mpv player."));
+        setError(tr("Cannot create the mpv player."));
         return;
     }
     m_mpv = {handle, mpv_terminate_destroy};
@@ -129,15 +130,15 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
              std::pair{"terminal", "no"}}) {
         const int result = mpv_set_option_string(m_mpv.get(), name, value);
         if (result < 0) {
-            setError(QString::fromUtf8(mpv_error_string(result)));
+            setError(MpvErrors::description(result));
             m_mpv.reset();
             return;
         }
     }
     const int result = mpv_initialize(m_mpv.get());
     if (result < 0) {
-        setError(QStringLiteral("Cannot initialize mpv: %1")
-                     .arg(QString::fromUtf8(mpv_error_string(result))));
+        setError(tr("Cannot initialize mpv: %1")
+                     .arg(MpvErrors::description(result)));
         m_mpv.reset();
         return;
     }
@@ -203,7 +204,7 @@ bool MpvVideo::setPaused(bool paused)
     int value = paused ? 1 : 0;
     const int result = mpv_set_property_async(m_mpv.get(), 0, "pause", MPV_FORMAT_FLAG, &value);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return false;
     }
     setPlaybackState(m_stopped, paused);
@@ -222,7 +223,7 @@ void MpvVideo::play()
         const char *selection = "auto";
         const int result = mpv_set_property_async(m_mpv.get(), 0, "sid", MPV_FORMAT_STRING, &selection);
         if (result < 0) {
-            setError(QString::fromUtf8(mpv_error_string(result)));
+            setError(MpvErrors::description(result));
             return;
         }
         setPosition(0);
@@ -246,7 +247,7 @@ void MpvVideo::stop()
         const char *command[] = {"stop", nullptr};
         const int result = mpv_command_async(m_mpv.get(), 0, command);
         if (result < 0)
-            setError(QString::fromUtf8(mpv_error_string(result)));
+            setError(MpvErrors::description(result));
     }
     setPlaybackState(true, false);
     ++m_loadRevision;
@@ -268,7 +269,7 @@ void MpvVideo::setMuted(bool muted)
     int value = muted ? 1 : 0;
     const int result = mpv_set_property_async(m_mpv.get(), 0, "mute", MPV_FORMAT_FLAG, &value);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     m_muted = muted;
@@ -284,7 +285,7 @@ void MpvVideo::setVolume(double volume)
         return;
     const int result = mpv_set_property_async(m_mpv.get(), 0, "volume", MPV_FORMAT_DOUBLE, &volume);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     m_volume = volume;
@@ -314,7 +315,7 @@ void MpvVideo::setSpeed(double speed)
         return;
     const int result = mpv_set_property_async(m_mpv.get(), 0, "speed", MPV_FORMAT_DOUBLE, &speed);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     m_speed = speed;
@@ -338,7 +339,7 @@ void MpvVideo::setAspectRatio(const QString &ratio)
     const int result = mpv_set_property_async(m_mpv.get(), 0, "video-aspect-override",
                                               MPV_FORMAT_STRING, &value);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     m_aspectRatio = ratio;
@@ -380,7 +381,7 @@ void MpvVideo::setVideoAdjustment(const char *name, int value, int &current)
     int64_t property = value;
     const int result = mpv_set_property_async(m_mpv.get(), 0, name, MPV_FORMAT_INT64, &property);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     current = value;
@@ -408,7 +409,7 @@ bool MpvVideo::setControlProperty(const char *name, const QString &value)
     const char *text = encoded.constData();
     const int result = mpv_set_property_async(m_mpv.get(), 0, name, MPV_FORMAT_STRING, &text);
     if (result < 0)
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
     return result >= 0;
 }
 
@@ -476,7 +477,7 @@ void MpvVideo::updateEqualizer()
     const char *command[] = {"af", "add", filter.constData(), nullptr};
     const int result = mpv_command_async(m_mpv.get(), 0, command);
     if (result < 0)
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
     else
         m_equalizerApplied = true;
 }
@@ -515,7 +516,7 @@ void MpvVideo::updateVideoFilters()
     const char *command[] = {"vf", "add", filter.constData(), nullptr};
     const int result = mpv_command_async(m_mpv.get(), 0, command);
     if (result < 0)
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
     else
         m_videoFiltersApplied = true;
 }
@@ -602,7 +603,7 @@ void MpvVideo::captureFrame(const QUrl &file)
     const char *command[] = {"screenshot-to-file", path.constData(), "subtitles", nullptr};
     const int result = mpv_command_async(m_mpv.get(), 1001, command);
     if (result < 0)
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
     else
         m_captureFile = file;
 }
@@ -617,7 +618,7 @@ void MpvVideo::setDefaultSubtitleLanguage(const QString &language)
     const int result = mpv_set_property_async(m_mpv.get(), 0, "slang", MPV_FORMAT_STRING,
                                              &languages);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     m_defaultSubtitleLanguage = normalized;
@@ -631,7 +632,7 @@ void MpvVideo::setSubtitlesVisible(bool visible)
     int value = visible ? 1 : 0;
     const int result = mpv_set_property_async(m_mpv.get(), 0, "sub-visibility", MPV_FORMAT_FLAG, &value);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     m_subtitlesVisible = visible;
@@ -651,7 +652,7 @@ void MpvVideo::setSubtitleTrack(int id)
     const char *command[] = {"set", "sid", value.constData(), nullptr};
     const int result = mpv_command_async(m_mpv.get(), 0, command);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return;
     }
     if (id >= 0)
@@ -667,7 +668,7 @@ bool MpvVideo::addSubtitle(const QUrl &url)
     const char *command[] = {"sub-add", path.constData(), "select", nullptr};
     const int result = mpv_command_async(m_mpv.get(), 0, command);
     if (result < 0) {
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
         return false;
     }
     setSubtitlesVisible(true);
@@ -694,7 +695,7 @@ void MpvVideo::stepFrame(bool forward)
     const char *command[] = {forward ? "frame-step" : "frame-back-step", nullptr};
     const int result = mpv_command_async(m_mpv.get(), 0, command);
     if (result < 0)
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
 }
 
 void MpvVideo::clearSubtitleTracks()
@@ -783,7 +784,7 @@ void MpvVideo::seek(double seconds)
     const char *command[] = {"seek", value.constData(), "absolute+exact", nullptr};
     const int result = mpv_command_async(m_mpv.get(), 0, command);
     if (result < 0)
-        setError(QString::fromUtf8(mpv_error_string(result)));
+        setError(MpvErrors::description(result));
 }
 
 void MpvVideo::seekRelative(double seconds)
@@ -842,7 +843,7 @@ void MpvVideo::processEvents()
         }
         if ((event->event_id == MPV_EVENT_COMMAND_REPLY
              || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY) && event->error < 0)
-            setError(QString::fromUtf8(mpv_error_string(event->error)));
+            setError(MpvErrors::description(event->error));
         if (event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
             const auto *property = static_cast<mpv_event_property *>(event->data);
             if (std::strcmp(property->name, "sid") == 0) {
@@ -899,9 +900,9 @@ void MpvVideo::processEvents()
                 setPosition(0);
                 setDuration(0);
                 setSeekable(false);
-                setError(QStringLiteral("Cannot play %1: %2")
+                setError(tr("Cannot play %1: %2")
                              .arg(m_source.toDisplayString(),
-                                  QString::fromUtf8(mpv_error_string(end->error))));
+                                  MpvErrors::description(end->error)));
             } else if (end->reason == MPV_END_FILE_REASON_EOF) {
                 clearSubtitleTracks();
                 setPlaybackState(true, false);

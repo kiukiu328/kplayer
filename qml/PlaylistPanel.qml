@@ -730,6 +730,8 @@ Rectangle {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.menuFontSize
         onOpened: {
+            standardButton(Dialog.Ok).text = Qt.binding(() => qsTr("OK"))
+            standardButton(Dialog.Cancel).text = Qt.binding(() => qsTr("Cancel"))
             standardButton(Dialog.Ok).enabled = Qt.binding(() => validName)
             playlistName.forceActiveFocus()
             playlistName.selectAll()

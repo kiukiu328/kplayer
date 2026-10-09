@@ -43,6 +43,86 @@
             <source>選擇語言或輸入語言代碼，以逗號分隔優先順序。留空使用自動選擇。儲存後會在下次開啟影片時套用。</source>
             <translation>選擇語言或輸入語言代碼，以逗號分隔優先順序。留空使用自動選擇。儲存後會在下次開啟影片時套用。</translation>
         </message>
+        <message>
+            <source>一般</source>
+            <translation>一般</translation>
+        </message>
+        <message>
+            <source>播放</source>
+            <translation>播放</translation>
+        </message>
+        <message>
+            <source>字幕</source>
+            <translation>字幕</translation>
+        </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
+        </message>
+        <message>
+            <source>語言</source>
+            <translation>語言</translation>
+        </message>
+        <message>
+            <source>繁體中文</source>
+            <translation>繁體中文</translation>
+        </message>
+        <message>
+            <source>English</source>
+            <translation>英文</translation>
+        </message>
+        <message>
+            <source>播放速度</source>
+            <translation>播放速度</translation>
+        </message>
+        <message>
+            <source>最高播放速度 (×)</source>
+            <translation>最高播放速度 (×)</translation>
+        </message>
+        <message>
+            <source>播放速度 (×)</source>
+            <translation>播放速度 (×)</translation>
+        </message>
+        <message>
+            <source>字幕偏好</source>
+            <translation>字幕偏好</translation>
+        </message>
+        <message>
+            <source>日本語</source>
+            <translation>日文</translation>
+        </message>
+        <message>
+            <source>한국어</source>
+            <translation>韓文</translation>
+        </message>
+        <message>
+            <source>Français</source>
+            <translation>法文</translation>
+        </message>
+        <message>
+            <source>Deutsch</source>
+            <translation>德文</translation>
+        </message>
+        <message>
+            <source>Español</source>
+            <translation>西班牙文</translation>
+        </message>
+        <message>
+            <source>Português</source>
+            <translation>葡萄牙文</translation>
+        </message>
+        <message>
+            <source>Italiano</source>
+            <translation>義大利文</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>儲存</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
@@ -232,6 +312,10 @@
             <source>最大化</source>
             <translation>最大化</translation>
         </message>
+        <message>
+            <source>自訂播放速度…</source>
+            <translation>自訂播放速度…</translation>
+        </message>
     </context>
     <context>
         <name>FileAssociations</name>
@@ -249,6 +333,14 @@
             <location filename="../src/integration/FileAssociations.cpp" line="110" />
             <source>Could not open Windows Default apps. Open Settings → Apps → Default apps and choose KPlayer.</source>
             <translation>無法開啟 Windows 預設應用程式。請開啟設定 → 應用程式 → 預設應用程式，然後選擇 KPlayer。</translation>
+        </message>
+        <message>
+            <source>KPlayer video</source>
+            <translation>KPlayer 影片</translation>
+        </message>
+        <message>
+            <source>Play videos with KPlayer</source>
+            <translation>使用 KPlayer 播放影片</translation>
         </message>
     </context>
     <context>
@@ -483,6 +575,20 @@
             <source>重複播放清單</source>
             <translation>重複播放清單</translation>
         </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
+        </message>
+        <message>
+            <source>KPlayer %1
+%2</source>
+            <translation>KPlayer %1
+%2</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>關閉</translation>
+        </message>
     </context>
     <context>
         <name>MpvVideo</name>
@@ -490,6 +596,18 @@
             <location filename="../src/playback/MpvVideo.cpp" line="485" />
             <source>Subtitle %1</source>
             <translation>字幕 %1</translation>
+        </message>
+        <message>
+            <source>Cannot create the mpv player.</source>
+            <translation>無法建立 mpv 播放器。</translation>
+        </message>
+        <message>
+            <source>Cannot initialize mpv: %1</source>
+            <translation>無法初始化 mpv：%1</translation>
+        </message>
+        <message>
+            <source>Cannot play %1: %2</source>
+            <translation>無法播放 %1：%2</translation>
         </message>
     </context>
     <context>
@@ -805,6 +923,14 @@ Double click to play</source>
             <source>Title: Z–A</source>
             <translation>標題：Z–A</translation>
         </message>
+        <message>
+            <source>OK</source>
+            <translation>確定</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
     </context>
     <context>
         <name>SubtitleMenu</name>
@@ -896,6 +1022,10 @@ Double click to play</source>
             <location filename="../qml/TitleBar.qml" line="80" />
             <source>Close</source>
             <translation>關閉</translation>
+        </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
         </message>
     </context>
     <context>
@@ -993,6 +1123,10 @@ Double click to play</source>
             <location filename="../qml/VideoStage.qml" line="63" />
             <source>No subtitles</source>
             <translation>無字幕</translation>
+        </message>
+        <message>
+            <source>KPlayer</source>
+            <translation>KPlayer</translation>
         </message>
     </context>
     <context>
@@ -1192,6 +1326,130 @@ Double click to play</source>
         <message>
             <source>PNG image (*.png)</source>
             <translation>PNG 圖片 (*.png)</translation>
+        </message>
+    </context>
+    <context>
+        <name>MpvErrors</name>
+        <message>
+            <source>Success</source>
+            <translation>成功</translation>
+        </message>
+        <message>
+            <source>Event queue is full</source>
+            <translation>事件佇列已滿</translation>
+        </message>
+        <message>
+            <source>Out of memory</source>
+            <translation>記憶體不足</translation>
+        </message>
+        <message>
+            <source>Player is not initialized</source>
+            <translation>播放器尚未初始化</translation>
+        </message>
+        <message>
+            <source>Invalid parameter</source>
+            <translation>無效的參數</translation>
+        </message>
+        <message>
+            <source>Option not found</source>
+            <translation>找不到選項</translation>
+        </message>
+        <message>
+            <source>Unsupported option format</source>
+            <translation>不支援的選項格式</translation>
+        </message>
+        <message>
+            <source>Could not set option</source>
+            <translation>無法設定選項</translation>
+        </message>
+        <message>
+            <source>Property not found</source>
+            <translation>找不到屬性</translation>
+        </message>
+        <message>
+            <source>Unsupported property format</source>
+            <translation>不支援的屬性格式</translation>
+        </message>
+        <message>
+            <source>Property is unavailable</source>
+            <translation>屬性無法使用</translation>
+        </message>
+        <message>
+            <source>Could not access property</source>
+            <translation>無法存取屬性</translation>
+        </message>
+        <message>
+            <source>Command failed</source>
+            <translation>指令執行失敗</translation>
+        </message>
+        <message>
+            <source>Could not load media</source>
+            <translation>無法載入媒體</translation>
+        </message>
+        <message>
+            <source>Could not initialize audio output</source>
+            <translation>無法初始化音訊輸出</translation>
+        </message>
+        <message>
+            <source>Could not initialize video output</source>
+            <translation>無法初始化視訊輸出</translation>
+        </message>
+        <message>
+            <source>No audio or video to play</source>
+            <translation>沒有可播放的音訊或視訊</translation>
+        </message>
+        <message>
+            <source>Unknown media format</source>
+            <translation>未知的媒體格式</translation>
+        </message>
+        <message>
+            <source>Operation is unsupported</source>
+            <translation>不支援此操作</translation>
+        </message>
+        <message>
+            <source>Operation is not implemented</source>
+            <translation>此操作尚未實作</translation>
+        </message>
+        <message>
+            <source>Player error</source>
+            <translation>播放器錯誤</translation>
+        </message>
+        <message>
+            <source>Unknown player error (%1)</source>
+            <translation>未知的播放器錯誤 (%1)</translation>
+        </message>
+    </context>
+    <context>
+        <name>MpvPreview</name>
+        <message>
+            <source>Preview is unavailable.</source>
+            <translation>無法使用預覽。</translation>
+        </message>
+        <message>
+            <source>No preview available: %1</source>
+            <translation>無法預覽：%1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MpvRenderer</name>
+        <message>
+            <source>Cannot initialize video rendering: %1</source>
+            <translation>無法初始化視訊繪製：%1</translation>
+        </message>
+    </context>
+    <context>
+        <name>main</name>
+        <message>
+            <source>KPlayer media player</source>
+            <translation>KPlayer 媒體播放器</translation>
+        </message>
+        <message>
+            <source>Files or URLs to open and play</source>
+            <translation>要開啟並播放的檔案或網址</translation>
+        </message>
+        <message>
+            <source>Register video file types and open Windows Default apps</source>
+            <translation>註冊影片檔案類型並開啟 Windows 預設應用程式</translation>
         </message>
     </context>
 </TS>

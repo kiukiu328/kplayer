@@ -82,6 +82,7 @@ set(KPLAYER_SOURCES
     src/integration/AppLanguage.cpp
     src/playback/MpvVideo.h
     src/playback/MpvVideo.cpp
+    src/playback/MpvErrors.h
     src/playback/MpvPreview.h
     src/playback/MpvPreview.cpp
     src/playback/PlaylistModel.h

@@ -56,13 +56,13 @@ bool FileAssociations::registerApplication(const QString &executable,
             emptyValue ? 0 : DWORD((value.size() + 1) * sizeof(wchar_t)));
         RegCloseKey(handle);
     };
-    write(classes + progId, {}, QStringLiteral("KPlayer video"));
+    write(classes + progId, {}, tr("KPlayer video"));
     write(classes + progId + "\\DefaultIcon", {}, QStringLiteral("\"%1\",0").arg(path));
     write(classes + progId + "\\shell\\open\\command", {}, command);
     write(appKey, "FriendlyAppName", "KPlayer");
     write(appKey + "\\shell\\open\\command", {}, command);
     write(capabilities, "ApplicationName", "KPlayer");
-    write(capabilities, "ApplicationDescription", "Play videos with KPlayer");
+    write(capabilities, "ApplicationDescription", tr("Play videos with KPlayer"));
     write(capabilities, "ApplicationIcon", QStringLiteral("\"%1\",0").arg(path));
     for (const QString &type : VideoFormats::extensions()) {
         const QString extension = "." + type;
