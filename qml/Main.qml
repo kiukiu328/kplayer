@@ -675,6 +675,8 @@ Window {
             fullscreen: window.visibility === Window.FullScreen
             alwaysOnTop: window.alwaysOnTop
             menuOpen: appMenu.visible
+            mediaName: window.mediaPlaylist.currentTitle
+            mediaFormat: window.mediaPlaylist.currentFormat
             onMenuRequested: window.showAppMenu(false)
             onPinRequested: window.alwaysOnTop = !window.alwaysOnTop
             onMinimizeRequested: window.showMinimized()

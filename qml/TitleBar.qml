@@ -8,6 +8,8 @@ Rectangle {
     property bool fullscreen: false
     property bool alwaysOnTop: false
     property bool menuOpen: false
+    property string mediaName: ""
+    property string mediaFormat: ""
     signal menuRequested()
     signal pinRequested()
     signal minimizeRequested()
@@ -61,6 +63,52 @@ Rectangle {
             height: parent.height
             width: Theme.dividerWidth
             color: Theme.border
+        }
+    }
+
+    Item {
+        id: mediaInfo
+        anchors.left: appButton.right
+        anchors.leftMargin: 12
+        anchors.right: windowControls.left
+        anchors.rightMargin: 20
+        height: parent.height
+        visible: root.mediaName.length > 0
+        clip: true
+
+        Text {
+            id: formatLabel
+            objectName: "titleMediaFormat"
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.mediaFormat
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            color: Theme.textMuted
+            textFormat: Text.PlainText
+        }
+        Rectangle {
+            id: mediaDivider
+            anchors.left: formatLabel.right
+            anchors.leftMargin: visible ? 12 : 0
+            anchors.verticalCenter: parent.verticalCenter
+            width: visible ? Theme.dividerWidth : 0
+            height: Theme.smallFontSize
+            color: Theme.iconMuted
+            visible: root.mediaFormat.length > 0
+        }
+        Text {
+            objectName: "titleMediaName"
+            anchors.left: mediaDivider.right
+            anchors.leftMargin: mediaDivider.visible ? 12 : 0
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.mediaName
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            color: Theme.textPrimary
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
         }
     }
 

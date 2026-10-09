@@ -44,6 +44,16 @@ QUrl PlaylistModel::currentSource() const
     return m_currentIndex >= 0 ? m_tracks.at(m_currentIndex).source : QUrl{};
 }
 
+QString PlaylistModel::currentTitle() const
+{
+    return m_currentIndex >= 0 ? m_tracks.at(m_currentIndex).title : QString{};
+}
+
+QString PlaylistModel::currentFormat() const
+{
+    return QFileInfo(currentSource().fileName(QUrl::FullyDecoded)).suffix().toUpper();
+}
+
 int PlaylistModel::appendUrls(const QList<QUrl> &urls)
 {
     return appendUrlsImpl(urls, false);

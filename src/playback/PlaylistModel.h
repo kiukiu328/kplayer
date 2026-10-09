@@ -12,6 +12,8 @@ class PlaylistModel : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
     Q_PROPERTY(QUrl currentSource READ currentSource NOTIFY currentSourceChanged)
+    Q_PROPERTY(QString currentTitle READ currentTitle NOTIFY currentSourceChanged)
+    Q_PROPERTY(QString currentFormat READ currentFormat NOTIFY currentSourceChanged)
 
 public:
     explicit PlaylistModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
@@ -25,6 +27,8 @@ public:
     int currentIndex() const { return m_currentIndex; }
     void setCurrentIndex(int index);
     QUrl currentSource() const;
+    QString currentTitle() const;
+    QString currentFormat() const;
     Q_INVOKABLE int appendUrls(const QList<QUrl> &urls);
     Q_INVOKABLE int appendUniqueUrls(const QList<QUrl> &urls);
     Q_INVOKABLE int indexOfSource(const QUrl &url) const;
