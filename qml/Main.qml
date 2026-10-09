@@ -31,9 +31,6 @@ Window {
         videoStage.showHint(qsTr("已加入預設字幕語言：%1").arg(language))
     }
     property list<url> startupFiles: []
-    // Desktop startup enables discovery; previews and component tests stay isolated.
-    property bool discoverVideosOnStartup: false
-    property list<url> videoSearchRoots: []
     readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
     property int visibilityBeforeFullscreen: Window.Windowed
     readonly property bool isFullscreen: visibility === Window.FullScreen
@@ -56,7 +53,7 @@ Window {
         ? qsTr("Fullscreen") : qsTr("Fullscreen off"))
     readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
         && !playlist.menuOpen
-        && !mediaDialog.visible && !videoFolderDialog.visible
+        && !mediaDialog.visible
         && !subtitleDialog.visible && !subtitleMenu.visible
         && !appMenu.visible && !settingsMenu.visible && !infoDialog.visible
         && !advancedSettings.visible && !videoAdjustments.visible
@@ -107,8 +104,6 @@ Window {
     }
 
     function clearPlaylist() {
-        if (mediaPlaylist === playlists.defaultPlaylist)
-            videoLibrary.cancel()
         videoStage.stop()
         mediaPlaylist.clear()
     }
@@ -264,34 +259,6 @@ Window {
             mediaPlaylist.appendUrls([mediaSource])
         if (startupFiles.length > 0)
             Qt.callLater(() => window.addOpenedFiles(startupFiles))
-        if (discoverVideosOnStartup)
-            Qt.callLater(() => videoLibrary.scan(playlists.defaultPlaylist, videoSearchRoots))
-    }
-
-    FolderDialog {
-        id: videoFolderDialog
-        objectName: "videoFolderDialog"
-        title: qsTr("Find all videos in a folder")
-        onAccepted: videoLibrary.scan(playlists.defaultPlaylist, [selectedFolder])
-    }
-
-    Action {
-        id: findVideosAction
-        text: qsTr("搜尋所有影片")
-        enabled: !videoLibrary.scanning
-        onTriggered: videoLibrary.scan(playlists.defaultPlaylist, window.videoSearchRoots)
-    }
-    Action {
-        id: findFolderVideosAction
-        text: qsTr("搜尋資料夾內的影片…")
-        enabled: !videoLibrary.scanning
-        onTriggered: videoFolderDialog.open()
-    }
-    Action {
-        id: stopVideoSearchAction
-        text: qsTr("停止搜尋影片")
-        enabled: videoLibrary.scanning
-        onTriggered: videoLibrary.cancel()
     }
     Action {
         id: associateVideosAction
@@ -435,9 +402,6 @@ Window {
         aboutAction: aboutAction
         exitAction: exitAction
         searchAction: searchPlaylistAction
-        findVideosAction: findVideosAction
-        findFolderVideosAction: findFolderVideosAction
-        stopVideoSearchAction: stopVideoSearchAction
         associateVideosAction: associateVideosAction
         player: videoStage
         onAddSubtitleRequested: window.openSubtitles()
@@ -546,9 +510,6 @@ Window {
         PlayerMenuSeparator {}
         PlayerMenuItem { action: preferencesAction }
         PlayerMenuItem { action: associateVideosAction }
-        PlayerMenuItem { action: findVideosAction }
-        PlayerMenuItem { action: findFolderVideosAction }
-        PlayerMenuItem { action: stopVideoSearchAction }
     }
 
     Shortcut { sequence: "Ctrl+O"; onActivated: openMediaAction.trigger() }
@@ -569,7 +530,7 @@ Window {
         enabled: window.visibility === Window.FullScreen
             && !playlist.editingSearch && !playlist.menuOpen
             && !appMenu.visible && !settingsMenu.visible && !mediaDialog.visible
-            && !videoFolderDialog.visible && !infoDialog.visible
+            && !infoDialog.visible
             && !subtitleDialog.visible && !subtitleMenu.visible
             && !advancedSettings.visible
         onActivated: window.toggleFullscreen()
@@ -842,12 +803,6 @@ Window {
                     ? Math.max(360, Math.min(playbackPreferences.playlistWidth, parent.width - 400)) : 0
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
-                discoveryStatus: {
-                    AppLanguage.language
-                    return videoLibrary.status
-                }
-                discoveringVideos: videoLibrary.scanning
-                onStopDiscoveryRequested: videoLibrary.cancel()
                 onTrackRequested: (index) => window.playTrack(index)
                 onAddRequested: window.openMedia(false)
                 onClearRequested: window.clearPlaylist()

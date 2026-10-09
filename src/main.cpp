@@ -45,12 +45,7 @@ int main(int argc, char *argv[])
                                 QStringLiteral("[media…]"));
     const QCommandLineOption registerTypes(QStringLiteral("register-file-types"),
         QStringLiteral("Register video file types and open Windows Default apps"));
-    const QCommandLineOption noScan(QStringLiteral("no-scan"),
-        QStringLiteral("Skip automatic video discovery for this launch"));
-    const QCommandLineOption scanFolder(QStringLiteral("scan-folder"),
-        QStringLiteral("Search this folder instead of all local drives (repeatable)"),
-        QStringLiteral("folder"));
-    parser.addOptions({registerTypes, noScan, scanFolder});
+    parser.addOption(registerTypes);
     parser.process(app);
 
     FileAssociations associations;
@@ -69,18 +64,13 @@ int main(int argc, char *argv[])
     QList<QUrl> startupFiles;
     for (const QString &argument : parser.positionalArguments())
         startupFiles.append(QUrl::fromUserInput(argument, QDir::currentPath(), QUrl::AssumeLocalFile));
-    QList<QUrl> scanRoots;
-    for (const QString &folder : parser.values(scanFolder))
-        scanRoots.append(QUrl::fromLocalFile(QFileInfo(folder).absoluteFilePath()));
     // The optional sample stays idle. Files opened from Explorer start immediately.
     const QString samplePath = QDir::current().filePath(QStringLiteral("assets/dummy.mp4"));
     const QUrl mediaSource = startupFiles.isEmpty() && QFileInfo::exists(samplePath)
         ? QUrl::fromLocalFile(samplePath) : QUrl{};
     engine.setInitialProperties({
         {QStringLiteral("mediaSource"), mediaSource},
-        {QStringLiteral("startupFiles"), QVariant::fromValue(startupFiles)},
-        {QStringLiteral("discoverVideosOnStartup"), !parser.isSet(noScan)},
-        {QStringLiteral("videoSearchRoots"), QVariant::fromValue(scanRoots)}
+        {QStringLiteral("startupFiles"), QVariant::fromValue(startupFiles)}
     });
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(EXIT_FAILURE); },

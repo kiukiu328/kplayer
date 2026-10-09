@@ -734,69 +734,7 @@ private slots:
         QCOMPARE(playlist.appendUniqueUrls({first, second}), 2);
     }
 
-    void videoDiscoverySearchesRecursivelyAndCanRescan()
-    {
-        QTemporaryDir directory;
-        QVERIFY(directory.isValid());
-        QDir root(directory.path());
-        QVERIFY(root.mkpath("nested/deep"));
-        QVERIFY(root.mkpath(".hidden"));
-        QVERIFY(root.mkpath("directory.mp4"));
-        const QUrl first = makeVideo(root.filePath("first.y4m"));
-        const QUrl second = makeVideo(root.filePath("nested/deep/第二部.MP4"));
-        const QUrl third = makeVideo(root.filePath(".hidden/third.mkv"));
-        makeAudio(root.filePath("audio.wav"));
-        makeAudio(root.filePath("nested/readme.txt"));
-        PlaylistModel playlist;
-        playlist.appendUrls({second});
-        VideoLibrary library;
-        QSignalSpy changes(&playlist, &PlaylistModel::currentSourceChanged);
-        QSignalSpy finished(&library, &VideoLibrary::finished);
-        const QList<QUrl> roots = {QUrl::fromLocalFile(root.path()),
-            QUrl::fromLocalFile(root.filePath("nested")),
-            QUrl::fromLocalFile(root.filePath("missing")), QUrl("https://example.com/")};
-        QVERIFY(library.scan(&playlist, roots));
-        QVERIFY(library.scanning());
-        QVERIFY(!library.scan(&playlist, roots));
-        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
-        QVERIFY(!library.scanning());
-        QCOMPARE(library.addedCount(), 2);
-        QVERIFY(library.status().isEmpty());
-        QCOMPARE(playlist.count(), 3);
-        QVERIFY(playlist.indexOfSource(first) >= 0);
-        QVERIFY(playlist.indexOfSource(third) >= 0);
-        QCOMPARE(playlist.currentSource(), second);
-        QCOMPARE(changes.size(), 0);
-        QVERIFY(library.scan(&playlist, roots));
-        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 2, 5000);
-        QCOMPARE(library.addedCount(), 0);
-        QCOMPARE(playlist.count(), 3);
-    }
-
-    void videoDiscoveryCancellationAndDeletedTargetAreSafe()
-    {
-        QTemporaryDir directory;
-        makeVideo(directory.filePath("movie.y4m"));
-        const QList<QUrl> roots = {QUrl::fromLocalFile(directory.path())};
-        PlaylistModel playlist;
-        VideoLibrary library;
-        QSignalSpy finished(&library, &VideoLibrary::finished);
-        QVERIFY(library.scan(&playlist, roots));
-        library.cancel();
-        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
-        QCOMPARE(finished.first().first().toBool(), true);
-        QCOMPARE(playlist.count(), 0);
-        auto *temporaryPlaylist = new PlaylistModel;
-        QVERIFY(library.scan(temporaryPlaylist, roots));
-        delete temporaryPlaylist;
-        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 2, 5000);
-        QVERIFY(!library.scanning());
-        QVERIFY(library.scan(&playlist, roots));
-        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 3, 5000);
-        QCOMPARE(playlist.count(), 1);
-    }
-
-    void videoDiscoveryRejectsTypeScriptButKeepsTransportStreams()
+    void siblingDiscoveryRejectsTypeScriptButKeepsTransportStreams()
     {
         QTemporaryDir directory;
         for (const QString &name : {QStringLiteral("source.ts"), QStringLiteral("source.mts")}) {
@@ -820,27 +758,53 @@ private slots:
         }
         PlaylistModel playlist;
         VideoLibrary library;
-        QSignalSpy finished(&library, &VideoLibrary::finished);
-        QVERIFY(library.scan(&playlist, {QUrl::fromLocalFile(directory.path())}));
-        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
-        QCOMPARE(playlist.count(), 3);
+        const QUrl selected = makeVideo(directory.filePath("selected.y4m"));
+        playlist.appendUrls({selected});
+        QCOMPARE(library.addSiblingVideos(&playlist, {selected}), 3);
+        QCOMPARE(playlist.count(), 4);
         QCOMPARE(playlist.indexOfSource(QUrl::fromLocalFile(directory.filePath("source.ts"))), -1);
         QCOMPARE(playlist.indexOfSource(QUrl::fromLocalFile(directory.filePath("source.mts"))), -1);
     }
 
-    void explorerStartupPlaysSelectedFileAndDiscoversOthers()
+    void startupWithoutOpenedFilesKeepsPlaylistEmpty()
+    {
+        QTemporaryDir directory;
+        makeVideo(directory.filePath("nearby.y4m"));
+        const QString previousDirectory = QDir::currentPath();
+        struct RestoreDirectory {
+            QString path;
+            ~RestoreDirectory() { QDir::setCurrent(path); }
+        } restore{previousDirectory};
+        QVERIFY(QDir::setCurrent(directory.path()));
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(playlist && video);
+        QTest::qWait(200);
+        QCOMPARE(playlist->count(), 0);
+        QVERIFY(video->source().isEmpty());
+        QVERIFY(!video->playing());
+    }
+
+    void explorerStartupOnlyDiscoversSameFolder()
     {
         QTemporaryDir directory;
         const QUrl first = makeVideo(directory.filePath("第一部 video.y4m"));
         const QUrl second = makeVideo(directory.filePath("second.y4m"));
+        QVERIFY(QDir(directory.path()).mkpath("nested/deep"));
+        const QUrl nested = makeVideo(directory.filePath("nested/deep/nested.y4m"));
+        QTemporaryDir otherDirectory;
+        const QUrl unrelated = makeVideo(otherDirectory.filePath("unrelated.y4m"));
         QQmlApplicationEngine engine;
         QList<QQmlError> warnings;
         connect(&engine, &QQmlEngine::warnings, this,
                 [&](const QList<QQmlError> &items) { warnings.append(items); });
         engine.setInitialProperties({
-            {"startupFiles", QVariant::fromValue(QList<QUrl>{first})},
-            {"discoverVideosOnStartup", true},
-            {"videoSearchRoots", QVariant::fromValue(QList<QUrl>{QUrl::fromLocalFile(directory.path())})}
+            {"startupFiles", QVariant::fromValue(QList<QUrl>{first})}
         });
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
@@ -852,16 +816,14 @@ private slots:
         QVERIFY(library && playlists && video);
         QTRY_VERIFY(video->playing());
         QTRY_VERIFY(video->seekable());
-        QTRY_VERIFY(!library->scanning());
         QCOMPARE(playlists->defaultPlaylist()->count(), 2);
         QCOMPARE(playlists->defaultPlaylist()->currentSource(), first);
         QCOMPARE(video->source(), first);
         QCOMPARE(video->loadRevision(), quint64(1));
         QVERIFY(playlists->defaultPlaylist()->indexOfSource(second) >= 0);
+        QCOMPARE(playlists->defaultPlaylist()->indexOfSource(nested), -1);
+        QCOMPARE(playlists->defaultPlaylist()->indexOfSource(unrelated), -1);
         QCOMPARE(playlists->addPlaylist("Other"), 1);
-        QVERIFY(library->scan(playlists->defaultPlaylist(),
-                             {QUrl::fromLocalFile(directory.path())}));
-        QTRY_VERIFY(!library->scanning());
         QCOMPARE(playlists->currentPlaylist()->count(), 0);
         QCOMPARE(playlists->defaultPlaylist()->count(), 2);
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty()

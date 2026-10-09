@@ -29,7 +29,7 @@ the repository also includes Windows build and file-association support.
 - **Find a scene:** seek with keyboard shortcuts or hover over the timeline for
   a frame preview without interrupting playback.
 - **Organize your media:** drag and drop files, search and reorder the queue,
-  switch between named playlists, scan video folders, and save favorites.
+  switch between named playlists, and save favorites.
 - **Adjust the picture:** choose an aspect ratio or change brightness, contrast,
   and saturation during playback.
 
@@ -70,23 +70,11 @@ queued and the first valid entry starts playing immediately.
   adds videos from the same folders to the active playlist, without duplicates
   or scanning subfolders. The queue is sorted in natural filename order (episode 2
   before episode 10). The requested file stays selected and starts playing.
-  This works independently of the background library search, including with
-  `--no-scan`. Add to Playlist and drag-and-drop retain explicit queue order.
-- At startup, a background search recursively adds videos from all local fixed
-  and removable drives to the default playlist on Windows. Other platforms
-  search their standard Videos folders. Files are recognized by extension;
-  TS/MTS files also need a transport-stream header so TypeScript files are ignored.
-  inaccessible folders, symbolic links, junctions, the Recycle Bin, and system
-  volume metadata are skipped. The playlist shows progress and a Stop button.
-  Adding discoveries preserves the playing track and avoids duplicate paths,
-  including files already opened from Explorer. Named playlists stay separate.
-  Clear Playlist stops an active search of the default playlist.
-- **搜尋所有影片** rescans, **搜尋資料夾內的影片…** searches a chosen folder,
-  and **停止搜尋影片** cancels. Search results remain in the queue for the
-  current session. Use `--no-scan` to skip discovery on a launch, or
-  `--scan-folder "C:\Videos"` to restrict it to a folder; repeat `--scan-folder`
-  for multiple roots. `--register-file-types` registers the formats, opens
-  Default apps, and exits.
+  Discovery runs only when a file is opened and stays in its immediate folder;
+  launching the player alone does not search for videos. TS/MTS files need a
+  transport-stream header so TypeScript sources are ignored.
+  Add to Playlist and drag-and-drop retain explicit queue order.
+- `--register-file-types` registers the formats, opens Default apps, and exits.
 
 - Top-right Close, Minimize, Maximize/Restore, and Full Screen/Exit Full Screen
   buttons control the window. Exiting fullscreen restores its prior normal or
@@ -266,7 +254,7 @@ UCRT64 shell, update the installation with `pacman -Syu`. If the update closes
 the shell, reopen it and repeat the command to finish updating. Then install:
 
 ```sh
-pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-declarative mingw-w64-ucrt-x86_64-qt6-svg mingw-w64-ucrt-x86_64-mpv
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-declarative mingw-w64-ucrt-x86_64-qt6-svg mingw-w64-ucrt-x86_64-qt6-tools mingw-w64-ucrt-x86_64-mpv
 ```
 
 From the project directory in PowerShell, build and run with:
@@ -403,7 +391,7 @@ To check QML with Qt's linter, run `cmake --build build --target all_qmllint`.
 
 The optional tests require Qt Test and generate their own temporary WAV and Y4M files.
 They exercise favorite persistence, video adjustments, aspect-ratio controls,
-recursive video discovery, cancellation, duplicate suppression,
+same-folder video discovery, idle startup without discovery, duplicate suppression,
 Explorer-style startup playback, isolated Windows association registration,
 multi-file drops, playlist validation, filtering, queue editing,
 active-track preservation, title/video context-menu opening and dismissal,

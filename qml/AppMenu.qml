@@ -15,9 +15,6 @@ PlayerMenu {
     required property Action aboutAction
     required property Action exitAction
     required property Action searchAction
-    required property Action findVideosAction
-    required property Action findFolderVideosAction
-    required property Action stopVideoSearchAction
     required property Action associateVideosAction
     required property var player
     property string preferredSubtitleLanguages: ""
@@ -56,9 +53,6 @@ PlayerMenu {
             text: qsTr("新增至播放清單…")
             onTriggered: root.addMediaRequested()
         }
-        PlayerMenuItem { objectName: "findVideosMenuItem"; action: root.findVideosAction }
-        PlayerMenuItem { objectName: "findFolderVideosMenuItem"; action: root.findFolderVideosAction }
-        PlayerMenuItem { objectName: "stopVideoSearchMenuItem"; action: root.stopVideoSearchAction }
         PlayerMenuItem {
             objectName: "clearPlaylistMenuItem"
             text: qsTr("清空播放清單")

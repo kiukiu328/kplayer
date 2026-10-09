@@ -10,9 +10,6 @@ Rectangle {
     signal trackRequested(int index)
     signal addRequested()
     signal clearRequested()
-    property string discoveryStatus: ""
-    property bool discoveringVideos: false
-    signal stopDiscoveryRequested()
     readonly property bool editingSearch: search.activeFocus
     readonly property bool menuOpen: playlistOptions.visible || sortOptions.visible
         || playlistNameDialog.visible
@@ -302,44 +299,10 @@ Rectangle {
             }
         }
     }
-    Rectangle {
-        id: discoveryBar
-        anchors.top: tabs.bottom
-        width: parent.width
-        height: root.discoveryStatus.length > 0 ? 28 : 0
-        visible: height > 0
-        color: Theme.chromeBackground
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.right: stopDiscovery.left
-            anchors.rightMargin: 8
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.discoveryStatus
-            elide: Text.ElideRight
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.smallFontSize
-            color: Theme.textMuted
-        }
-        IconButton {
-            id: stopDiscovery
-            objectName: "stopVideoDiscoveryButton"
-            anchors.right: parent.right
-            anchors.rightMargin: 6
-            anchors.verticalCenter: parent.verticalCenter
-            width: 24
-            height: 24
-            visible: root.discoveringVideos
-            iconName: "close"
-            iconSize: 14
-            label: qsTr("Stop finding videos")
-            onClicked: root.stopDiscoveryRequested()
-        }
-    }
     ListView {
         id: trackList
         objectName: "trackList"
-        anchors.top: discoveryBar.bottom
+        anchors.top: tabs.bottom
         anchors.bottom: footer.top
         width: parent.width
         clip: true
