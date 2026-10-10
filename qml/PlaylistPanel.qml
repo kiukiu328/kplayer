@@ -111,7 +111,7 @@ Rectangle {
 
     function updateDrop(y: real) {
         dragY = y
-        const row = trackList.indexAt(10, y + trackList.contentY)
+        const row = trackList.indexAt(10 + trackList.contentX, y + trackList.contentY)
         if (row < 0) {
             dropBoundary = y + trackList.contentY <= 0 ? 0 : playlistModel.count
             dropLineY = dropBoundary === 0 ? 0 : trackList.contentHeight
@@ -152,6 +152,7 @@ Rectangle {
     }
     Connections {
         target: filteredTracks
+        function onDataChanged() { root.mappingRevision++ }
         function onRowsInserted() { root.mappingRevision++ }
         function onRowsRemoved() { root.mappingRevision++ }
         function onRowsMoved() { root.mappingRevision++ }
@@ -277,6 +278,11 @@ Rectangle {
             }
         }
     }
+    FontMetrics {
+        id: trackFont
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.smallFontSize
+    }
     ListView {
         id: trackList
         objectName: "trackList"
@@ -287,6 +293,16 @@ Rectangle {
         model: filteredTracks
         currentIndex: filteredTracks.filteredIndex(root.playlistModel.currentIndex)
         boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.HorizontalAndVerticalFlick
+        contentWidth: {
+            root.mappingRevision
+            const titles = filteredTracks.titles()
+            let longest = 0
+            for (const title of titles)
+                longest = Math.max(longest, trackFont.advanceWidth(title))
+            return Math.max(width, 30 + Math.max(24, String(root.playlistModel.count).length * 8)
+                + 8 + longest + 14 + playlistScrollBar.width)
+        }
         activeFocusOnTab: true
         interactive: !root.draggingTracks
         Keys.onReturnPressed: root.trackRequested(root.selectedSourceIndex)
@@ -321,18 +337,26 @@ Rectangle {
         Accessible.role: Accessible.List
         Accessible.name: qsTr("Playlist items")
         ScrollBar.vertical: ScrollBar { id: playlistScrollBar }
+        ScrollBar.horizontal: ScrollBar {
+            id: playlistHorizontalScrollBar
+            objectName: "playlistHorizontalScrollBar"
+            policy: ScrollBar.AsNeeded
+            visible: trackList.contentWidth > trackList.width
+        }
 
         // Keep the pointer grab on the view while scrolling recycles delegates.
         MouseArea {
+            parent: trackList
             width: trackList.width - playlistScrollBar.width
-            height: trackList.height
+            height: trackList.height - (playlistHorizontalScrollBar.visible
+                ? playlistHorizontalScrollBar.height : 0)
             z: 1
             preventStealing: true
             property point pressPosition
             property int pressedSource: -1
             property bool collapseOnRelease: false
             onPressed: (mouse) => {
-                const row = trackList.indexAt(mouse.x, mouse.y + trackList.contentY)
+                const row = trackList.indexAt(mouse.x + trackList.contentX, mouse.y + trackList.contentY)
                 pressedSource = filteredTracks.sourceIndex(row)
                 if (pressedSource < 0) {
                     mouse.accepted = false
@@ -382,7 +406,7 @@ Rectangle {
                 return filteredTracks.sourceIndex(index)
             }
             readonly property bool current: queueIndex === root.playlistModel.currentIndex
-            width: trackList.width
+            width: trackList.contentWidth
             height: 42
             color: root.selectedRows.includes(queueIndex) || trackHover.hovered
                 ? Theme.chromeHover : Theme.transparent
@@ -425,7 +449,7 @@ Rectangle {
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 text: track.title
-                elide: Text.ElideRight
+                textFormat: Text.PlainText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.smallFontSize
                 color: track.current ? Theme.accent : Theme.textPrimary

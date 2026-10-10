@@ -446,6 +446,7 @@ bool PlaylistCollection::removePlaylist(int index)
     if (index == m_currentIndex)
         setCurrentIndex(index - 1);
     auto *removed = m_playlists.at(index).model;
+    emit playlistAboutToBeRemoved(removed);
     const bool shifted = index < m_currentIndex;
     beginRemoveRows({}, index, index);
     m_playlists.removeAt(index);
@@ -496,4 +497,13 @@ int PlaylistFilterModel::sourceIndex(int filteredRow) const
 int PlaylistFilterModel::filteredIndex(int sourceRow) const
 {
     return sourceModel() ? mapFromSource(sourceModel()->index(sourceRow, 0)).row() : -1;
+}
+
+QStringList PlaylistFilterModel::titles() const
+{
+    QStringList result;
+    result.reserve(rowCount());
+    for (int row = 0; row < rowCount(); ++row)
+        result.append(data(index(row, 0), PlaylistModel::TitleRole).toString());
+    return result;
 }

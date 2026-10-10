@@ -55,6 +55,8 @@ Window {
     }
     property list<url> startupFiles: []
     readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
+    property PlaylistModel playingPlaylist: null
+    readonly property PlaylistModel playbackPlaylist: playingPlaylist ?? mediaPlaylist
     property int visibilityBeforeFullscreen: Window.Windowed
     readonly property bool isFullscreen: visibility === Window.FullScreen
     property bool playlistVisible: true
@@ -137,7 +139,8 @@ Window {
     }
 
     function clearPlaylist() {
-        videoStage.stop()
+        if (mediaPlaylist === playbackPlaylist)
+            videoStage.stop()
         mediaPlaylist.clear()
     }
 
@@ -205,40 +208,45 @@ Window {
     function showInformation(about: bool) {
         infoDialog.title = about ? qsTr("程式資訊") : qsTr("媒體資訊")
         infoText.text = about ? qsTr("KPlayer %1\n%2").arg("0.1.0").arg(qsTr("使用 Qt Quick 與 libmpv 的媒體播放器"))
-            : qsTr("檔案：") + decodeURIComponent(mediaPlaylist.currentSource.toString())
+            : qsTr("檔案：") + decodeURIComponent(videoStage.source.toString())
               + "\n\n" + qsTr("長度：") + formatTime(videoStage.duration)
               + "\n" + qsTr("位置：") + formatTime(videoStage.position)
         infoDialog.open()
     }
 
     function togglePlayback() {
-        if (mediaPlaylist.count === 0)
+        if (playbackPlaylist.count === 0)
             openMedia(true)
         else
             videoStage.togglePause()
     }
 
     function playTrack(index: int) {
-        if (index < 0 || index >= mediaPlaylist.count)
+        playQueueTrack(mediaPlaylist, index)
+    }
+
+    function playQueueTrack(queue: PlaylistModel, index: int) {
+        if (index < 0 || index >= queue.count)
             return
         videoStage.stop()
-        mediaPlaylist.currentIndex = index
+        playingPlaylist = queue
+        queue.currentIndex = index
         videoStage.play()
     }
 
     function skipTrack(offset: int) {
-        playTrack(mediaPlaylist.currentIndex + offset)
+        playQueueTrack(playbackPlaylist, playbackPlaylist.currentIndex + offset)
     }
 
     function advanceAfterEnd() {
-        if (mediaPlaylist.count === 0)
+        if (playbackPlaylist.count === 0)
             return
         if (repeatMode === 1)
-            playTrack(mediaPlaylist.currentIndex)
-        else if (mediaPlaylist.currentIndex + 1 < mediaPlaylist.count)
+            playQueueTrack(playbackPlaylist, playbackPlaylist.currentIndex)
+        else if (playbackPlaylist.currentIndex + 1 < playbackPlaylist.count)
             skipTrack(1)
         else if (repeatMode === 2)
-            playTrack(0)
+            playQueueTrack(playbackPlaylist, 0)
     }
 
     PlaylistCollection {
@@ -276,6 +284,7 @@ Window {
             lastWindowedHeight = height
     }
     onClosing: {
+        videoStage.saveResumePosition()
         windowPreferences.normalWidth = lastWindowedWidth
         windowPreferences.normalHeight = lastWindowedHeight
         windowPreferences.maximized = (isFullscreen ? visibilityBeforeFullscreen : visibility) === Window.Maximized
@@ -324,9 +333,17 @@ Window {
     FileAssociations { id: fileAssociations; objectName: "fileAssociations" }
     Connections {
         target: playlists
-        function onCurrentPlaylistChanged() { videoStage.stop() }
+        function onCurrentPlaylistChanged() {
+            if (videoStage.stopped)
+                window.playingPlaylist = window.mediaPlaylist
+        }
+        function onPlaylistAboutToBeRemoved(queue: PlaylistModel) {
+            if (window.playingPlaylist === queue)
+                window.playingPlaylist = window.mediaPlaylist
+        }
     }
     Component.onCompleted: {
+        playingPlaylist = mediaPlaylist
         width = Math.max(minimumWidth, Math.min(windowPreferences.normalWidth, Screen.width))
         height = Math.max(minimumHeight, Math.min(windowPreferences.normalHeight, Screen.height))
         lastWindowedWidth = width
@@ -339,6 +356,7 @@ Window {
         if (startupFiles.length > 0) {
             playlists.currentIndex = 0
             playlists.defaultPlaylist.clear()
+            playingPlaylist = playlists.defaultPlaylist
             Qt.callLater(() => window.addOpenedFiles(startupFiles))
         } else if (mediaSource.toString().length > 0) {
             mediaPlaylist.appendUrls([mediaSource])
@@ -448,7 +466,7 @@ Window {
         id: closeMediaAction
         text: qsTr("關閉檔案")
         shortcut: "F4"
-        enabled: window.mediaPlaylist.count > 0
+        enabled: window.playbackPlaylist.count > 0
         onTriggered: videoStage.stop()
     }
     Action {
@@ -469,7 +487,7 @@ Window {
         id: mediaInfoAction
         text: qsTr("媒體資訊…")
         shortcut: "Ctrl+F1"
-        enabled: window.mediaPlaylist.count > 0
+        enabled: window.playbackPlaylist.count > 0
         onTriggered: window.showInformation(false)
     }
     Action {
@@ -524,7 +542,7 @@ Window {
             appMenu.dismiss()
             videoAdjustments.open()
         }
-        hasMedia: window.mediaPlaylist.count > 0
+        hasMedia: window.playbackPlaylist.count > 0
         playing: videoStage.playing
         seekable: videoStage.seekable
         muted: videoStage.muted
@@ -767,7 +785,8 @@ Window {
         TitleBar {
             id: titleBar
             objectName: "titleBar"
-            visible: !window.isFullscreen
+            z: 3
+            visible: !window.isFullscreen || topHover.hovered || appMenu.visible
             height: visible ? Theme.titleHeight : 0
             anchors.top: parent.top
             width: parent.width
@@ -775,12 +794,14 @@ Window {
             fullscreen: window.visibility === Window.FullScreen
             alwaysOnTop: window.alwaysOnTop
             menuOpen: appMenu.visible
-            mediaName: window.mediaPlaylist.currentTitle
-            mediaFormat: window.mediaPlaylist.currentFormat
+            mediaName: window.playbackPlaylist.currentTitle
+            mediaFormat: window.playbackPlaylist.currentFormat
             onMenuRequested: window.showAppMenu()
             onPinRequested: window.alwaysOnTop = !window.alwaysOnTop
             onMinimizeRequested: window.showMinimized()
             onMaximizeRequested: {
+                if (window.isFullscreen)
+                    window.toggleFullscreen()
                 if (window.visibility === Window.Maximized)
                     window.showNormal()
                 else
@@ -791,9 +812,21 @@ Window {
         }
 
         Item {
+            anchors.top: parent.top
+            width: parent.width
+            height: Theme.titleHeight + 16
+            z: 4
+            HoverHandler {
+                id: topHover
+                enabled: window.isFullscreen
+                blocking: false
+            }
+        }
+
+        Item {
             id: playerBody
-            anchors.top: titleBar.bottom
-            anchors.topMargin: window.isFullscreen ? 0 : Theme.dividerWidth
+            anchors.top: parent.top
+            anchors.topMargin: window.isFullscreen ? 0 : titleBar.height + Theme.dividerWidth
             anchors.bottom: parent.bottom
             width: parent.width
 
@@ -807,7 +840,8 @@ Window {
                 VideoStage {
                     id: videoStage
                     persistent: true
-                    source: window.mediaPlaylist.currentSource
+                    source: window.playbackPlaylist.currentSource
+                    subtitleBottomInset: window.isFullscreen && playback.visible ? playback.height : 0
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -823,7 +857,7 @@ Window {
                 }
                 Item {
                     anchors.left: parent.left
-                    anchors.right: parent.right
+                    width: playback.width
                     anchors.bottom: parent.bottom
                     height: playback.implicitHeight + 16
                     z: 1
@@ -837,7 +871,7 @@ Window {
                     id: playback
                     objectName: "playbackBar"
                     anchors.bottom: parent.bottom
-                    width: parent.width
+                    width: parent.width - (window.isFullscreen && playlist.visible ? playlist.width : 0)
                     visible: window.controlsVisible || (window.isFullscreen
                         && (bottomHover.hovered || playback.interacting || activeFocus
                             || appMenu.visible))
@@ -848,7 +882,7 @@ Window {
                     seekable: videoStage.seekable
                     muted: videoStage.muted
                     volume: videoStage.volume
-                    mediaSource: window.mediaPlaylist.currentSource
+                    mediaSource: videoStage.source
                     playlistVisible: window.playlistVisible
                     controlPanelVisible: controlPanel.visible
                     onPlaylistRequested: window.playlistVisible = !window.playlistVisible
@@ -907,7 +941,7 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: window.isFullscreen ? playback.implicitHeight : 0
+                anchors.topMargin: window.isFullscreen ? titleBar.height : 0
                 z: 1
                 visible: window.playlistVisible || (window.isFullscreen
                     && (playlistHover.hovered || editingSearch || menuOpen
@@ -928,7 +962,7 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: window.isFullscreen ? playback.implicitHeight : 0
+                anchors.topMargin: window.isFullscreen ? titleBar.height : 0
                 width: playlist.visible ? playlist.width + 16 : 16
                 z: 1
                 HoverHandler {

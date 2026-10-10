@@ -89,6 +89,7 @@ signals:
     void countChanged();
     void currentIndexChanged();
     void currentPlaylistChanged();
+    void playlistAboutToBeRemoved(PlaylistModel *playlist);
     void currentNameChanged();
     void persistentChanged();
 
@@ -119,6 +120,7 @@ public:
     void setSearchText(const QString &text);
     Q_INVOKABLE int sourceIndex(int filteredRow) const;
     Q_INVOKABLE int filteredIndex(int sourceRow) const;
+    Q_INVOKABLE QStringList titles() const;
 
 signals:
     void playlistChanged();

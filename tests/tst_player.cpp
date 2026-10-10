@@ -935,7 +935,15 @@ private slots:
             click(window, findItem(window->contentItem(), "settingsPage2"));
             auto *codes = findItem(window->contentItem(), "subtitleLanguageCodes");
             QVERIFY(codes);
+            // The language field is below the fold on the subtitle settings page.
+            auto *scroll = findItem(window->contentItem(), "advancedSettingsScroll");
+            auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
+            QVERIFY(flickable);
+            QTRY_VERIFY(flickable->property("contentHeight").toReal() > flickable->height());
+            flickable->setProperty("contentY", std::max(0.0,
+                flickable->property("contentHeight").toReal() - flickable->height()));
             click(window, codes);
+            QTRY_VERIFY(codes->hasActiveFocus());
             QTest::keyClick(window, Qt::Key_X);
             QTest::keyClick(window, Qt::Key_C);
             QTest::keyClick(window, Qt::Key_Z);
@@ -1227,6 +1235,19 @@ private slots:
         QVERIFY(!repositioned.isEmpty());
         QVERIFY(repositioned.left() < styled.left());
         QVERIFY(repositioned.top() < styled.top());
+        video->setSubtitleBottomInset(60);
+        QCOMPARE(video->subtitlePosition(), 60); // UI clearance never changes the saved setting.
+        QTest::qWait(200);
+        const QString inset = capture("inset");
+        QTRY_COMPARE(captures.count(), 4);
+        const QRect raised = textBounds(inset);
+        QVERIFY(!raised.isEmpty());
+        QVERIFY(qAbs(repositioned.top() - raised.top() - 60) <= 3);
+        video->setSubtitleBottomInset(0);
+        QTest::qWait(200);
+        const QString restored = capture("restored");
+        QTRY_COMPARE(captures.count(), 5);
+        QCOMPARE(textBounds(restored), repositioned);
         QCOMPARE(video->errorString(), QString{});
     }
 
@@ -1750,8 +1771,8 @@ private slots:
         QTRY_VERIFY(menu->property("opened").toBool());
         click(window, menuItemAt(menu, 0));
         QTRY_COMPARE(playlists->currentPlaylist(), defaultQueue);
-        QTRY_COMPARE(video->source(), first);
-        QVERIFY(video->stopped());
+        QCOMPARE(video->source(), second);
+        QVERIFY(video->playing());
         QCOMPARE(defaultQueue->count(), 1);
         QCOMPARE(musicQueue->currentSource(), second);
         click(window, arrow);
@@ -1767,8 +1788,8 @@ private slots:
         defaultTab->forceActiveFocus();
         QTest::keyClick(window, Qt::Key_Space);
         QTRY_COMPARE(playlists->currentPlaylist(), defaultQueue);
-        QCOMPARE(video->source(), first);
-        QVERIFY(video->stopped());
+        QCOMPARE(video->source(), second);
+        QVERIFY(video->playing());
         auto *musicTab = item("playlistTab1");
         QVERIFY(musicTab);
         click(window, musicTab);
@@ -2116,6 +2137,156 @@ private slots:
         QCOMPARE(playlist.currentIndex(), 1);
         QCOMPARE(playlist.appendUrls({QUrl{}, QUrl("not-a-file"),
                                      QUrl("https:/missing-host.mp4")}), 0);
+    }
+
+    void playbackResumesPerFileAndAcrossRestarts()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeAudio(directory.filePath("resume.wav"));
+        const QUrl second = makeAudio(directory.filePath("other.wav"));
+        const auto load = [](QQmlApplicationEngine &engine, const QUrl &source) {
+            QQmlComponent component(&engine);
+            component.setData(R"(
+                import QtQuick
+                import KPlayer
+                Window {
+                    width: 640; height: 360; visible: true
+                    property url mediaSource
+                    MpvVideo { anchors.fill: parent; persistent: true; source: mediaSource }
+                }
+            )", QUrl());
+            return qobject_cast<QQuickWindow *>(component.createWithInitialProperties({{"mediaSource", source}}));
+        };
+        {
+            QQmlApplicationEngine engine;
+            QScopedPointer<QQuickWindow> root(load(engine, first));
+            auto *window = root.data();
+            QVERIFY(window && exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+            video->togglePause();
+            video->seek(8);
+            QTRY_VERIFY(qAbs(video->position() - 8) < 0.1);
+            video->stop();
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->position() >= 8);
+            video->togglePause();
+            video->setSource(second);
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+            QVERIFY(video->position() < 2);
+            video->togglePause();
+            video->seek(4);
+            QTRY_VERIFY(qAbs(video->position() - 4) < 0.1);
+            video->setSource(first);
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->position() >= 8);
+            video->togglePause();
+            video->seek(12);
+            QTRY_VERIFY(qAbs(video->position() - 12) < 0.1);
+            // Destruction saves even if the player was paused rather than stopped.
+        }
+        {
+            QQmlApplicationEngine engine;
+            QScopedPointer<QQuickWindow> root(load(engine, first));
+            auto *window = root.data();
+            QVERIFY(window && exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+            QVERIFY(video->position() >= 12 && video->position() < 14);
+            video->setSource(second);
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+            QVERIFY(video->position() >= 4 && video->position() < 6);
+            QTRY_VERIFY(video->playing());
+            video->seek(29.5);
+            QTRY_VERIFY_WITH_TIMEOUT(video->stopped(), 5000);
+            video->play();
+            QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+            QVERIFY(video->position() < 2);
+        }
+    }
+
+    void playlistTabsPreservePlayback()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("original.y4m"));
+        const QUrl second = makeVideo(directory.filePath("next.y4m"));
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *queues = window->findChild<PlaylistCollection *>();
+        auto *original = queues->currentPlaylist();
+        original->appendUrls({second});
+        queues->addPlaylist("Browsing");
+        queues->currentPlaylist()->appendUrls({second});
+        queues->setCurrentIndex(0);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->seek(6);
+        QTRY_VERIFY(video->position() >= 6);
+        const quint64 revision = video->loadRevision();
+        click(window, findItem(window->contentItem(), "playlistTab1"));
+        QTRY_COMPARE(queues->currentIndex(), 1);
+        QCOMPARE(video->source(), first);
+        QCOMPARE(video->loadRevision(), revision);
+        QVERIFY(video->playing());
+        QVERIFY(video->position() >= 6);
+        QTRY_VERIFY(findItem(window->contentItem(), "track0"));
+        click(window, findItem(window->contentItem(), "track0"));
+        QCOMPARE(video->source(), first);
+        QVERIFY(video->playing());
+        QVERIFY(QMetaObject::invokeMethod(window, "skipTrack", Q_ARG(int, 1)));
+        QTRY_COMPARE(video->source(), second);
+        QCOMPARE(original->currentIndex(), 1);
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        // Explicit activation switches the playing queue to the browsed tab.
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(window->property("playingPlaylist").value<PlaylistModel *>(), queues->currentPlaylist());
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        QVERIFY(queues->removePlaylist(1));
+        QTRY_COMPARE(queues->count(), 1);
+        QTest::qWait(100);
+        QVERIFY2(warnings.isEmpty(), "Playlist browsing generated QML warnings");
+    }
+
+    void playlistHorizontalScrollKeepsSelection()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *queue = window->findChild<PlaylistModel *>();
+        queue->appendUrls({QUrl("https://example.com/" + QString(180, 'W') + ".mkv"),
+                           QUrl("https://example.com/short.mkv")});
+        auto *list = findItem(window->contentItem(), "trackList");
+        auto *scroll = findItem(list, "playlistHorizontalScrollBar");
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        QVERIFY(list && scroll && panel);
+        QTRY_VERIFY(list->property("contentWidth").toReal() > list->width() + 500);
+        QTRY_VERIFY(scroll->isVisible());
+        const QPoint start = scroll->mapToScene({20, scroll->height() / 2}).toPoint();
+        const QPoint end = scroll->mapToScene({scroll->width() - 30, scroll->height() / 2}).toPoint();
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(window, end, 100);
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+        QTRY_VERIFY(list->property("contentX").toReal() > 100);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, list->mapToScene({100, 63}).toPoint());
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), 1);
+        QCOMPARE(queue->currentIndex(), 0);
+        auto *search = findItem(window->contentItem(), "playlistSearch");
+        search->setProperty("text", "short");
+        QTRY_COMPARE(list->property("count").toInt(), 1);
+        QTRY_COMPARE(list->property("contentWidth").toReal(), list->width());
+        QTRY_VERIFY(!scroll->isVisible());
     }
 
     void playlistSearchAndEditingPreservePlayback()
@@ -2991,6 +3162,7 @@ private slots:
         auto *video = window->findChild<MpvVideo *>();
         auto *hint = findItem(window->contentItem(), "playbackHint");
         QVERIFY(video && hint);
+        QCOMPARE(hint->property("font").value<QFont>().family(), QGuiApplication::font().family());
         video->setSpeed(1.1);
         QTRY_VERIFY(hint->isVisible());
         QCOMPARE(hint->property("text").toString(), QStringLiteral("1.1x"));
@@ -3008,6 +3180,36 @@ private slots:
         QCOMPARE(hint->property("text").toString(), QStringLiteral("Repeat playlist"));
         QTRY_VERIFY_WITH_TIMEOUT(!hint->isVisible(), 3000);
         QSettings().remove("interface/language");
+    }
+
+    void arrowSeekingShowsCurrentTime()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("seek-hint.y4m"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        auto *hint = findItem(stage, "playbackHint");
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_Right);
+        QTRY_VERIFY(qAbs(video->position() - 10) < 1);
+        QTRY_VERIFY(hint->isVisible());
+        QTRY_COMPARE(hint->property("text").toString(), QStringLiteral("00:00:10 / 00:00:30"));
+        QTest::keyClick(window, Qt::Key_Left);
+        QTRY_VERIFY(video->position() < 1);
+        QTRY_COMPARE(hint->property("text").toString(), QStringLiteral("00:00:00 / 00:00:30"));
+        QTest::keyClick(window, Qt::Key_Right, Qt::ControlModifier);
+        QTRY_VERIFY(video->position() >= 29);
+        QTRY_VERIFY(hint->property("text").toString().startsWith("00:00:29")
+                    || hint->property("text").toString().startsWith("00:00:30"));
     }
 
     void fullscreenRestoresLayoutAndWindowState()
@@ -3033,9 +3235,23 @@ private slots:
         QTRY_VERIFY(!bar->isVisible());
         QTest::mouseMove(window, QPoint(window->width() / 2, window->height() - 2));
         QTRY_VERIFY(bar->isVisible());
+        auto *video = window->findChild<MpvVideo *>();
+        QTRY_COMPARE(video->subtitleBottomInset(), bar->height());
         QTRY_COMPARE(stage->size(), QSizeF(window->size()));
         QTest::mouseMove(window, QPoint(window->width() / 2, 100));
         QTRY_VERIFY(!bar->isVisible());
+        QTRY_COMPARE(video->subtitleBottomInset(), 0.0);
+        QTest::mouseMove(window, QPoint(window->width() / 2, 2));
+        QTRY_VERIFY(title->isVisible());
+        QTRY_COMPARE(stage->size(), QSizeF(window->size()));
+        auto *pin = findItem(title, "pinButton");
+        const bool pinned = window->property("alwaysOnTop").toBool();
+        click(window, pin);
+        QTRY_COMPARE(window->property("alwaysOnTop").toBool(), !pinned);
+        QVERIFY(title->isVisible());
+        click(window, findItem(title, "pinButton"));
+        QTest::mouseMove(window, QPoint(window->width() / 2, 100));
+        QTRY_VERIFY(!title->isVisible());
         QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
         QTRY_COMPARE(window->visibility(), QWindow::Windowed);
         QTRY_VERIFY(title->isVisible());
@@ -3126,7 +3342,9 @@ private slots:
         click(window, button);
         QTRY_VERIFY(window->property("playlistVisible").toBool());
         QVERIFY(panel->isVisible());
-        QVERIFY(panel->mapToScene({0, panel->height()}).y() <= bar->mapToScene({0, 0}).y());
+        QTRY_COMPARE(panel->mapToScene({0, panel->height()}).y(), qreal(window->height()));
+        QTRY_COMPARE(bar->width(), qreal(window->width()) - panel->width());
+        QVERIFY(bar->mapToScene({bar->width(), 0}).x() <= panel->mapToScene({0, 0}).x());
         click(window, button);
         QTRY_VERIFY(!window->property("playlistVisible").toBool());
         QTRY_VERIFY(!panel->isVisible());
@@ -3540,7 +3758,7 @@ private slots:
             QCOMPARE(previewTimestamp->property("text").toString(),
                      QStringLiteral("00:00:%1").arg(timestampSeconds, 2, 10, QLatin1Char('0')));
             QCOMPARE(seekRequests.count(), 0);
-            QCOMPARE(video->position(), pausedPosition);
+            QVERIFY(qAbs(video->position() - pausedPosition) < 0.001);
         }
         // Hovering the padded ends clamps previews to the media's actual range.
         QTest::mouseMove(window, seek->mapToScene({1, seek->height() / 2}).toPoint(), 20);
@@ -3549,7 +3767,7 @@ private slots:
                         seek->mapToScene({seek->width() - 1, seek->height() / 2}).toPoint(), 20);
         QTRY_COMPARE(seek->property("previewTime").toDouble(), rangeEnd);
         QCOMPARE(seekRequests.count(), 0);
-        QCOMPARE(video->position(), pausedPosition);
+        QVERIFY(qAbs(video->position() - pausedPosition) < 0.001);
         QTest::mouseMove(window, stageCenter, 20);
         QTRY_VERIFY(!seek->property("previewVisible").toBool());
 

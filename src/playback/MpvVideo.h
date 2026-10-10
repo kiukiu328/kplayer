@@ -3,6 +3,7 @@
 #include <QQuickFramebufferObject>
 #include <QUrl>
 #include <QVariantList>
+#include <QHash>
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
@@ -45,6 +46,7 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(QString subtitleFont READ subtitleFont WRITE setSubtitleFont NOTIFY subtitleStyleChanged)
     Q_PROPERTY(int subtitleFontSize READ subtitleFontSize WRITE setSubtitleFontSize NOTIFY subtitleStyleChanged)
     Q_PROPERTY(int subtitlePosition READ subtitlePosition WRITE setSubtitlePosition NOTIFY subtitleStyleChanged)
+    Q_PROPERTY(double subtitleBottomInset READ subtitleBottomInset WRITE setSubtitleBottomInset NOTIFY subtitleBottomInsetChanged)
     Q_PROPERTY(int subtitleAlignment READ subtitleAlignment WRITE setSubtitleAlignment NOTIFY subtitleStyleChanged)
     Q_PROPERTY(double subtitleDelay READ subtitleDelay WRITE setSubtitleDelay NOTIFY subtitleStyleChanged)
     Q_PROPERTY(double loopA READ loopA NOTIFY loopPointsChanged)
@@ -81,6 +83,7 @@ public:
     double volume() const { return m_volume; }
     void setVolume(double volume);
     quint64 loadRevision() const { return m_loadRevision; }
+    double startPosition() const { return m_startPosition; }
     double maximumSpeed() const { return m_maximumSpeed; }
     void setMaximumSpeed(double speed);
     double speed() const { return m_speed; }
@@ -117,6 +120,8 @@ public:
     void setSubtitleFontSize(int size);
     int subtitlePosition() const { return m_subtitlePosition; }
     void setSubtitlePosition(int position);
+    double subtitleBottomInset() const { return m_subtitleBottomInset; }
+    void setSubtitleBottomInset(double pixels);
     int subtitleAlignment() const { return m_subtitleAlignment; }
     void setSubtitleAlignment(int alignment);
     double subtitleDelay() const { return m_subtitleDelay; }
@@ -146,6 +151,7 @@ public:
     Q_INVOKABLE void retranslateSubtitles();
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void seekRelative(double seconds);
+    Q_INVOKABLE void saveResumePosition();
 
 signals:
     void persistentChanged();
@@ -167,6 +173,8 @@ signals:
     void audioControlsChanged();
     void videoFiltersChanged();
     void subtitleStyleChanged();
+    void subtitleBottomInsetChanged();
+    void seekCompleted(double seconds);
     void loopPointsChanged();
     void frameCaptured(const QUrl &file);
     void defaultSubtitleLanguageChanged();
@@ -195,6 +203,10 @@ private:
     void updateEqualizer();
     void updateVideoFilters();
     void setVideoFilter(bool enabled, bool &current);
+    void updateSubtitlePosition();
+    QString resumeKey() const;
+    double resumePosition() const;
+    void clearResumePosition();
 
     // The renderer retains the handle until its OpenGL context is freed.
     std::shared_ptr<mpv_handle> m_mpv;
@@ -208,6 +220,9 @@ private:
     bool m_muted = false;
     double m_volume = 100;
     quint64 m_loadRevision = 0;
+    double m_startPosition = 0;
+    QHash<QString, double> m_resumePositions;
+    bool m_seekHintPending = false;
     double m_maximumSpeed = 16.0;
     double m_speed = 1.0;
     double m_lastSpeed = 1.0;
@@ -229,6 +244,7 @@ private:
     QString m_subtitleFont = QStringLiteral("Segoe UI");
     int m_subtitleFontSize = 18;
     int m_subtitlePosition = 100;
+    double m_subtitleBottomInset = 0;
     int m_subtitleAlignment = 0;
     double m_subtitleDelay = 0;
     double m_loopA = -1;

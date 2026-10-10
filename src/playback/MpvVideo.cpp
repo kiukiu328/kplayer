@@ -2,6 +2,7 @@
 #include "MpvErrors.h"
 
 #include <QDebug>
+#include <QCryptographicHash>
 #include <QFileInfo>
 #include <QLocale>
 #include <QSettings>
@@ -9,6 +10,7 @@
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QQuickOpenGLUtils>
+#include <QTimer>
 
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
@@ -40,6 +42,7 @@ public:
         m_source = video->source();
         m_loadRevision = video->loadRevision();
         m_stopped = video->stopped();
+        m_startPosition = video->startPosition();
     }
 
     void render() override
@@ -75,7 +78,9 @@ public:
                 m_loadedRevision = m_loadRevision;
                 const QByteArray path = (m_source.isLocalFile() ? m_source.toLocalFile()
                                                                : m_source.toString()).toUtf8();
-                const char *load[] = {"loadfile", path.constData(), nullptr};
+                const QByteArray options = "start=" + QByteArray::number(m_startPosition, 'f', 3);
+                const char *load[] = {"loadfile", path.constData(), "replace", "-1",
+                                      options.constData(), nullptr};
                 const char *stop[] = {"stop", nullptr};
                 // Async commands are safe on the render thread; synchronous ones can deadlock.
                 const int result = mpv_command_async(m_mpv.get(), 0,
@@ -110,6 +115,7 @@ private:
     bool m_initialized = false;
     QUrl m_source;
     bool m_stopped = true;
+    double m_startPosition = 0;
     quint64 m_loadRevision = 0;
     quint64 m_loadedRevision = 0;
 };
@@ -189,6 +195,9 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
              std::pair{"sub-ass-override", "strip"},
              std::pair{"sub-font", "Segoe UI"},
              std::pair{"sub-font-size", "18"},
+             // Explicit pitch correction replaces mpv's automatic filter, whose default
+             // max-speed=8 mutes faster playback. Zero removes that cutoff.
+             std::pair{"af", "@kplayer_tempo:scaletempo2=min-speed=0.2:max-speed=0"},
              std::pair{"terminal", "no"}}) {
         const int result = mpv_set_option_string(m_mpv.get(), name, value);
         if (result < 0) {
@@ -226,10 +235,16 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
                         &MpvVideo::defaultSubtitleLanguageChanged, &MpvVideo::defaultSubtitleTrackChanged,
                         &MpvVideo::defaultSubtitleTrackNameChanged})
         connect(this, signal, this, &MpvVideo::savePreferences);
+    connect(this, &QQuickItem::heightChanged, this, &MpvVideo::updateSubtitlePosition);
+    auto *resumeTimer = new QTimer(this);
+    resumeTimer->setInterval(5000);
+    connect(resumeTimer, &QTimer::timeout, this, &MpvVideo::saveResumePosition);
+    resumeTimer->start();
 }
 
 MpvVideo::~MpvVideo()
 {
+    saveResumePosition();
     if (m_mpv)
         mpv_set_wakeup_callback(m_mpv.get(), nullptr, nullptr);
 }
@@ -290,6 +305,7 @@ void MpvVideo::play()
     if (!setPaused(false))
         return;
     if (m_stopped) {
+        m_startPosition = resumePosition();
         // Manual track choices belong to the current file; new loads use the saved subtitle preferences.
         const char *selection = "auto";
         const int result = mpv_set_property_async(m_mpv.get(), 0, "sid", MPV_FORMAT_STRING, &selection);
@@ -307,6 +323,8 @@ void MpvVideo::play()
 
 void MpvVideo::stop()
 {
+    saveResumePosition();
+    m_seekHintPending = false;
     clearLoop();
     clearSubtitleTracks();
     setPosition(0);
@@ -323,6 +341,49 @@ void MpvVideo::stop()
     setPlaybackState(true, false);
     ++m_loadRevision;
     update();
+}
+
+QString MpvVideo::resumeKey() const
+{
+    if (m_source.isEmpty())
+        return {};
+    QUrl url = m_source.adjusted(QUrl::NormalizePathSegments);
+    if (url.isLocalFile()) {
+        const QFileInfo file(url.toLocalFile());
+        const QString canonical = file.canonicalFilePath();
+        url = QUrl::fromLocalFile(canonical.isEmpty() ? file.absoluteFilePath() : canonical);
+    }
+    return QStringLiteral("playback/positions/")
+        + QString::fromLatin1(QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Sha256).toHex());
+}
+
+void MpvVideo::saveResumePosition()
+{
+    if (m_stopped || !m_mediaLoaded || !m_seekable || m_source.isEmpty())
+        return;
+    const QString key = resumeKey();
+    m_resumePositions.insert(key, m_position);
+    if (m_persistent) {
+        QSettings settings;
+        settings.setValue(key, m_position);
+        settings.sync();
+    }
+}
+
+double MpvVideo::resumePosition() const
+{
+    const QString key = resumeKey();
+    const double seconds = m_resumePositions.contains(key) ? m_resumePositions.value(key)
+        : m_persistent ? QSettings().value(key, 0).toDouble() : 0;
+    return std::isfinite(seconds) ? std::max(0.0, seconds) : 0;
+}
+
+void MpvVideo::clearResumePosition()
+{
+    const QString key = resumeKey();
+    m_resumePositions.remove(key);
+    if (m_persistent)
+        QSettings().remove(key);
 }
 
 void MpvVideo::togglePause()
@@ -614,10 +675,31 @@ void MpvVideo::setSubtitleFontSize(int size)
 void MpvVideo::setSubtitlePosition(int position)
 {
     position = std::clamp(position, 0, 100);
-    if (position == m_subtitlePosition || !setControlProperty("sub-pos", QString::number(position)))
+    if (position == m_subtitlePosition)
         return;
     m_subtitlePosition = position;
+    updateSubtitlePosition();
     emit subtitleStyleChanged();
+}
+
+void MpvVideo::setSubtitleBottomInset(double pixels)
+{
+    if (!std::isfinite(pixels))
+        return;
+    pixels = std::max(0.0, pixels);
+    if (m_subtitleBottomInset == pixels)
+        return;
+    m_subtitleBottomInset = pixels;
+    updateSubtitlePosition();
+    emit subtitleBottomInsetChanged();
+}
+
+void MpvVideo::updateSubtitlePosition()
+{
+    // Keep the user's position persistent; the UI clearance is temporary and
+    // expressed as a fraction of the same surface mpv renders subtitles onto.
+    const double offset = height() > 0 ? 100.0 * m_subtitleBottomInset / height() : 0;
+    setControlProperty("sub-pos", QString::number(std::clamp(m_subtitlePosition - offset, 0.0, 100.0)));
 }
 
 void MpvVideo::setSubtitleAlignment(int alignment)
@@ -943,8 +1025,10 @@ void MpvVideo::seek(double seconds)
 
 void MpvVideo::seekRelative(double seconds)
 {
-    if (std::isfinite(seconds))
+    if (m_mpv && !m_stopped && m_seekable && std::isfinite(seconds)) {
+        m_seekHintPending = true;
         seek(m_position + seconds);
+    }
 }
 
 void MpvVideo::setPosition(double seconds)
@@ -1052,6 +1136,15 @@ void MpvVideo::processEvents()
                 mpv_free_node_contents(&tracks);
             }
             applySubtitlePreference();
+            updateSubtitlePosition();
+        }
+        if (event->event_id == MPV_EVENT_PLAYBACK_RESTART && m_seekHintPending && !m_stopped) {
+            double seconds = 0;
+            if (mpv_get_property(m_mpv.get(), "time-pos", MPV_FORMAT_DOUBLE, &seconds) >= 0) {
+                m_seekHintPending = false;
+                setPosition(seconds);
+                emit seekCompleted(seconds);
+            }
         }
         if (event->event_id == MPV_EVENT_END_FILE) {
             const auto *end = static_cast<mpv_event_end_file *>(event->data);
@@ -1065,6 +1158,7 @@ void MpvVideo::processEvents()
                              .arg(m_source.toDisplayString(),
                                   MpvErrors::description(end->error)));
             } else if (end->reason == MPV_END_FILE_REASON_EOF) {
+                clearResumePosition();
                 clearSubtitleTracks();
                 setPlaybackState(true, false);
                 setSeekable(false);

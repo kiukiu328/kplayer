@@ -203,6 +203,7 @@ Dialog {
         }
         ScrollView {
             id: settingsScroll
+            objectName: "advancedSettingsScroll"
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth

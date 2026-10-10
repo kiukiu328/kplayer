@@ -225,7 +225,9 @@ playlist selections keep their own keyboard behavior.
 - Double-click the video to play or pause; middle-click to toggle fullscreen.
 - Right-click the video or click the top-left KPlayer button to open the menu.
 - Scroll over the video to adjust volume; drag the video to move the window.
-- In fullscreen, move near the bottom for controls or the right edge for the playlist.
+- In fullscreen, move near the top for the title bar, bottom for controls, or right edge for the playlist.
+- Scroll long playlist titles horizontally. Selecting tracks or playlist tabs keeps playback running; double-click or press Enter to play a selection.
+- Arrow seeks show the resulting playback time in the blue hint, using the system font.
 - Left-click Previous/Next to seek 10 seconds; right-click to change playlist items.
 - Use the bottom settings button to open the floating **Control Panel** for audio,
   video, subtitle, and playback adjustments.
@@ -251,14 +253,16 @@ KPlayer automatically stores these locally using Qt settings:
 
 | Data | Restored on startup |
 | --- | --- |
-| Playback | Speed, previous non-1× speed for `Z`, speed limit, volume, mute, repeat mode |
+| Playback | Last position per file, speed, previous non-1× speed for `Z`, speed limit, volume, mute, repeat mode |
 | Subtitles | Preferred track name, number and languages, visibility, font, size, position, alignment, ASS style override |
 | Audio and video | Equalizer bands, preamp and enable state; aspect ratio, color adjustments, soften/sharpen/deblock filters |
 | Window | Normal size, maximized state, always on top, playlist width and normal playlist/control visibility |
 | Library and interface | Playlists and selected items, favorites, interface language |
 
 Closing in fullscreen preserves the normal window layout; the next launch opens
-windowed or maximized. Playback does not automatically resume. Playback position,
+windowed or maximized. Pressing Play or reopening a file resumes at its last
+stopped position, including after restarting the app. Completed files start from
+the beginning. Positions are also saved every five seconds during playback.
 A–B loop points, frame stretching, and subtitle timing offsets are temporary;
 subtitle timing resets when switching files. Search text, open dialogs, hover
 state, and a manual per-file subtitle selection are not saved.

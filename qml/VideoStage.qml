@@ -33,6 +33,7 @@ Rectangle {
     property alias subtitleFont: video.subtitleFont
     property alias subtitleFontSize: video.subtitleFontSize
     property alias subtitlePosition: video.subtitlePosition
+    property alias subtitleBottomInset: video.subtitleBottomInset
     property alias subtitleAlignment: video.subtitleAlignment
     property alias subtitleDelay: video.subtitleDelay
     property alias loopA: video.loopA
@@ -71,6 +72,7 @@ Rectangle {
     function togglePause() { video.togglePause() }
     function play() { video.play() }
     function stop() { video.stop() }
+    function saveResumePosition() { video.saveResumePosition() }
     function seek(seconds: real) { video.seek(seconds) }
     function seekRelative(seconds: real) { video.seekRelative(seconds) }
     function adjustVolume(offset: real) {
@@ -84,6 +86,7 @@ Rectangle {
         id: video
         anchors.fill: parent
         onEndOfFile: root.endOfFile()
+        onSeekCompleted: (seconds) => root.showHint(root.formatTime(seconds) + " / " + root.formatTime(video.duration))
         onFrameCaptured: (file) => root.showHint(qsTr("Frame saved: %1").arg(file.toString()))
         onSpeedChanged: root.showHint(speed.toFixed(1) + "x")
         onAspectRatioChanged: root.showHint(aspectRatio === "no"
@@ -98,6 +101,11 @@ Rectangle {
             const track = subtitleTracks.find(track => track.id === subtitleTrack)
             root.showHint(track ? qsTr("Subtitle: %1").arg(track.label) : qsTr("No subtitles"))
         }
+    }
+    function formatTime(seconds: real): string {
+        const total = Math.floor(Math.max(0, seconds))
+        return [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
+            .map(value => value.toString().padStart(2, "0")).join(":")
     }
     Connections {
         target: AppLanguage
@@ -144,7 +152,6 @@ Rectangle {
             wrapMode: Text.Wrap
             visible: hintTimer.running
             color: Theme.hintText
-            font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
             style: Text.Outline
             styleColor: Theme.videoBackground
