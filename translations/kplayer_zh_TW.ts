@@ -3,6 +3,30 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>Preferred subtitle track name</source>
+            <translation>偏好的字幕軌名稱</translation>
+        </message>
+        <message>
+            <source>Track title or external subtitle filename</source>
+            <translation>字幕軌標題或外部字幕檔名</translation>
+        </message>
+        <message>
+            <source>Preferred subtitle track number (0 = language / automatic)</source>
+            <translation>偏好的字幕軌編號（0 = 語言／自動）</translation>
+        </message>
+        <message>
+            <source>Preferred subtitle track number</source>
+            <translation>偏好的字幕軌編號</translation>
+        </message>
+        <message>
+            <source>Apply font and alignment to styled ASS subtitles</source>
+            <translation>將字型和對齊設定套用至 ASS 樣式字幕</translation>
+        </message>
+        <message>
+            <source>Names match exactly, ignoring case. Selection priority: name, track number, language, then automatic. Leave the name blank to skip it. Saved changes apply immediately and to future files. Bitmap subtitles keep their original font.</source>
+            <translation>名稱須完全相符，不區分大小寫。選擇順序為名稱、字幕軌編號、語言，最後自動選擇。名稱留空即可略過。儲存後立即套用，並用於之後開啟的檔案。點陣圖字幕會保留原有字型。</translation>
+        </message>
+        <message>
             <location filename="../qml/AdvancedSettings.qml" line="8" />
             <source>進階設定</source>
             <translation>進階設定</translation>

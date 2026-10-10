@@ -230,10 +230,38 @@ playlist selections keep their own keyboard behavior.
 - Use the bottom settings button to open the floating **Control Panel** for audio,
   video, subtitle, and playback adjustments.
 
-For subtitle language preferences, open Advanced Settings and enter language
-codes in priority order, such as `zh,en`. Leave the field blank for automatic
-selection. Subtitle font and alignment controls apply to plain text subtitles;
-styled ASS or bitmap subtitles may retain their own appearance.
+In **Advanced Settings → Subtitles**, enter a preferred subtitle track name
+(an embedded track title or an external subtitle filename). Names match exactly,
+ignoring case and surrounding whitespace; the first matching track is selected.
+Leave the name blank to skip name matching. Selection falls back from **name →
+track number → language → automatic** when a preference is unavailable. Track
+numbers are shown in the subtitle menu; `0` skips number matching. Language codes
+such as `zh,en` specify priority; leave them blank for automatic selection.
+Saving applies the preference to the current video and future files. Manual
+selections in the subtitle menu affect only the current file.
+
+Subtitle font, size, position, and alignment controls also apply to styled ASS
+subtitles by default, replacing their authored formatting with the player style.
+Disable **Apply font and alignment to styled ASS subtitles**
+to preserve their authored styles. Bitmap subtitles retain their original font.
+
+### Saved preferences
+
+KPlayer automatically stores these locally using Qt settings:
+
+| Data | Restored on startup |
+| --- | --- |
+| Playback | Speed, previous non-1× speed for `Z`, speed limit, volume, mute, repeat mode |
+| Subtitles | Preferred track name, number and languages, visibility, font, size, position, alignment, ASS style override |
+| Audio and video | Equalizer bands, preamp and enable state; aspect ratio, color adjustments, soften/sharpen/deblock filters |
+| Window | Normal size, maximized state, always on top, playlist width and normal playlist/control visibility |
+| Library and interface | Playlists and selected items, favorites, interface language |
+
+Closing in fullscreen preserves the normal window layout; the next launch opens
+windowed or maximized. Playback does not automatically resume. Playback position,
+A–B loop points, frame stretching, and subtitle timing offsets are temporary;
+subtitle timing resets when switching files. Search text, open dialogs, hover
+state, and a manual per-file subtitle selection are not saved.
 
 ## Development
 

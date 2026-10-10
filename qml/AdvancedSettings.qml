@@ -9,7 +9,10 @@ Dialog {
     property real maximumSpeed: 16
     property real playbackSpeed: 1
     signal speedSaved(real speed, real maximum)
-    signal languageSaved(string language)
+    property int subtitleTrackNumber: 0
+    property string subtitleTrackName: ""
+    property bool subtitleStyleOverride: true
+    signal subtitleSaved(string language, int track, bool overrideStyle, string trackName)
     property int currentPage: 0
     property point dragOffset: Qt.point(0, 0)
     x: Math.max(0, Math.min(parent.width - width,
@@ -39,6 +42,9 @@ Dialog {
         speedLimit.value = Math.round(maximumSpeed * 10)
         customSpeed.value = Math.round(playbackSpeed * 10)
         interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
+        trackNumber.value = subtitleTrackNumber
+        trackName.text = subtitleTrackName
+        overrideSubtitleStyle.checked = subtitleStyleOverride
         languageCodes.text = subtitleLanguage
         languageChoice.currentIndex = 0
         for (let i = 0; i < languageChoice.model.length; ++i) {
@@ -51,7 +57,8 @@ Dialog {
     onAccepted: {
         speedSaved(customSpeed.value / 10, speedLimit.value / 10)
         AppLanguage.language = interfaceLanguage.currentIndex === 1 ? "en" : "zh_TW"
-        languageSaved(languageCodes.text.trim().replace(/\s+/g, "").toLowerCase())
+        subtitleSaved(languageCodes.text.trim().replace(/\s+/g, "").toLowerCase(),
+                      trackNumber.value, overrideSubtitleStyle.checked, trackName.text.trim())
     }
 
     padding: 0
@@ -278,6 +285,39 @@ Dialog {
                     visible: root.currentPage === 2
                     heading: qsTr("字幕偏好")
                     Label {
+                        text: qsTr("Preferred subtitle track name")
+                        color: Theme.textPrimary
+                    }
+                    TextField {
+                        id: trackName
+                        objectName: "subtitleTrackNameInput"
+                        width: parent.width
+                        placeholderText: qsTr("Track title or external subtitle filename")
+                        selectByMouse: true
+                        Accessible.name: qsTr("Preferred subtitle track name")
+                    }
+                    Label {
+                        text: qsTr("Preferred subtitle track number (0 = language / automatic)")
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: Theme.textPrimary
+                    }
+                    SpinBox {
+                        id: trackNumber
+                        objectName: "subtitleTrackNumberInput"
+                        width: parent.width
+                        from: 0
+                        to: 9999
+                        editable: true
+                        Accessible.name: qsTr("Preferred subtitle track number")
+                    }
+                    CheckBox {
+                        id: overrideSubtitleStyle
+                        objectName: "subtitleStyleOverrideInput"
+                        width: parent.width
+                        text: qsTr("Apply font and alignment to styled ASS subtitles")
+                    }
+                    Label {
                         text: qsTr("預設字幕語言")
                         color: Theme.textPrimary
                         font.pixelSize: Theme.smallFontSize
@@ -313,7 +353,7 @@ Dialog {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         color: Theme.textMuted
-                        text: qsTr("選擇語言或輸入語言代碼，以逗號分隔優先順序。留空使用自動選擇。儲存後會在下次開啟影片時套用。")
+                        text: qsTr("Names match exactly, ignoring case. Selection priority: name, track number, language, then automatic. Leave the name blank to skip it. Saved changes apply immediately and to future files. Bitmap subtitles keep their original font.")
                     }
                 }
             }

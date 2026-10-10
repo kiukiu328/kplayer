@@ -3,6 +3,8 @@
 
 #include <QDebug>
 #include <QFileInfo>
+#include <QLocale>
+#include <QSettings>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
@@ -112,6 +114,65 @@ private:
     quint64 m_loadedRevision = 0;
 };
 
+namespace {
+const std::pair<const char *, const char *> savedPlayerProperties[] = {
+    {"playback/maximumSpeed", "maximumSpeed"},
+    {"playback/speed", "speed"},
+    {"playback/volume", "volume"},
+    {"playback/muted", "muted"},
+    {"video/aspectRatio", "aspectRatio"},
+    {"video/brightness", "brightness"},
+    {"video/contrast", "contrast"},
+    {"video/saturation", "saturation"},
+    {"video/hue", "hue"},
+    {"video/soften", "soften"},
+    {"video/sharpen", "sharpen"},
+    {"video/deblock", "deblock"},
+    {"audio/equalizerBands", "equalizerBands"},
+    {"audio/preamp", "preamp"},
+    {"audio/equalizerEnabled", "equalizerEnabled"},
+    {"subtitles/defaultLanguage", "defaultSubtitleLanguage"},
+    {"subtitles/defaultTrack", "defaultSubtitleTrack"},
+    {"subtitles/defaultTrackName", "defaultSubtitleTrackName"},
+    {"subtitles/visible", "subtitlesVisible"},
+    {"subtitles/styleOverride", "subtitleStyleOverride"},
+    {"subtitles/font", "subtitleFont"},
+    {"subtitles/fontSize", "subtitleFontSize"},
+    {"subtitles/position", "subtitlePosition"},
+    {"subtitles/alignment", "subtitleAlignment"},
+};
+}
+
+void MpvVideo::setPersistent(bool persistent)
+{
+    if (m_persistent == persistent)
+        return;
+    m_persistent = persistent;
+    if (persistent) {
+        m_restoringPreferences = true;
+        const QSettings settings;
+        for (const auto &[key, name] : savedPlayerProperties) {
+            if (settings.contains(key))
+                setProperty(name, settings.value(key));
+        }
+        const double last = settings.value("playback/lastSpeed", m_lastSpeed).toDouble();
+        if (std::isfinite(last))
+            m_lastSpeed = std::clamp(last, 0.2, m_maximumSpeed);
+        m_restoringPreferences = false;
+    }
+    emit persistentChanged();
+}
+
+void MpvVideo::savePreferences()
+{
+    if (!m_persistent || m_restoringPreferences)
+        return;
+    QSettings settings;
+    for (const auto &[key, name] : savedPlayerProperties)
+        settings.setValue(key, property(name));
+    settings.setValue("playback/lastSpeed", m_lastSpeed);
+}
+
 MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
 {
     auto *handle = mpv_create();
@@ -125,6 +186,7 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
              std::pair{"background", "color"},
              std::pair{"background-color", "#101010"},
              std::pair{"osd-level", "0"},
+             std::pair{"sub-ass-override", "strip"},
              std::pair{"sub-font", "Segoe UI"},
              std::pair{"sub-font-size", "18"},
              std::pair{"terminal", "no"}}) {
@@ -156,6 +218,14 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
     mpv_observe_property(m_mpv.get(), 0, "sub-visibility", MPV_FORMAT_FLAG);
     mpv_observe_property(m_mpv.get(), 0, "track-list", MPV_FORMAT_NODE);
     mpv_observe_property(m_mpv.get(), 0, "sid", MPV_FORMAT_INT64);
+    for (auto signal : {&MpvVideo::speedChanged, &MpvVideo::maximumSpeedChanged,
+                        &MpvVideo::volumeChanged, &MpvVideo::mutedChanged,
+                        &MpvVideo::aspectRatioChanged, &MpvVideo::videoAdjustmentsChanged,
+                        &MpvVideo::audioControlsChanged, &MpvVideo::videoFiltersChanged,
+                        &MpvVideo::subtitleStyleChanged, &MpvVideo::subtitlesVisibleChanged,
+                        &MpvVideo::defaultSubtitleLanguageChanged, &MpvVideo::defaultSubtitleTrackChanged,
+                        &MpvVideo::defaultSubtitleTrackNameChanged})
+        connect(this, signal, this, &MpvVideo::savePreferences);
 }
 
 MpvVideo::~MpvVideo()
@@ -178,6 +248,7 @@ void MpvVideo::setSource(const QUrl &source)
     if (m_source == source)
         return;
     stop();
+    setSubtitleDelay(0);
     m_source = source;
     setPosition(0);
     setDuration(0);
@@ -219,7 +290,7 @@ void MpvVideo::play()
     if (!setPaused(false))
         return;
     if (m_stopped) {
-        // Manual track choices belong to the current file; new loads use the language preference.
+        // Manual track choices belong to the current file; new loads use the saved subtitle preferences.
         const char *selection = "auto";
         const int result = mpv_set_property_async(m_mpv.get(), 0, "sid", MPV_FORMAT_STRING, &selection);
         if (result < 0) {
@@ -623,6 +694,89 @@ void MpvVideo::setDefaultSubtitleLanguage(const QString &language)
     }
     m_defaultSubtitleLanguage = normalized;
     emit defaultSubtitleLanguageChanged();
+    applySubtitlePreference();
+}
+
+void MpvVideo::setDefaultSubtitleTrack(int track)
+{
+    track = std::max(0, track);
+    if (m_defaultSubtitleTrack == track)
+        return;
+    m_defaultSubtitleTrack = track;
+    emit defaultSubtitleTrackChanged();
+    applySubtitlePreference();
+}
+
+void MpvVideo::setDefaultSubtitleTrackName(const QString &name)
+{
+    const QString normalized = name.trimmed();
+    if (m_defaultSubtitleTrackName == normalized)
+        return;
+    m_defaultSubtitleTrackName = normalized;
+    emit defaultSubtitleTrackNameChanged();
+    applySubtitlePreference();
+}
+
+void MpvVideo::setSubtitleStyleOverride(bool enabled)
+{
+    if (m_subtitleStyleOverride == enabled
+        || !setControlProperty("sub-ass-override", enabled ? "strip" : "scale"))
+        return;
+    m_subtitleStyleOverride = enabled;
+    // Changing ASS mode rebuilds the decoder. Reselect the stream so its current
+    // cue is available again, including while paused and for embedded subtitles.
+    if (m_mediaLoaded && m_subtitleTrack >= 0) {
+        setControlProperty("sid", QStringLiteral("no"));
+        setControlProperty("sid", QString::number(m_subtitleTrack));
+    }
+    emit subtitleStyleChanged();
+}
+
+void MpvVideo::applySubtitlePreference()
+{
+    if (!m_mpv || !m_mediaLoaded || m_subtitleTracks.isEmpty())
+        return;
+    int selected = -1;
+    if (!m_defaultSubtitleTrackName.isEmpty()) {
+        for (const QVariant &entry : m_subtitleTracks) {
+            const auto track = entry.toMap();
+            const QString title = track.value("title").toString().trimmed();
+            const QString fileName = QFileInfo(track.value("external-filename").toString()).fileName();
+            if (title.compare(m_defaultSubtitleTrackName, Qt::CaseInsensitive) == 0
+                || fileName.trimmed().compare(m_defaultSubtitleTrackName, Qt::CaseInsensitive) == 0) {
+                selected = track.value("id").toInt();
+                break;
+            }
+        }
+    }
+    if (selected < 0) {
+        for (const QVariant &entry : m_subtitleTracks) {
+            const auto track = entry.toMap();
+            if (m_defaultSubtitleTrack > 0 && track.value("id").toInt() == m_defaultSubtitleTrack) {
+                selected = m_defaultSubtitleTrack;
+                break;
+            }
+        }
+    }
+    if (selected < 0) {
+        const auto languages = m_defaultSubtitleLanguage.split(',', Qt::SkipEmptyParts);
+        for (const QString &language : languages) {
+            for (const QVariant &entry : m_subtitleTracks) {
+                const auto track = entry.toMap();
+                const QString code = track.value("lang").toString().toLower();
+                const auto locale = QLocale(language).language();
+                if (code == language || (locale != QLocale::C && locale == QLocale(code).language())) {
+                    selected = track.value("id").toInt();
+                    break;
+                }
+            }
+            if (selected >= 0)
+                break;
+        }
+    }
+    // Let mpv use its normal automatic selection if no preference matches.
+    const QByteArray value = selected < 0 ? QByteArray("auto") : QByteArray::number(selected);
+    setControlProperty("sid", QString::fromLatin1(value));
 }
 
 void MpvVideo::setSubtitlesVisible(bool visible)
@@ -891,6 +1045,13 @@ void MpvVideo::processEvents()
         if (event->event_id == MPV_EVENT_FILE_LOADED && !m_stopped) {
             m_mediaLoaded = true;
             emit mediaLoadedChanged();
+            // FILE_LOADED can arrive before the observed track-list notification.
+            mpv_node tracks{};
+            if (mpv_get_property(m_mpv.get(), "track-list", MPV_FORMAT_NODE, &tracks) >= 0) {
+                updateSubtitleTracks(tracks);
+                mpv_free_node_contents(&tracks);
+            }
+            applySubtitlePreference();
         }
         if (event->event_id == MPV_EVENT_END_FILE) {
             const auto *end = static_cast<mpv_event_end_file *>(event->data);

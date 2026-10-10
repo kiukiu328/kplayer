@@ -3,6 +3,10 @@ import QtQuick
 Rectangle {
     id: root
     objectName: "videoStage"
+    property alias persistent: video.persistent
+    property alias defaultSubtitleTrack: video.defaultSubtitleTrack
+    property alias defaultSubtitleTrackName: video.defaultSubtitleTrackName
+    property alias subtitleStyleOverride: video.subtitleStyleOverride
     property alias source: video.source
     property alias playing: video.playing
     property alias stopped: video.stopped

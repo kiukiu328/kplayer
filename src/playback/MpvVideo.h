@@ -14,6 +14,10 @@ class MpvVideo : public QQuickFramebufferObject
 {
     Q_OBJECT
     QML_ELEMENT
+    Q_PROPERTY(bool persistent READ persistent WRITE setPersistent NOTIFY persistentChanged)
+    Q_PROPERTY(int defaultSubtitleTrack READ defaultSubtitleTrack WRITE setDefaultSubtitleTrack NOTIFY defaultSubtitleTrackChanged)
+    Q_PROPERTY(QString defaultSubtitleTrackName READ defaultSubtitleTrackName WRITE setDefaultSubtitleTrackName NOTIFY defaultSubtitleTrackNameChanged)
+    Q_PROPERTY(bool subtitleStyleOverride READ subtitleStyleOverride WRITE setSubtitleStyleOverride NOTIFY subtitleStyleChanged)
     Q_PROPERTY(QUrl source READ source WRITE setSource NOTIFY sourceChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorStringChanged)
     Q_PROPERTY(bool playing READ playing NOTIFY playbackStateChanged)
@@ -55,6 +59,14 @@ public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
     ~MpvVideo() override;
 
+    bool persistent() const { return m_persistent; }
+    void setPersistent(bool persistent);
+    int defaultSubtitleTrack() const { return m_defaultSubtitleTrack; }
+    void setDefaultSubtitleTrack(int track);
+    QString defaultSubtitleTrackName() const { return m_defaultSubtitleTrackName; }
+    void setDefaultSubtitleTrackName(const QString &name);
+    bool subtitleStyleOverride() const { return m_subtitleStyleOverride; }
+    void setSubtitleStyleOverride(bool enabled);
     Renderer *createRenderer() const override;
     QUrl source() const { return m_source; }
     void setSource(const QUrl &source);
@@ -136,6 +148,9 @@ public:
     Q_INVOKABLE void seekRelative(double seconds);
 
 signals:
+    void persistentChanged();
+    void defaultSubtitleTrackChanged();
+    void defaultSubtitleTrackNameChanged();
     void sourceChanged();
     void errorStringChanged();
     void playbackStateChanged();
@@ -162,6 +177,8 @@ signals:
     void endOfFile();
 
 private:
+    void savePreferences();
+    void applySubtitlePreference();
     void processEvents();
     void setError(const QString &message);
     void setPlaybackState(bool stopped, bool paused);
@@ -217,6 +234,11 @@ private:
     double m_loopA = -1;
     double m_loopB = -1;
     QUrl m_captureFile;
+    bool m_persistent = false;
+    bool m_restoringPreferences = false;
+    int m_defaultSubtitleTrack = 0;
+    QString m_defaultSubtitleTrackName;
+    bool m_subtitleStyleOverride = true;
     QString m_defaultSubtitleLanguage;
     bool m_subtitlesVisible = true;
     QVariantList m_subtitleTracks;

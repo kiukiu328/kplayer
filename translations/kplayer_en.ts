@@ -3,6 +3,30 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>Preferred subtitle track name</source>
+            <translation>Preferred subtitle track name</translation>
+        </message>
+        <message>
+            <source>Track title or external subtitle filename</source>
+            <translation>Track title or external subtitle filename</translation>
+        </message>
+        <message>
+            <source>Preferred subtitle track number (0 = language / automatic)</source>
+            <translation>Preferred subtitle track number (0 = language / automatic)</translation>
+        </message>
+        <message>
+            <source>Preferred subtitle track number</source>
+            <translation>Preferred subtitle track number</translation>
+        </message>
+        <message>
+            <source>Apply font and alignment to styled ASS subtitles</source>
+            <translation>Apply font and alignment to styled ASS subtitles</translation>
+        </message>
+        <message>
+            <source>Names match exactly, ignoring case. Selection priority: name, track number, language, then automatic. Leave the name blank to skip it. Saved changes apply immediately and to future files. Bitmap subtitles keep their original font.</source>
+            <translation>Names match exactly, ignoring case. Selection priority: name, track number, language, then automatic. Leave the name blank to skip it. Saved changes apply immediately and to future files. Bitmap subtitles keep their original font.</translation>
+        </message>
+        <message>
             <source>一般</source>
             <translation>General</translation>
         </message>

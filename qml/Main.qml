@@ -23,11 +23,11 @@ Window {
     }
 
     function preferSubtitleLanguage(language: string) {
-        const codes = preferences.defaultLanguage.toLowerCase().split(",")
+        const codes = videoStage.defaultSubtitleLanguage.toLowerCase().split(",")
             .map(code => code.trim()).filter(code => code.length > 0)
         if (!codes.includes(language))
             codes.push(language)
-        preferences.defaultLanguage = codes.join(",")
+        videoStage.defaultSubtitleLanguage = codes.join(",")
         videoStage.showHint(qsTr("已加入預設字幕語言：%1").arg(language))
     }
     property list<url> startupFiles: []
@@ -216,16 +216,40 @@ Window {
     }
     Favorites { id: favorites; objectName: "favorites" }
     Settings {
-        id: preferences
-        category: "subtitles"
-        property string defaultLanguage: ""
-    }
-    Settings {
         id: playbackPreferences
         objectName: "playbackPreferences"
         category: "playback"
-        property real maximumSpeed: 16
         property real playlistWidth: Theme.playlistWidth
+    }
+    Settings {
+        id: windowPreferences
+        category: "window"
+        property int normalWidth: 1225
+        property int normalHeight: 824
+        property bool maximized: false
+        property bool playlistShown: true
+        property bool controlsShown: true
+        property alias alwaysOnTop: window.alwaysOnTop
+        property alias repeatMode: window.repeatMode
+    }
+    property bool windowPreferencesReady: false
+    property int lastWindowedWidth: 1225
+    property int lastWindowedHeight: 824
+    onWidthChanged: {
+        if (windowPreferencesReady && visibility === Window.Windowed)
+            lastWindowedWidth = width
+    }
+    onHeightChanged: {
+        if (windowPreferencesReady && visibility === Window.Windowed)
+            lastWindowedHeight = height
+    }
+    onClosing: {
+        windowPreferences.normalWidth = lastWindowedWidth
+        windowPreferences.normalHeight = lastWindowedHeight
+        windowPreferences.maximized = (isFullscreen ? visibilityBeforeFullscreen : visibility) === Window.Maximized
+        windowPreferences.playlistShown = isFullscreen ? playlistBeforeFullscreen : playlistVisible
+        windowPreferences.controlsShown = isFullscreen ? controlsBeforeFullscreen : controlsVisible
+        windowPreferences.sync()
     }
     AdvancedSettings {
         id: advancedSettings
@@ -233,14 +257,22 @@ Window {
         parent: window.contentItem
         width: Math.min(900, window.width - 32)
         height: Math.min(600, window.height - 32)
-        maximumSpeed: playbackPreferences.maximumSpeed
+        maximumSpeed: videoStage.maximumSpeed
         playbackSpeed: videoStage.speed
         onSpeedSaved: (speed, maximum) => {
-            playbackPreferences.maximumSpeed = maximum
+            videoStage.maximumSpeed = maximum
             videoStage.speed = speed
         }
-        subtitleLanguage: preferences.defaultLanguage
-        onLanguageSaved: (language) => preferences.defaultLanguage = language
+        subtitleLanguage: videoStage.defaultSubtitleLanguage
+        subtitleTrackNumber: videoStage.defaultSubtitleTrack
+        subtitleTrackName: videoStage.defaultSubtitleTrackName
+        subtitleStyleOverride: videoStage.subtitleStyleOverride
+        onSubtitleSaved: (language, track, overrideStyle, trackName) => {
+            videoStage.defaultSubtitleLanguage = language
+            videoStage.defaultSubtitleTrack = track
+            videoStage.defaultSubtitleTrackName = trackName
+            videoStage.subtitleStyleOverride = overrideStyle
+        }
     }
     VideoLibrary { id: library; objectName: "videoLibrary" }
     ControlPanel {
@@ -263,6 +295,15 @@ Window {
         function onCurrentPlaylistChanged() { videoStage.stop() }
     }
     Component.onCompleted: {
+        width = Math.max(minimumWidth, Math.min(windowPreferences.normalWidth, Screen.width))
+        height = Math.max(minimumHeight, Math.min(windowPreferences.normalHeight, Screen.height))
+        lastWindowedWidth = width
+        lastWindowedHeight = height
+        playlistVisible = windowPreferences.playlistShown
+        controlsVisible = windowPreferences.controlsShown
+        if (windowPreferences.maximized)
+            showMaximized()
+        windowPreferencesReady = true
         if (startupFiles.length > 0) {
             playlists.currentIndex = 0
             playlists.defaultPlaylist.clear()
@@ -325,7 +366,7 @@ Window {
     SubtitleMenu {
         id: subtitleMenu
         objectName: "subtitleSelectionMenu"
-        preferredLanguages: preferences.defaultLanguage
+        preferredLanguages: videoStage.defaultSubtitleLanguage
         onPreferLanguageRequested: (language) => window.preferSubtitleLanguage(language)
         parent: window.contentItem
         player: videoStage
@@ -407,7 +448,7 @@ Window {
         onTriggered: window.close()
     }
     AppMenu {
-        preferredSubtitleLanguages: preferences.defaultLanguage
+        preferredSubtitleLanguages: videoStage.defaultSubtitleLanguage
         onPreferSubtitleLanguageRequested: (language) => window.preferSubtitleLanguage(language)
         id: appMenu
         parent: window.contentItem
@@ -723,8 +764,7 @@ Window {
 
                 VideoStage {
                     id: videoStage
-                    maximumSpeed: playbackPreferences.maximumSpeed
-                    defaultSubtitleLanguage: preferences.defaultLanguage
+                    persistent: true
                     source: window.mediaPlaylist.currentSource
                     anchors.top: parent.top
                     anchors.left: parent.left
@@ -825,6 +865,7 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
+                anchors.bottomMargin: window.isFullscreen ? playback.implicitHeight : 0
                 z: 1
                 visible: window.playlistVisible || (window.isFullscreen
                     && (playlistHover.hovered || editingSearch || menuOpen
@@ -845,6 +886,7 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
+                anchors.bottomMargin: window.isFullscreen ? playback.implicitHeight : 0
                 width: playlist.visible ? playlist.width + 16 : 16
                 z: 1
                 HoverHandler {

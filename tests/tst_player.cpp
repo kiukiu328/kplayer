@@ -149,7 +149,7 @@ class PlayerTests : public QObject
 private slots:
     void init()
     {
-        QSettings().remove("playlists");
+        QSettings().clear();
     }
 
     void savedPlaylistsPreserveQueuesAcrossRestarts()
@@ -948,14 +948,23 @@ private slots:
             maximum->setProperty("value", 240);
             speed->setProperty("value", 125);
             codes->setProperty("text", " JA, JPN ");
+            auto *track = findItem(window->contentItem(), "subtitleTrackNumberInput");
+            auto *overrideStyle = findItem(window->contentItem(), "subtitleStyleOverrideInput");
+            QVERIFY(track && overrideStyle);
+            track->setProperty("value", 2);
+            overrideStyle->setProperty("checked", false);
             QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
             QTRY_COMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
             QCOMPARE(video->maximumSpeed(), 24.0);
             QTRY_COMPARE(video->speed(), 12.5);
+            QCOMPARE(video->defaultSubtitleTrack(), 2);
+            QVERIFY(!video->subtitleStyleOverride());
             QTest::keyClick(window, Qt::Key_F5);
             QTRY_VERIFY(dialog->property("opened").toBool());
             QCOMPARE(codes->property("text").toString(), QStringLiteral("ja,jpn"));
             codes->setProperty("text", "en");
+            track->setProperty("value", 3);
+            overrideStyle->setProperty("checked", true);
             maximum->setProperty("value", 80);
             QTest::keyClick(window, Qt::Key_Escape);
             QTRY_VERIFY(!dialog->property("visible").toBool());
@@ -970,9 +979,98 @@ private slots:
             QVERIFY(video);
             QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
             QCOMPARE(video->maximumSpeed(), 24.0);
+            QCOMPARE(video->speed(), 12.5);
+            QCOMPARE(video->defaultSubtitleTrack(), 2);
+            QVERIFY(!video->subtitleStyleOverride());
         }
         QSettings().clear();
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void playerPreferencesSurviveRestart()
+    {
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(video);
+            video->setMaximumSpeed(32);
+            video->setSpeed(24);
+            video->setVolume(37);
+            video->setMuted(true);
+            video->setSubtitleFont("sans-serif");
+            video->setSubtitleFontSize(32);
+            video->setSubtitlePosition(80);
+            video->setSubtitleAlignment(-1);
+            video->setSubtitlesVisible(false);
+            video->setSubtitleDelay(2);
+            video->setBrightness(12);
+            video->setContrast(-7);
+            video->setAspectRatio("16:9");
+            video->setEqualizerBands({1, 2, 3, 4, 5, 0, -1, -2, -3, -4});
+            video->setPreamp(2);
+            video->setEqualizerEnabled(true);
+            video->setSharpen(true);
+            QTRY_COMPARE(video->speed(), 24.0);
+            QTRY_COMPARE(video->volume(), 37.0);
+            QTRY_VERIFY(video->muted());
+            window->setProperty("repeatMode", 2);
+            window->setProperty("playlistVisible", false);
+            window->resize(1150, 700);
+            QTRY_COMPARE(window->size(), QSize(1150, 700));
+            QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+            QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+            QTRY_COMPARE(window->size(), window->screen()->size());
+            window->close();
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(video);
+            QTRY_COMPARE(video->speed(), 24.0);
+            QCOMPARE(video->maximumSpeed(), 32.0);
+            QTRY_COMPARE(video->volume(), 37.0);
+            QTRY_VERIFY(video->muted());
+            QCOMPARE(video->subtitleFont(), QStringLiteral("sans-serif"));
+            QCOMPARE(video->subtitleFontSize(), 32);
+            QCOMPARE(video->subtitlePosition(), 80);
+            QCOMPARE(video->subtitleAlignment(), -1);
+            QVERIFY(!video->subtitlesVisible());
+            QCOMPARE(video->subtitleDelay(), 0.0);
+            QCOMPARE(video->brightness(), 12);
+            QCOMPARE(video->contrast(), -7);
+            QCOMPARE(video->aspectRatio(), QStringLiteral("16:9"));
+            QCOMPARE(video->equalizerBands(), QVariantList({1, 2, 3, 4, 5, 0, -1, -2, -3, -4}));
+            QCOMPARE(video->preamp(), 2.0);
+            QVERIFY(video->equalizerEnabled());
+            QVERIFY(video->sharpen());
+            QCOMPARE(window->property("repeatMode").toInt(), 2);
+            QVERIFY(!window->property("playlistVisible").toBool());
+            QVERIFY(window->property("controlsVisible").toBool());
+            QCOMPARE(window->visibility(), QWindow::Windowed);
+            QCOMPARE(window->size(), QSize(1150, 700));
+            video->toggleSpeed();
+            QTRY_COMPARE(video->speed(), 1.0);
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(video);
+            QCOMPARE(video->speed(), 1.0);
+            video->toggleSpeed();
+            QTRY_COMPARE(video->speed(), 24.0); // Z remembers the last non-normal speed too.
+        }
     }
 
     void defaultSubtitleLanguageSelectsTrack()
@@ -1016,10 +1114,119 @@ private slots:
         QTRY_VERIFY(video->mediaLoaded());
         QTRY_COMPARE(video->subtitleTrack(), japanese);
         video->setDefaultSubtitleLanguage("en,eng");
+        QTRY_COMPARE(video->subtitleTrack(), english); // Applies without reopening.
+        video->setDefaultSubtitleTrack(japanese);
+        QTRY_COMPARE(video->subtitleTrack(), japanese); // Number takes priority over language.
+        video->setDefaultSubtitleTrack(9999);
+        QTRY_COMPARE(video->subtitleTrack(), english); // Missing number falls back to language.
+        video->setDefaultSubtitleTrack(japanese);
+        video->stop();
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleTrack(0);
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        video->setDefaultSubtitleTrack(japanese);
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleLanguage("");
+        video->setDefaultSubtitleTrack(9999);
+        QTRY_COMPARE(video->subtitleTrack(), english); // No language: automatic default track.
+        video->setDefaultSubtitleTrack(0);
         video->stop();
         video->play();
         QTRY_VERIFY(video->mediaLoaded());
         QTRY_COMPARE(video->subtitleTrack(), english);
+        QCOMPARE(video->errorString(), QString{});
+    }
+
+    void subtitleStyleChangesRenderedAss()
+    {
+        const QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");
+        if (ffmpeg.isEmpty())
+            QSKIP("ffmpeg is needed to create the subtitle rendering fixture");
+        QTemporaryDir directory;
+        const QString media = directory.filePath("black.mkv");
+        QProcess encoder;
+        encoder.start(ffmpeg, {"-v", "error", "-f", "lavfi", "-i",
+            "color=c=black:s=640x360:r=1:d=30", "-c:v", "ffv1", media});
+        QVERIFY(encoder.waitForFinished(10000));
+        QCOMPARE(encoder.exitCode(), 0);
+        QFile subtitle(directory.filePath("styled.ass"));
+        QVERIFY(subtitle.open(QIODevice::WriteOnly));
+        subtitle.write(
+            "[Script Info]\nScriptType: v4.00+\nPlayResX: 640\nPlayResY: 360\n"
+            "[V4+ Styles]\n"
+            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
+            "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
+            "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+            "Style: Default,sans-serif,14,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,"
+            "0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1\n"
+            "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            "Dialogue: 0,0:00:00.00,0:00:29.00,Default,,0,0,0,,Subtitle rendering\n");
+        subtitle.close();
+        QQmlApplicationEngine engine;
+        // Match the video aspect ratio: video-only captures exclude subtitles in window margins.
+        QQmlComponent component(&engine);
+        component.setData(R"(
+            import QtQuick
+            import KPlayer
+            Window {
+                width: 640; height: 360; visible: true
+                MpvVideo { anchors.fill: parent }
+            }
+        )", QUrl());
+        QScopedPointer<QObject> root(component.create());
+        QVERIFY2(root, qPrintable(component.errorString()));
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(video);
+        video->setSource(QUrl::fromLocalFile(media));
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        video->togglePause();
+        QVERIFY(video->addSubtitle(QUrl::fromLocalFile(subtitle.fileName())));
+        QTRY_VERIFY(video->subtitleTrack() > 0);
+        video->seek(2);
+        QTRY_VERIFY(video->position() >= 1.9);
+        video->setSubtitleStyleOverride(false);
+        video->setSubtitleFontSize(48);
+        QSignalSpy captures(video, &MpvVideo::frameCaptured);
+        const auto capture = [&](const QString &name) {
+            const QString path = directory.filePath(name + ".png");
+            video->captureFrame(QUrl::fromLocalFile(path));
+            return path;
+        };
+        const auto textBounds = [](const QString &path) {
+            const QImage image(path);
+            QRect bounds;
+            for (int y = 0; y < image.height(); ++y) {
+                for (int x = 0; x < image.width(); ++x) {
+                    if (qGray(image.pixel(x, y)) > 180)
+                        bounds = bounds.united(QRect(x, y, 1, 1));
+                }
+            }
+            return bounds;
+        };
+        const QString original = capture("authored");
+        QTRY_COMPARE(captures.count(), 1);
+        const QRect authored = textBounds(original);
+        QVERIFY(!authored.isEmpty());
+        video->setSubtitleStyleOverride(true);
+        QTest::qWait(200);
+        const QString enlarged = capture("enlarged");
+        QTRY_COMPARE(captures.count(), 2);
+        const QRect styled = textBounds(enlarged);
+        QVERIFY2(styled.height() > authored.height(), qPrintable(QString("ASS height: authored %1, styled %2").arg(authored.height()).arg(styled.height())));
+        video->setSubtitleAlignment(-1);
+        video->setSubtitlePosition(60);
+        QTest::qWait(200);
+        const QString moved = capture("moved");
+        QTRY_COMPARE(captures.count(), 3);
+        const QRect repositioned = textBounds(moved);
+        QVERIFY(!repositioned.isEmpty());
+        QVERIFY(repositioned.left() < styled.left());
+        QVERIFY(repositioned.top() < styled.top());
         QCOMPARE(video->errorString(), QString{});
     }
 
@@ -2665,10 +2872,12 @@ private slots:
             {QStringLiteral("resizeBottomLeft"), Qt::BottomEdge | Qt::LeftEdge},
             {QStringLiteral("resizeBottomRight"), Qt::BottomEdge | Qt::RightEdge}
         };
+#ifdef Q_OS_WIN
         const QPoint originalCursorPosition = QCursor::pos();
         const auto restoreCursor = qScopeGuard([originalCursorPosition] {
             QCursor::setPos(originalCursorPosition);
         });
+#endif
         for (const auto &[name, edges] : handles) {
             auto *handle = findItem(frame, name);
             QVERIFY2(handle, qPrintable(name));
@@ -2691,10 +2900,10 @@ private slots:
                     ? Qt::SizeVerCursor : edges == (Qt::TopEdge | Qt::LeftEdge)
                         || edges == (Qt::BottomEdge | Qt::RightEdge)
                     ? Qt::SizeFDiagCursor : Qt::SizeBDiagCursor;
+#ifdef Q_OS_WIN
             // Synthetic Qt mouse events do not exercise Windows' WM_SETCURSOR.
             QCursor::setPos(window->mapToGlobal(handle->mapToScene(
                     {handle->width() / 2, handle->height() / 2}).toPoint()));
-#ifdef Q_OS_WIN
             window->raise();
             const int nativeCursorId = expectedCursor == Qt::SizeHorCursor ? 32644
                     : expectedCursor == Qt::SizeVerCursor ? 32645
@@ -2715,6 +2924,10 @@ private slots:
                     + QString::number(QCursor::pos().x()) + ","
                     + QString::number(QCursor::pos().y())));
 #else
+            // Wayland clients cannot reliably warp the desktop pointer. Exercise
+            // Qt Quick's resize hover handling with a local mouse event instead.
+            QTest::mouseMove(window, handle->mapToScene(
+                    {handle->width() / 2, handle->height() / 2}).toPoint());
             QTRY_COMPARE(window->cursor().shape(), expectedCursor);
 #endif
         }
@@ -2865,6 +3078,34 @@ private slots:
         QVERIFY(visibilityChanges.isEmpty());
         QTest::mouseMove(window, QPoint(window->width() / 2, 100));
         QTRY_VERIFY(!bar->isVisible());
+    }
+
+    void fullscreenPlaylistToggleRemainsClickable()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        auto *bar = findItem(window->contentItem(), "playbackBar");
+        auto *button = findItem(bar, "playbackMenuButton");
+        QVERIFY(panel && bar && button);
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        QTest::mouseMove(window, QPoint(window->width() / 2, window->height() - 2));
+        QTRY_VERIFY(bar->isVisible());
+        click(window, button);
+        QTRY_VERIFY(window->property("playlistVisible").toBool());
+        QVERIFY(panel->isVisible());
+        QVERIFY(panel->mapToScene({0, panel->height()}).y() <= bar->mapToScene({0, 0}).y());
+        click(window, button);
+        QTRY_VERIFY(!window->property("playlistVisible").toBool());
+        QTRY_VERIFY(!panel->isVisible());
+        QVERIFY(bar->isVisible());
+        click(window, button);
+        QTRY_VERIFY(panel->isVisible());
     }
 
     void fullscreenPlaylistRevealsAtRightEdge()
