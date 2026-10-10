@@ -12,10 +12,12 @@ Rectangle {
     signal addRequested()
     signal addFolderRequested()
     signal clearRequested()
+    signal fileLocationFailed()
     readonly property bool editingSearch: search.activeFocus
     readonly property bool menuOpen: playlistOptions.visible || sortOptions.visible
-        || playlistNameDialog.visible
+        || playlistNameDialog.visible || fileMenu.visible
     property int mappingRevision: 0
+    property url contextSource
     readonly property int selectedSourceIndex: {
         mappingRevision
         return filteredTracks.sourceIndex(trackList.currentIndex)
@@ -29,6 +31,20 @@ Rectangle {
     property int dropBoundary: -1
     property real dropLineY: 0
     readonly property var platformStyleHints: Qt.styleHints
+
+    PlayerMenu {
+        id: fileMenu
+        objectName: "playlistFileMenu"
+        width: Math.max(Theme.playlistMenuWidth, openLocation.implicitWidth)
+        PlayerMenuItem {
+            id: openLocation
+            objectName: "openFileLocationMenuItem"
+            text: qsTr("Open file location")
+            enabled: root.videoLibrary.canOpenFileLocation(root.contextSource)
+            onTriggered: if (!root.videoLibrary.openFileLocation(root.contextSource))
+                root.fileLocationFailed()
+        }
+    }
 
     function selectSource(index: int) {
         trackList.currentIndex = filteredTracks.filteredIndex(index)
@@ -352,6 +368,7 @@ Rectangle {
                 ? playlistHorizontalScrollBar.height : 0)
             z: 1
             preventStealing: true
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
             property point pressPosition
             property int pressedSource: -1
             property bool collapseOnRelease: false
@@ -362,6 +379,12 @@ Rectangle {
                     mouse.accepted = false
                     return
                 }
+                if (mouse.button === Qt.RightButton) {
+                    collapseOnRelease = false
+                    if (!root.selectedRows.includes(pressedSource))
+                        root.selectRow(row, Qt.NoModifier)
+                    return
+                }
                 pressPosition = Qt.point(mouse.x, mouse.y)
                 collapseOnRelease = !(mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier))
                     && root.selectedRows.includes(pressedSource)
@@ -370,7 +393,7 @@ Rectangle {
                 trackList.forceActiveFocus()
             }
             onPositionChanged: (mouse) => {
-                if (!pressed)
+                if (!pressed || pressedButtons !== Qt.LeftButton)
                     return
                 if (!root.draggingTracks && root.selectedRows.includes(pressedSource)
                     && Math.hypot(mouse.x - pressPosition.x, mouse.y - pressPosition.y)
@@ -379,7 +402,13 @@ Rectangle {
                 if (root.draggingTracks)
                     root.updateDrop(mouse.y)
             }
-            onReleased: () => {
+            onReleased: (mouse) => {
+                if (mouse.button === Qt.RightButton) {
+                    root.contextSource = filteredTracks.sourceAt(filteredTracks.filteredIndex(pressedSource))
+                    const point = mapToItem(root, mouse.x, mouse.y)
+                    fileMenu.popup(point.x, point.y)
+                    return
+                }
                 const dragged = root.draggingTracks
                 root.draggingTracks = false
                 if (dragged)
@@ -392,7 +421,10 @@ Rectangle {
                 root.draggingTracks = false
                 root.dropBoundary = -1
             }
-            onDoubleClicked: root.trackRequested(pressedSource)
+            onDoubleClicked: (mouse) => {
+                if (mouse.button === Qt.LeftButton)
+                    root.trackRequested(pressedSource)
+            }
         }
 
         delegate: Rectangle {

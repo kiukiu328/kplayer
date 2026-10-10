@@ -7,6 +7,8 @@
 #include "FileAssociations.h"
 #include "VideoFormats.h"
 #include "AppLanguage.h"
+#include "FullscreenCursor.h"
+#include <QDesktopServices>
 
 #include <QAbstractItemModelTester>
 #include <QDataStream>
@@ -40,6 +42,15 @@
 #endif
 
 #include <clocale>
+
+class FileLocationReceiver : public QObject
+{
+    Q_OBJECT
+public:
+    QUrl opened;
+public slots:
+    void capture(const QUrl &url) { opened = url; }
+};
 
 class PlayerTests : public QObject
 {
@@ -3468,6 +3479,146 @@ private slots:
         QTRY_COMPARE(backgroundColor(), QColor("#101010"));
         video->stop();
         QTRY_COMPARE(backgroundColor(), QColor("#101010"));
+    }
+
+    void fullscreenCursorHidesAndRestores()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *cursor = window->findChild<FullscreenCursor *>();
+        QVERIFY(cursor);
+        QCOMPARE(cursor->idleInterval(), 3000);
+        cursor->setIdleInterval(150);
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTest::mouseMove(window, {window->width() / 2, window->height() / 2}, 20);
+        QTRY_VERIFY(cursor->hidden());
+        QCOMPARE(window->cursor().shape(), Qt::BlankCursor);
+        QTest::mouseMove(window, {window->width() / 2 + 20, window->height() / 2}, 20);
+        QVERIFY(!cursor->hidden());
+        QVERIFY(window->cursor().shape() != Qt::BlankCursor);
+        QTRY_VERIFY(cursor->hidden());
+        QVERIFY(QMetaObject::invokeMethod(window, "showAppMenu"));
+        auto *menu = window->findChild<QObject *>("appMenu");
+        QTRY_VERIFY(menu->property("visible").toBool());
+        QTRY_VERIFY(!cursor->hidden());
+        QTest::qWait(250);
+        QVERIFY(!cursor->hidden());
+        QVERIFY(QMetaObject::invokeMethod(menu, "close"));
+        QTRY_VERIFY(cursor->hidden());
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        QVERIFY(!cursor->hidden());
+        QVERIFY(window->cursor().shape() != Qt::BlankCursor);
+        QTest::qWait(250);
+        QVERIFY(!cursor->hidden());
+    }
+
+    void playlistFileMenuOpensClickedLocation()
+    {
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("first.y4m"));
+        const QUrl second = makeVideo(directory.filePath("字幕, second.y4m"));
+        const QUrl remote("https://example.com/remote.mkv");
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *queue = window->findChild<PlaylistModel *>();
+        auto *video = window->findChild<MpvVideo *>();
+        auto *library = window->findChild<VideoLibrary *>();
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        auto *search = findItem(panel, "playlistSearch");
+        auto *menu = window->findChild<QObject *>("playlistFileMenu");
+        QVERIFY(queue && video && library && menu);
+        auto *openLocation = menuItemAt(menu, 0);
+        QVERIFY(openLocation);
+        queue->appendUrls({second, remote});
+        QVERIFY(library->canOpenFileLocation(second));
+        QVERIFY(!library->canOpenFileLocation(remote));
+        QVERIFY(!library->openFileLocation(remote));
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        video->seek(6);
+        QTRY_VERIFY(qAbs(video->position() - 6) < 0.1);
+        search->setProperty("text", "second");
+        QTRY_COMPARE(findItem(panel, "trackList")->property("count").toInt(), 1);
+        QSignalSpy requests(panel, SIGNAL(trackRequested(int)));
+        click(window, findItem(panel, "track0"), Qt::RightButton);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QCOMPARE(panel->property("contextSource").toUrl(), second);
+        QVERIFY(openLocation->isEnabled());
+        QCOMPARE(video->source(), first);
+        QCOMPARE(video->position(), 6.0);
+        QVERIFY(!video->playing() && !video->stopped());
+        QCOMPARE(requests.count(), 0);
+#ifndef Q_OS_WIN
+        // Capture the OS handoff without launching a file manager during the test.
+        FileLocationReceiver receiver;
+        QDesktopServices::setUrlHandler("file", &receiver, "capture");
+        const auto cleanup = qScopeGuard([] { QDesktopServices::unsetUrlHandler("file"); });
+        click(window, openLocation);
+        QCOMPARE(receiver.opened, QUrl::fromLocalFile(directory.path()));
+#else
+        QVERIFY(QMetaObject::invokeMethod(menu, "close"));
+#endif
+        search->setProperty("text", "remote");
+        QTRY_COMPARE(findItem(panel, "trackList")->property("count").toInt(), 1);
+        click(window, findItem(panel, "track0"), Qt::RightButton);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        QVERIFY(!openLocation->isEnabled());
+        QCOMPARE(panel->property("contextSource").toUrl(), remote);
+        QCOMPARE(video->source(), first);
+        QCOMPARE(requests.count(), 0);
+    }
+
+    void fullscreenTimelinePreviewShowsHoveredFrame()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("fullscreen-preview.y4m"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *bar = findItem(window->contentItem(), "playbackBar");
+        auto *seek = findItem(bar, "positionSlider");
+        auto *preview = window->findChild<MpvPreview *>();
+        QVERIFY(video && seek && preview);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        video->seek(3);
+        QTRY_VERIFY(qAbs(video->position() - 3) < 0.1);
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        QTest::mouseMove(window, {window->width() / 2, window->height() - 2});
+        QTRY_VERIFY(bar->isVisible());
+        auto *handle = seek->property("handle").value<QQuickItem *>();
+        const auto hoverAt = [&](double fraction) {
+            const qreal x = seek->property("leftPadding").toReal() + handle->width() / 2
+                + (seek->property("availableWidth").toReal() - handle->width()) * fraction;
+            QTest::mouseMove(window, seek->mapToScene({x, seek->height() / 2}).toPoint(), 20);
+        };
+        hoverAt(0.2);
+        QTRY_VERIFY(preview->active());
+        QTRY_VERIFY_WITH_TIMEOUT(preview->ready(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(previewBrightness(window, preview) >= 0
+                                && previewBrightness(window, preview) < 80, 10000);
+        hoverAt(0.8);
+        QTRY_VERIFY_WITH_TIMEOUT(preview->ready(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(previewBrightness(window, preview) > 160, 10000);
+        QCOMPARE(video->position(), 3.0);
+        QVERIFY(!video->playing());
     }
 
     void timelinePreviewShowsHoveredFrame()

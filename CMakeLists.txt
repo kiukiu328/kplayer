@@ -76,6 +76,8 @@ foreach(icon IN LISTS KPLAYER_ICONS)
 endforeach()
 
 set(KPLAYER_SOURCES
+    src/integration/FullscreenCursor.h
+    src/integration/FullscreenCursor.cpp
     src/integration/WindowResizeCursor.h
     src/integration/WindowResizeCursor.cpp
     src/integration/AppLanguage.h
@@ -128,7 +130,7 @@ qt_add_qml_module(KPlayer
 target_include_directories(KPlayer PRIVATE src/playback src/integration)
 target_link_libraries(KPlayer PRIVATE Qt6::Quick Qt6::OpenGL Qt6::Svg MPV::MPV)
 if(WIN32)
-    target_link_libraries(KPlayer PRIVATE advapi32 shell32)
+    target_link_libraries(KPlayer PRIVATE advapi32 shell32 ole32)
 endif()
 
 target_compile_definitions(KPlayer PRIVATE
@@ -201,7 +203,7 @@ if(KPLAYER_BUILD_TESTS)
     target_link_libraries(KPlayerTests PRIVATE
         Qt6::Quick Qt6::OpenGL Qt6::Svg Qt6::Test MPV::MPV)
     if(WIN32)
-        target_link_libraries(KPlayerTests PRIVATE advapi32 shell32)
+        target_link_libraries(KPlayerTests PRIVATE advapi32 shell32 ole32)
     endif()
     add_test(NAME player COMMAND KPlayerTests
         -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")

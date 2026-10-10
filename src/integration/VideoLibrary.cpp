@@ -6,6 +6,11 @@
 #include <QFile>
 #include <QSet>
 #include <QCollator>
+#include <QDesktopServices>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#include <shlobj.h>
+#endif
 #include <algorithm>
 
 namespace {
@@ -80,6 +85,34 @@ int VideoLibrary::addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &f
     if (added > 0)
         playlist->sortByTitle();
     return added;
+}
+
+bool VideoLibrary::canOpenFileLocation(const QUrl &source) const
+{
+    return source.isLocalFile() && !source.toLocalFile().isEmpty()
+        && QFileInfo(QFileInfo(source.toLocalFile()).absolutePath()).isDir();
+}
+
+bool VideoLibrary::openFileLocation(const QUrl &source)
+{
+    if (!canOpenFileLocation(source))
+        return false;
+    const QFileInfo file(source.toLocalFile());
+#ifdef Q_OS_WIN
+    // Use the shell API so Unicode, spaces, and commas are not command-line arguments.
+    const HRESULT initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const QString path = QDir::toNativeSeparators(file.absoluteFilePath());
+    auto *item = ILCreateFromPathW(reinterpret_cast<LPCWSTR>(path.utf16()));
+    const bool selected = item && SUCCEEDED(SHOpenFolderAndSelectItems(item, 0, nullptr, 0));
+    if (item)
+        ILFree(item);
+    if (SUCCEEDED(initialized))
+        CoUninitialize();
+    if (selected)
+        return true;
+#endif
+    // Also open the containing folder when a file has been moved or deleted.
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(file.absolutePath()));
 }
 
 int VideoLibrary::addFolderPlaylist(PlaylistCollection *playlists, const QUrl &url)

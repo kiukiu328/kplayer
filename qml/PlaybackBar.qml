@@ -13,6 +13,8 @@ Rectangle {
     property bool playlistVisible: true
     property bool controlPanelVisible: false
     readonly property bool interacting: positionSlider.pressed || volumeSlider.pressed
+    readonly property bool hovered: barHover.hovered
+    HoverHandler { id: barHover; blocking: false }
     readonly property bool compact: width < 5 * Theme.transportButtonWidth
         + Theme.toolButtonWidth + 56 + Theme.transportButtonWidth + timestamps.width + 30
     signal playPauseRequested()

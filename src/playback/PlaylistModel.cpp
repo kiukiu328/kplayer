@@ -507,3 +507,8 @@ QStringList PlaylistFilterModel::titles() const
         result.append(data(index(row, 0), PlaylistModel::TitleRole).toString());
     return result;
 }
+
+QUrl PlaylistFilterModel::sourceAt(int filteredRow) const
+{
+    return data(index(filteredRow, 0), PlaylistModel::SourceRole).toUrl();
+}

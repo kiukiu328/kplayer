@@ -226,6 +226,8 @@ playlist selections keep their own keyboard behavior.
 - Right-click the video or click the top-left KPlayer button to open the menu.
 - Scroll over the video to adjust volume; drag the video to move the window.
 - In fullscreen, move near the top for the title bar, bottom for controls, or right edge for the playlist.
+- The fullscreen cursor hides after three idle seconds and returns when the mouse moves. Menus, dialogs, and control drags keep it visible.
+- Right-click a playlist file and choose **Open file location** to open its folder (and select the file in Windows Explorer). This action is unavailable for online URLs.
 - Scroll long playlist titles horizontally. Selecting tracks or playlist tabs keeps playback running; double-click or press Enter to play a selection.
 - Arrow seeks show the resulting playback time in the blue hint, using the system font.
 - Left-click Previous/Next to seek 10 seconds; right-click to change playlist items.

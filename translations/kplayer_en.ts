@@ -371,6 +371,10 @@
     <context>
         <name>Main</name>
         <message>
+            <source>Could not open file location</source>
+            <translation>Could not open file location</translation>
+        </message>
+        <message>
             <source>新增資料夾為播放清單</source>
             <translation>Add folder as playlist</translation>
         </message>
@@ -790,6 +794,10 @@ Right click: next track</translation>
     </context>
     <context>
         <name>PlaylistPanel</name>
+        <message>
+            <source>Open file location</source>
+            <translation>Open file location</translation>
+        </message>
         <message>
             <source>新增資料夾…</source>
             <translation>Add folder…</translation>

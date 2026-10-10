@@ -121,6 +121,7 @@ public:
     Q_INVOKABLE int sourceIndex(int filteredRow) const;
     Q_INVOKABLE int filteredIndex(int sourceRow) const;
     Q_INVOKABLE QStringList titles() const;
+    Q_INVOKABLE QUrl sourceAt(int filteredRow) const;
 
 signals:
     void playlistChanged();

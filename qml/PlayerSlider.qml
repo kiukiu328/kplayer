@@ -31,7 +31,7 @@ Slider {
     ToolTip.delay: pressed ? 0 : 600
     ToolTip.timeout: 5000
 
-    HoverHandler { id: timelineHover }
+    HoverHandler { id: timelineHover; blocking: false }
 
     background: Rectangle {
         x: root.leftPadding

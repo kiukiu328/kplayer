@@ -331,6 +331,15 @@ Window {
         player: videoStage
     }
     FileAssociations { id: fileAssociations; objectName: "fileAssociations" }
+    FullscreenCursor {
+        objectName: "fullscreenCursor"
+        window: window
+        enabled: window.isFullscreen && !playlist.menuOpen && !playlist.draggingTracks
+            && !playlistResizeHandle.pressed && !playback.interacting
+            && !appMenu.visible && !subtitleMenu.visible && !controlPanel.active
+            && !mediaDialog.visible && !folderDialog.visible && !subtitleDialog.visible
+            && !infoDialog.visible && !advancedSettings.visible && !videoAdjustments.visible
+    }
     Connections {
         target: playlists
         function onCurrentPlaylistChanged() {
@@ -870,10 +879,11 @@ Window {
                 PlaybackBar {
                     id: playback
                     objectName: "playbackBar"
+                    z: 2
                     anchors.bottom: parent.bottom
                     width: parent.width - (window.isFullscreen && playlist.visible ? playlist.width : 0)
                     visible: window.controlsVisible || (window.isFullscreen
-                        && (bottomHover.hovered || playback.interacting || activeFocus
+                        && (bottomHover.hovered || playback.hovered || playback.interacting || activeFocus
                             || appMenu.visible))
                     height: visible ? implicitHeight : 0
                     playing: videoStage.playing
@@ -956,6 +966,7 @@ Window {
                 onAddRequested: window.openMedia(false)
                 onAddFolderRequested: folderDialog.open()
                 onClearRequested: window.clearPlaylist()
+                onFileLocationFailed: videoStage.showHint(qsTr("Could not open file location"))
             }
 
             Item {
