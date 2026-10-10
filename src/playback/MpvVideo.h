@@ -7,6 +7,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
+#include "PlaybackInhibitor.h"
 
 struct mpv_handle;
 struct mpv_node;
@@ -210,6 +211,7 @@ private:
 
     // The renderer retains the handle until its OpenGL context is freed.
     std::shared_ptr<mpv_handle> m_mpv;
+    PlaybackInhibitor m_playbackInhibitor;
     QUrl m_source;
     QString m_errorString;
     bool m_stopped = true;

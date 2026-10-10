@@ -280,6 +280,7 @@ void MpvVideo::setPlaybackState(bool stopped, bool paused)
         return;
     m_stopped = stopped;
     m_paused = paused;
+    m_playbackInhibitor.setPlaying(playing());
     emit playbackStateChanged();
 }
 

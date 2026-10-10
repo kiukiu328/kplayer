@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 6.11.2 REQUIRED COMPONENTS Quick OpenGL Svg LinguistTools)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(Qt6 6.11.2 REQUIRED COMPONENTS DBus)
+endif()
 if(WIN32)
     # Native Windows CMake cannot use MSYS paths from dependency .pc files.
     find_path(MPV_INCLUDE_DIR NAMES mpv/client.h REQUIRED)
@@ -76,6 +79,8 @@ foreach(icon IN LISTS KPLAYER_ICONS)
 endforeach()
 
 set(KPLAYER_SOURCES
+    src/integration/PlaybackInhibitor.h
+    src/integration/PlaybackInhibitor.cpp
     src/integration/FullscreenCursor.h
     src/integration/FullscreenCursor.cpp
     src/integration/WindowResizeCursor.h
@@ -129,6 +134,9 @@ qt_add_qml_module(KPlayer
 
 target_include_directories(KPlayer PRIVATE src/playback src/integration)
 target_link_libraries(KPlayer PRIVATE Qt6::Quick Qt6::OpenGL Qt6::Svg MPV::MPV)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(KPlayer PRIVATE Qt6::DBus)
+endif()
 if(WIN32)
     target_link_libraries(KPlayer PRIVATE advapi32 shell32 ole32)
 endif()
@@ -205,7 +213,23 @@ if(KPLAYER_BUILD_TESTS)
     if(WIN32)
         target_link_libraries(KPlayerTests PRIVATE advapi32 shell32 ole32)
     endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_libraries(KPlayerTests PRIVATE Qt6::DBus)
+    endif()
     add_test(NAME player COMMAND KPlayerTests
         -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")
     set_tests_properties(player PROPERTIES TIMEOUT 120)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        qt_add_executable(PlaybackInhibitorTests
+            tests/tst_playbackinhibitor.cpp
+            src/integration/PlaybackInhibitor.cpp
+            src/integration/PlaybackInhibitor.h)
+        target_include_directories(PlaybackInhibitorTests PRIVATE src/integration)
+        target_link_libraries(PlaybackInhibitorTests PRIVATE Qt6::Test Qt6::DBus)
+        find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session REQUIRED)
+        # Test a private bus, without inhibiting or replacing the user's desktop services.
+        add_test(NAME playback-inhibitor
+            COMMAND "${DBUS_RUN_SESSION_EXECUTABLE}" -- $<TARGET_FILE:PlaybackInhibitorTests>)
+        set_tests_properties(playback-inhibitor PROPERTIES TIMEOUT 30)
+    endif()
 endif()

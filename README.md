@@ -26,6 +26,8 @@ native Windows build, runtime deployment, and Windows file associations.
   languages, and adjust subtitle appearance and timing.
 - **Playback controls:** familiar keyboard shortcuts, frame stepping, adjustable
   speed, repeat modes, and A–B looping.
+- **Keep awake:** inhibit automatic sleep and display idle behavior while playing
+  on Linux and Windows; release the request when paused, stopped, or closed.
 - **Timeline previews:** hover or drag to preview a frame without interrupting
   the current playback.
 - **Playlists and favorites:** drag and drop files or folders, search and reorder
