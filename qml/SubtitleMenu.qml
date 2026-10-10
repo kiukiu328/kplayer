@@ -5,14 +5,27 @@ PlayerMenu {
     id: root
     required property var player
     property string preferredLanguages: ""
-    readonly property string trackLanguage: {
-        const track = player.subtitleTracks.find(track => track.id === player.subtitleTrack)
-        return track && track.lang ? track.lang.trim().toLowerCase() : ""
+    property int preferredTrackNumber: 0
+    property string preferredTrackName: ""
+    readonly property var currentTrack: player.subtitleTracks.find(
+        track => track.id === player.subtitleTrack)
+    readonly property string trackLanguage: currentTrack && currentTrack.lang
+        ? currentTrack.lang.trim().toLowerCase() : ""
+    readonly property string trackName: {
+        if (!currentTrack)
+            return ""
+        if (currentTrack.title && currentTrack.title.trim().length > 0)
+            return currentTrack.title.trim()
+        const path = currentTrack["external-filename"] || ""
+        return path.split(/[\\/]/).pop()
     }
     readonly property bool usableLanguage: /^[a-z]{2,3}(-[a-z0-9]+)*$/.test(trackLanguage)
         && !["und", "zxx", "mul"].includes(trackLanguage)
     signal addRequested()
     signal preferLanguageRequested(string language)
+    signal preferTrackNumberRequested(int track)
+    signal preferTrackNameRequested(string name)
+    signal automaticPreferenceRequested()
     title: qsTr("字幕")
 
     PlayerMenuItem {
@@ -62,17 +75,52 @@ PlayerMenu {
         onObjectRemoved: (index, object) => root.removeItem(object)
     }
     PlayerMenuSeparator {}
-    PlayerMenuItem {
-        objectName: "subtitleLanguageMenuItem"
-        text: root.usableLanguage ? qsTr("目前字幕語言代碼：%1").arg(root.trackLanguage)
-                                 : qsTr("目前字幕語言代碼：未知")
-        enabled: false
-    }
-    PlayerMenuItem {
-        objectName: "preferSubtitleLanguageMenuItem"
-        text: qsTr("加入預設字幕語言")
-        enabled: root.player.mediaLoaded && root.usableLanguage
-            && !root.preferredLanguages.toLowerCase().split(",").map(code => code.trim()).includes(root.trackLanguage)
-        onTriggered: root.preferLanguageRequested(root.trackLanguage)
+    PlayerMenu {
+        objectName: "subtitlePreferenceMenu"
+        title: qsTr("選擇字幕依據")
+        enabled: root.player.mediaLoaded
+
+        PlayerMenuItem {
+            objectName: "subtitlePreferenceAutomaticMenuItem"
+            text: qsTr("自動")
+            checkable: true
+            radioIndicator: true
+            checked: root.preferredLanguages.length === 0
+                && root.preferredTrackNumber === 0 && root.preferredTrackName.length === 0
+            onTriggered: root.automaticPreferenceRequested()
+        }
+        PlayerMenuSeparator {}
+        PlayerMenuItem {
+            objectName: "subtitlePreferenceLanguageMenuItem"
+            text: root.usableLanguage ? qsTr("目前語言：%1").arg(root.trackLanguage)
+                                      : qsTr("目前語言：未知")
+            enabled: root.usableLanguage
+            checkable: true
+            radioIndicator: true
+            checked: root.preferredLanguages.length > 0
+                && root.preferredTrackNumber === 0 && root.preferredTrackName.length === 0
+            onTriggered: root.preferLanguageRequested(root.trackLanguage)
+        }
+        PlayerMenuItem {
+            objectName: "subtitlePreferenceTrackNumberMenuItem"
+            text: qsTr("目前字幕軌編號：%1").arg(root.player.subtitleTrack)
+            enabled: root.currentTrack !== undefined
+            checkable: true
+            radioIndicator: true
+            checked: root.preferredTrackNumber > 0
+                && root.preferredLanguages.length === 0 && root.preferredTrackName.length === 0
+            onTriggered: root.preferTrackNumberRequested(root.player.subtitleTrack)
+        }
+        PlayerMenuItem {
+            objectName: "subtitlePreferenceTrackNameMenuItem"
+            text: root.trackName.length > 0 ? qsTr("目前字幕軌名稱：%1").arg(root.trackName)
+                                            : qsTr("目前字幕軌名稱：未知")
+            enabled: root.trackName.length > 0
+            checkable: true
+            radioIndicator: true
+            checked: root.preferredTrackName.length > 0
+                && root.preferredLanguages.length === 0 && root.preferredTrackNumber === 0
+            onTriggered: root.preferTrackNameRequested(root.trackName)
+        }
     }
 }

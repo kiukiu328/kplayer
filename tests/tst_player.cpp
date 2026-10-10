@@ -1414,7 +1414,7 @@ private slots:
         auto *menu = window->findChild<QObject *>("subtitleSelectionMenu");
         QVERIFY(menu);
         QTRY_VERIFY(menu->property("opened").toBool());
-        QCOMPARE(menu->property("count").toInt(), 8 + video->subtitleTracks().size());
+        QCOMPARE(menu->property("count").toInt(), 7 + video->subtitleTracks().size());
         QVERIFY(menuItemAt(menu, 5)->property("checked").toBool());
         click(window, menuItemAt(menu, 6));
         QTRY_COMPARE(video->subtitleTrack(), secondId);
@@ -1424,6 +1424,26 @@ private slots:
         video->setSubtitleTrack(firstId);
         QTRY_COMPARE(video->subtitleTrack(), firstId);
         QTRY_VERIFY(video->subtitlesVisible());
+
+        video->setSubtitleTrack(secondId);
+        QTRY_COMPARE(video->subtitleTrack(), secondId);
+        auto *trackNamePreference = menu->findChild<QObject *>("subtitlePreferenceTrackNameMenuItem");
+        auto *trackNumberPreference = menu->findChild<QObject *>("subtitlePreferenceTrackNumberMenuItem");
+        auto *automaticPreference = menu->findChild<QObject *>("subtitlePreferenceAutomaticMenuItem");
+        QVERIFY(trackNamePreference && trackNumberPreference && automaticPreference);
+        QVERIFY(trackNamePreference->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(trackNamePreference, "triggered"));
+        QTRY_COMPARE(video->defaultSubtitleTrackName(), QStringLiteral("中文.srt"));
+        QCOMPARE(video->defaultSubtitleTrack(), 0);
+        QCOMPARE(video->defaultSubtitleLanguage(), QString{});
+        QVERIFY(QMetaObject::invokeMethod(trackNumberPreference, "triggered"));
+        QTRY_COMPARE(video->defaultSubtitleTrack(), secondId);
+        QCOMPARE(video->defaultSubtitleTrackName(), QString{});
+        QCOMPARE(video->defaultSubtitleLanguage(), QString{});
+        QVERIFY(QMetaObject::invokeMethod(automaticPreference, "triggered"));
+        QTRY_COMPARE(video->defaultSubtitleTrack(), 0);
+        QCOMPARE(video->defaultSubtitleTrackName(), QString{});
+        QCOMPARE(video->defaultSubtitleLanguage(), QString{});
 
         click(window, findItem(window->contentItem(), "videoStage"));
         QTest::keyClick(window, Qt::Key_PageDown);
@@ -2699,8 +2719,15 @@ private slots:
 
         click(window, item("videoStage"));
         QTRY_VERIFY(window->property("playbackShortcutsEnabled").toBool());
+        auto *playButton = item("playButton");
+        QVERIFY(playButton);
+        playButton->forceActiveFocus();
+        QTRY_VERIFY(playButton->hasActiveFocus());
+        QVERIFY(window->property("playbackShortcutsEnabled").toBool());
+        QVERIFY(!window->property("activationShortcutsEnabled").toBool());
         QTest::keyClick(window, Qt::Key_M);
         QTRY_COMPARE(video->muted(), !muted);
+        click(window, item("videoStage"));
         QTest::keyClick(window, Qt::Key_Space);
         QTRY_VERIFY(video->playing());
         QTest::keyClick(window, Qt::Key_Space);

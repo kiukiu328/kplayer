@@ -384,6 +384,18 @@
             <translation>Added to default subtitle languages: %1</translation>
         </message>
         <message>
+            <source>已設定預設字幕軌編號：%1</source>
+            <translation>Default subtitle track number set: %1</translation>
+        </message>
+        <message>
+            <source>已設定預設字幕軌名稱：%1</source>
+            <translation>Default subtitle track name set: %1</translation>
+        </message>
+        <message>
+            <source>字幕選擇方式：自動</source>
+            <translation>Subtitle selection: Automatic</translation>
+        </message>
+        <message>
             <location filename="../qml/Main.qml" line="48" />
             <source>Repeat off</source>
             <translation>Repeat off</translation>
@@ -1005,19 +1017,32 @@ Double click to play</translation>
             <translation>No subtitles</translation>
         </message>
         <message>
-            <location filename="../qml/SubtitleMenu.qml" line="67" />
-            <source>目前字幕語言代碼：%1</source>
-            <translation>Current subtitle language code: %1</translation>
+            <source>選擇字幕依據</source>
+            <translation>Choose subtitles by</translation>
         </message>
         <message>
-            <location filename="../qml/SubtitleMenu.qml" line="68" />
-            <source>目前字幕語言代碼：未知</source>
-            <translation>Current subtitle language code: unknown</translation>
+            <source>自動</source>
+            <translation>Automatic</translation>
         </message>
         <message>
-            <location filename="../qml/SubtitleMenu.qml" line="73" />
-            <source>加入預設字幕語言</source>
-            <translation>Add to default subtitle languages</translation>
+            <source>目前語言：%1</source>
+            <translation>Current language: %1</translation>
+        </message>
+        <message>
+            <source>目前語言：未知</source>
+            <translation>Current language: Unknown</translation>
+        </message>
+        <message>
+            <source>目前字幕軌編號：%1</source>
+            <translation>Current subtitle track number: %1</translation>
+        </message>
+        <message>
+            <source>目前字幕軌名稱：%1</source>
+            <translation>Current subtitle track name: %1</translation>
+        </message>
+        <message>
+            <source>目前字幕軌名稱：未知</source>
+            <translation>Current subtitle track name: Unknown</translation>
         </message>
     </context>
     <context>

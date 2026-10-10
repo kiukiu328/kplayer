@@ -23,12 +23,35 @@ Window {
     }
 
     function preferSubtitleLanguage(language: string) {
+        videoStage.defaultSubtitleTrackName = ""
+        videoStage.defaultSubtitleTrack = 0
         const codes = videoStage.defaultSubtitleLanguage.toLowerCase().split(",")
             .map(code => code.trim()).filter(code => code.length > 0)
         if (!codes.includes(language))
             codes.push(language)
         videoStage.defaultSubtitleLanguage = codes.join(",")
         videoStage.showHint(qsTr("已加入預設字幕語言：%1").arg(language))
+    }
+
+    function preferSubtitleTrack(track: int) {
+        videoStage.defaultSubtitleLanguage = ""
+        videoStage.defaultSubtitleTrackName = ""
+        videoStage.defaultSubtitleTrack = track
+        videoStage.showHint(qsTr("已設定預設字幕軌編號：%1").arg(track))
+    }
+
+    function preferSubtitleTrackName(name: string) {
+        videoStage.defaultSubtitleLanguage = ""
+        videoStage.defaultSubtitleTrack = 0
+        videoStage.defaultSubtitleTrackName = name
+        videoStage.showHint(qsTr("已設定預設字幕軌名稱：%1").arg(name))
+    }
+
+    function clearSubtitlePreference() {
+        videoStage.defaultSubtitleLanguage = ""
+        videoStage.defaultSubtitleTrack = 0
+        videoStage.defaultSubtitleTrackName = ""
+        videoStage.showHint(qsTr("字幕選擇方式：自動"))
     }
     property list<url> startupFiles: []
     readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
@@ -60,14 +83,23 @@ Window {
         && !appMenu.visible && !infoDialog.visible
         && !advancedSettings.visible && !videoAdjustments.visible
         && !hasInteractiveFocus()
+    readonly property bool activationShortcutsEnabled: playbackShortcutsEnabled
+        && !hasButtonFocus()
 
     function hasInteractiveFocus(): bool {
         // Focus scopes can give their delegate or content item the active focus.
         for (let item = window.activeFocusItem; item !== null; item = item.parent) {
             if (item instanceof TextInput || item instanceof TextEdit
-                || item instanceof Slider || item instanceof AbstractButton
-                || item instanceof IconButton || item instanceof PlaylistTab
-                || item.objectName === "trackList" || item.objectName === "appMenuButton")
+                || item instanceof Slider || item.objectName === "trackList")
+                return true
+        }
+        return false
+    }
+
+    function hasButtonFocus(): bool {
+        for (let item = window.activeFocusItem; item !== null; item = item.parent) {
+            if (item instanceof AbstractButton || item instanceof IconButton
+                || item instanceof PlaylistTab || item.objectName === "appMenuButton")
                 return true
         }
         return false
@@ -367,7 +399,12 @@ Window {
         id: subtitleMenu
         objectName: "subtitleSelectionMenu"
         preferredLanguages: videoStage.defaultSubtitleLanguage
+        preferredTrackNumber: videoStage.defaultSubtitleTrack
+        preferredTrackName: videoStage.defaultSubtitleTrackName
         onPreferLanguageRequested: (language) => window.preferSubtitleLanguage(language)
+        onPreferTrackNumberRequested: (track) => window.preferSubtitleTrack(track)
+        onPreferTrackNameRequested: (name) => window.preferSubtitleTrackName(name)
+        onAutomaticPreferenceRequested: window.clearSubtitlePreference()
         parent: window.contentItem
         player: videoStage
         onAddRequested: window.openSubtitles()
@@ -449,7 +486,12 @@ Window {
     }
     AppMenu {
         preferredSubtitleLanguages: videoStage.defaultSubtitleLanguage
+        preferredSubtitleTrackNumber: videoStage.defaultSubtitleTrack
+        preferredSubtitleTrackName: videoStage.defaultSubtitleTrackName
         onPreferSubtitleLanguageRequested: (language) => window.preferSubtitleLanguage(language)
+        onPreferSubtitleTrackNumberRequested: (track) => window.preferSubtitleTrack(track)
+        onPreferSubtitleTrackNameRequested: (name) => window.preferSubtitleTrackName(name)
+        onAutomaticSubtitlePreferenceRequested: window.clearSubtitlePreference()
         id: appMenu
         parent: window.contentItem
         openAction: openMediaAction
@@ -540,12 +582,12 @@ Window {
     Shortcut { sequence: "Ctrl+L"; onActivated: showPlaylistAction.trigger() }
     Shortcut {
         sequence: "Return"
-        enabled: window.playbackShortcutsEnabled
+        enabled: window.activationShortcutsEnabled
         onActivated: window.toggleFullscreen()
     }
     Shortcut {
         sequence: "Enter"
-        enabled: window.playbackShortcutsEnabled
+        enabled: window.activationShortcutsEnabled
         onActivated: window.toggleFullscreen()
     }
 
@@ -563,7 +605,7 @@ Window {
     }
     Shortcut {
         sequence: "Space"
-        enabled: window.playbackShortcutsEnabled
+        enabled: window.activationShortcutsEnabled
         onActivated: window.togglePlayback()
     }
     Shortcut {

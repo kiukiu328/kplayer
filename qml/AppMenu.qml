@@ -18,7 +18,12 @@ PlayerMenu {
     required property Action associateVideosAction
     required property var player
     property string preferredSubtitleLanguages: ""
+    property int preferredSubtitleTrackNumber: 0
+    property string preferredSubtitleTrackName: ""
     signal preferSubtitleLanguageRequested(string language)
+    signal preferSubtitleTrackNumberRequested(int track)
+    signal preferSubtitleTrackNameRequested(string name)
+    signal automaticSubtitlePreferenceRequested()
     required property Favorites favorites
     signal favoriteRequested(url source)
     signal addSubtitleRequested()
@@ -176,7 +181,12 @@ PlayerMenu {
         objectName: "subtitleSubmenu"
         player: root.player
         preferredLanguages: root.preferredSubtitleLanguages
+        preferredTrackNumber: root.preferredSubtitleTrackNumber
+        preferredTrackName: root.preferredSubtitleTrackName
         onPreferLanguageRequested: (language) => root.preferSubtitleLanguageRequested(language)
+        onPreferTrackNumberRequested: (track) => root.preferSubtitleTrackNumberRequested(track)
+        onPreferTrackNameRequested: (name) => root.preferSubtitleTrackNameRequested(name)
+        onAutomaticPreferenceRequested: root.automaticSubtitlePreferenceRequested()
         onAddRequested: root.addSubtitleRequested()
     }
     PlayerMenu {
