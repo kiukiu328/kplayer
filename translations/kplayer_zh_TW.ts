@@ -1760,8 +1760,8 @@ Double click to play</source>
             <translation>沒有語言資訊</translation>
         </message>
         <message>
-            <source>Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.</source>
-            <translation>名稱比對字幕軌標題或檔名，不區分大小寫。en 與 eng 等語言代碼視為相同語言。空白規則會略過。</translation>
+            <source>Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.</source>
+            <translation>名稱比對字幕軌標題或檔名，不區分大小寫。en 與 eng 等語言別名視為相同；zh-hans（簡體）與 zh-hant（繁體）等文字系統分開比對。空白規則會略過。</translation>
         </message>
     </context>
 </TS>

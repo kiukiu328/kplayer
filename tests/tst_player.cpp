@@ -1554,6 +1554,107 @@ private slots:
         QCOMPARE(video->errorString(), QString{});
     }
 
+    void subtitleLanguageRulesRespectScriptVariants()
+    {
+        const QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");
+        if (ffmpeg.isEmpty())
+            QSKIP("ffmpeg is needed to create the Chinese subtitle fixture");
+        QTemporaryDir directory;
+        const auto rawVideo = makeVideo(directory.filePath("video.y4m"));
+        QFile subtitles(directory.filePath("text.srt"));
+        QVERIFY(subtitles.open(QIODevice::WriteOnly));
+        subtitles.write("1\n00:00:00,000 --> 00:00:29,000\nSubtitle\n");
+        subtitles.close();
+        const QString media = directory.filePath("chinese.mkv");
+        QProcess encoder;
+        encoder.start(ffmpeg, {"-v", "error", "-i", rawVideo.toLocalFile(),
+            "-i", subtitles.fileName(), "-i", subtitles.fileName(),
+            "-map", "0:v", "-map", "1:s", "-map", "2:s", "-map", "1:s", "-map", "2:s",
+            "-c:v", "ffv1", "-c:s", "srt",
+            "-metadata:s:s:0", "language=zh-Hans", "-metadata:s:s:0", "title=Simplified",
+            "-metadata:s:s:1", "language=chi", "-metadata:s:s:1", "title=Unspecified Chinese",
+            "-metadata:s:s:2", "language=zh-Hant", "-metadata:s:s:2", "title=Traditional",
+            "-metadata:s:s:3", "language=zh-TW", "-metadata:s:s:3", "title=Taiwan",
+            "-disposition:s:0", "default", "-disposition:s:1", "0",
+            "-disposition:s:2", "0", "-disposition:s:3", "0", media});
+        QVERIFY(encoder.waitForFinished(10000));
+        QCOMPARE(encoder.exitCode(), 0);
+        QSettings().setValue("subtitles/defaultRules", "language:zh-hant");
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", QUrl::fromLocalFile(media)}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(video);
+        video->play();
+        QTRY_COMPARE(video->subtitleTracks().size(), 4);
+        const auto tracks = video->subtitleTracks();
+        const int simplified = tracks.at(0).toMap().value("id").toInt();
+        const int traditional = tracks.at(2).toMap().value("id").toInt();
+        const int taiwan = tracks.at(3).toMap().value("id").toInt();
+        QCOMPARE(tracks.at(0).toMap().value("lang").toString().toLower(), QStringLiteral("zh-hans"));
+        QCOMPARE(tracks.at(2).toMap().value("lang").toString().toLower(), QStringLiteral("zh-hant"));
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        video->togglePause();
+        video->setDefaultSubtitleRules("language:ZHO_HANT");
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        video->setDefaultSubtitleRules("subtrackname:Simplified\nlanguage:zh-hant");
+        QTRY_COMPARE(video->subtitleTrack(), simplified);
+        video->setDefaultSubtitleRules("language:zh-hant\nsubtrackname:Simplified");
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        video->setDefaultSubtitleRules("language:zh-tw");
+        QTRY_COMPARE(video->subtitleTrack(), taiwan);
+        video->setDefaultSubtitleRules(QStringLiteral("language:zh-latn\ntracknum:%1").arg(traditional));
+        QTRY_COMPARE(video->subtitleTrack(), traditional); // No Chinese track uses the requested script.
+        video->setDefaultSubtitleRules("language:zh");
+        QTRY_COMPARE(video->subtitleTrack(), simplified); // A broad language rule still matches any variant.
+
+        // Current-language capture must keep Hans and Hant as distinct rules.
+        video->setDefaultSubtitleRules("language:zh-hans");
+        QTRY_COMPARE(video->subtitleTrack(), simplified);
+        video->setSubtitleTrack(traditional);
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        auto *menu = window->findChild<QObject *>("subtitleSelectionMenu");
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        QVERIFY(menu && dialog);
+        auto *addLanguage = menu->findChild<QObject *>("addCurrentSubtitleLanguageRuleMenuItem");
+        QVERIFY(addLanguage && addLanguage->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(addLanguage, "triggered"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        auto *value = findItem(window->contentItem(), "subtitleRuleValue1");
+        QTRY_VERIFY(value && value->hasActiveFocus());
+        QCOMPARE(value->property("text").toString(), QStringLiteral("zh-hant"));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+        QTRY_COMPARE(video->defaultSubtitleRules(), QStringLiteral("language:zh-hans\nlanguage:zh-hant"));
+        QTRY_COMPARE(video->subtitleTrack(), simplified);
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        video->setSubtitleTrack(traditional);
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        QVERIFY(QMetaObject::invokeMethod(addLanguage, "triggered"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QVERIFY(!findItem(window->contentItem(), "subtitleRuleValue2"));
+        QCOMPARE(findItem(window->contentItem(), "subtitleSettings")->property("ruleActionResult").toInt(), 2);
+        value = findItem(window->contentItem(), "subtitleRuleValue1");
+        QTRY_VERIFY(value && value->hasActiveFocus());
+        auto *grip = findItem(window->contentItem(), "subtitleRuleGrip1");
+        QVERIFY(grip);
+        grip->forceActiveFocus();
+        QTRY_VERIFY(grip->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_Up, Qt::AltModifier);
+        QTRY_COMPARE(findItem(window->contentItem(), "subtitleRuleValue0")->property("text").toString(),
+                     QStringLiteral("zh-hant"));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+        QTRY_COMPARE(video->defaultSubtitleRules(), QStringLiteral("language:zh-hant\nlanguage:zh-hans"));
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        video->stop();
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_COMPARE(video->subtitleTrack(), traditional);
+        QCOMPARE(video->errorString(), QString{});
+    }
+
     void subtitlePriorityRulesApplyToAllFilesAndPersist()
     {
         const QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");

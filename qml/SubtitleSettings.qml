@@ -511,7 +511,7 @@ Column {
         }
         Hint {
             visible: rules.count > 0
-            text: qsTr("Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.")
+            text: qsTr("Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.")
         }
     }
 

@@ -1760,8 +1760,8 @@ Double click to play</translation>
             <translation>Language unavailable</translation>
         </message>
         <message>
-            <source>Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.</source>
-            <translation>Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.</translation>
+            <source>Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.</source>
+            <translation>Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.</translation>
         </message>
     </context>
 </TS>

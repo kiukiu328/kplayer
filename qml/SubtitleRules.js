@@ -29,8 +29,11 @@ function languageKey(code) {
     const value = languageCode(code)
     if (value.length === 0)
         return ""
-    const locale = Qt.locale(value).name
-    return locale === "C" ? value : locale.split("_")[0]
+    const parts = value.split("-")
+    const locale = Qt.locale(parts[0]).name
+    if (locale !== "C")
+        parts[0] = locale.split("_")[0]
+    return parts.join("-")
 }
 
 function sameRule(kind, first, second) {

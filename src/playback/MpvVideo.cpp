@@ -122,7 +122,7 @@ private:
 };
 
 namespace {
-bool subtitleLanguageMatches(const QString &trackLanguage, const QString &requestedLanguage)
+int subtitleLanguageMatchScore(const QString &trackLanguage, const QString &requestedLanguage)
 {
     const QString code = trackLanguage.trimmed().toLower().replace('_', '-');
     const QString requested = requestedLanguage.trimmed().toLower().replace('_', '-');
@@ -132,9 +132,58 @@ bool subtitleLanguageMatches(const QString &trackLanguage, const QString &reques
         return syntax.match(value).hasMatch() && base != "und" && base != "zxx" && base != "mul";
     };
     if (!usable(code) || !usable(requested))
-        return false;
-    const auto language = QLocale(requested).language();
-    return code == requested || (language != QLocale::C && language == QLocale(code).language());
+        return 0;
+    const auto trackParts = code.split('-');
+    const auto requestedParts = requested.split('-');
+    const auto scriptTag = [](const QStringList &parts) {
+        const QString tag = parts.value(1);
+        return tag.size() == 4 ? tag : QString{};
+    };
+    const auto regionTag = [](const QStringList &parts) {
+        const QString tag = parts.value(parts.value(1).size() == 4 ? 2 : 1);
+        static const QRegularExpression region(QStringLiteral("^(?:[a-z]{2}|[0-9]{3})$"));
+        return region.match(tag).hasMatch() ? tag : QString{};
+    };
+    const QString requestedScript = scriptTag(requestedParts);
+    const QString requestedRegion = regionTag(requestedParts);
+    const bool specific = !requestedScript.isEmpty() || !requestedRegion.isEmpty();
+    if (code == requested)
+        return specific ? 3 : 1;
+    const auto language = QLocale::codeToLanguage(requestedParts.first());
+    if (language == QLocale::AnyLanguage || language == QLocale::C
+        || language != QLocale::codeToLanguage(trackParts.first()))
+        return 0;
+
+    const QString trackScript = scriptTag(trackParts);
+    const QString trackRegion = regionTag(trackParts);
+    const auto resolvedScript = [&scriptTag, &regionTag](const QStringList &parts) {
+        const QString script = scriptTag(parts);
+        if (!script.isEmpty())
+            return QLocale::codeToScript(script);
+        const QString region = regionTag(parts);
+        // A bare language tag has no script metadata. QLocale's default script
+        // must not turn an unspecified Chinese track into a Hans or Hant match.
+        return region.isEmpty() ? QLocale::AnyScript
+                               : QLocale(parts.first() + '-' + region).script();
+    };
+    const auto candidateScript = resolvedScript(trackParts);
+    if (!requestedScript.isEmpty()) {
+        const auto script = QLocale::codeToScript(requestedScript);
+        if (script == QLocale::AnyScript || script != candidateScript)
+            return 0;
+    } else if (!requestedRegion.isEmpty() && candidateScript != QLocale::AnyScript
+               && resolvedScript(requestedParts) != candidateScript) {
+        return 0;
+    }
+    if (!requestedRegion.isEmpty() && !trackRegion.isEmpty() && requestedRegion != trackRegion)
+        return 0;
+    if (!specific)
+        return 1;
+    // Prefer the requested variant over a compatible script/region or a bare
+    // language tag, without allowing a lower-priority rule to win.
+    if (requestedScript == trackScript && requestedRegion == trackRegion)
+        return 3;
+    return candidateScript == QLocale::AnyScript && trackRegion.isEmpty() ? 1 : 2;
 }
 
 const std::pair<const char *, const char *> savedPlayerProperties[] = {
@@ -858,14 +907,22 @@ void MpvVideo::applySubtitlePreference()
             continue;
         bool validNumber = false;
         const int number = value.toInt(&validNumber);
+        int bestLanguageMatch = 0;
         for (const QVariant &entry : m_subtitleTracks) {
             const auto track = entry.toMap();
+            if (kind == "language") {
+                const int match = subtitleLanguageMatchScore(track.value("lang").toString(), value);
+                if (match > bestLanguageMatch) {
+                    bestLanguageMatch = match;
+                    selected = track.value("id").toInt();
+                }
+                continue;
+            }
             const QString title = track.value("title").toString().trimmed();
             const QString filename = QFileInfo(track.value("external-filename").toString()).fileName().trimmed();
             if ((kind == "tracknum" && validNumber && number > 0 && track.value("id").toInt() == number)
                 || (kind == "subtrackname" && (title.compare(value, Qt::CaseInsensitive) == 0
-                    || filename.compare(value, Qt::CaseInsensitive) == 0))
-                || (kind == "language" && subtitleLanguageMatches(track.value("lang").toString(), value))) {
+                    || filename.compare(value, Qt::CaseInsensitive) == 0))) {
                 selected = track.value("id").toInt();
                 break;
             }
@@ -897,11 +954,13 @@ void MpvVideo::applySubtitlePreference()
     if (selected < 0) {
         const auto languages = m_defaultSubtitleLanguage.split(',', Qt::SkipEmptyParts);
         for (const QString &language : languages) {
+            int bestMatch = 0;
             for (const QVariant &entry : m_subtitleTracks) {
                 const auto track = entry.toMap();
-                if (subtitleLanguageMatches(track.value("lang").toString(), language)) {
+                const int match = subtitleLanguageMatchScore(track.value("lang").toString(), language);
+                if (match > bestMatch) {
+                    bestMatch = match;
                     selected = track.value("id").toInt();
-                    break;
                 }
             }
             if (selected >= 0)
