@@ -4,6 +4,7 @@ Rectangle {
     id: root
     objectName: "videoStage"
     property alias persistent: video.persistent
+    property alias defaultSubtitleRules: video.defaultSubtitleRules
     property alias defaultSubtitleTrack: video.defaultSubtitleTrack
     property alias defaultSubtitleTrackName: video.defaultSubtitleTrackName
     property alias subtitleStyleOverride: video.subtitleStyleOverride

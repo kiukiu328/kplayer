@@ -11,8 +11,9 @@ Dialog {
     signal speedSaved(real speed, real maximum)
     property int subtitleTrackNumber: 0
     property string subtitleTrackName: ""
+    property string subtitleRules: ""
     property bool subtitleStyleOverride: true
-    signal subtitleSaved(string language, int track, bool overrideStyle, string trackName)
+    signal subtitleSaved(string language, int track, bool overrideStyle, string trackName, string rules)
     property int currentPage: 0
     property point dragOffset: Qt.point(0, 0)
     x: Math.max(0, Math.min(parent.width - width,
@@ -44,6 +45,7 @@ Dialog {
         interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
         trackNumber.value = subtitleTrackNumber
         trackName.text = subtitleTrackName
+        rulesInput.text = subtitleRules
         overrideSubtitleStyle.checked = subtitleStyleOverride
         languageCodes.text = subtitleLanguage
         languageChoice.currentIndex = 0
@@ -58,7 +60,7 @@ Dialog {
         speedSaved(customSpeed.value / 10, speedLimit.value / 10)
         AppLanguage.language = interfaceLanguage.currentIndex === 1 ? "en" : "zh_TW"
         subtitleSaved(languageCodes.text.trim().replace(/\s+/g, "").toLowerCase(),
-                      trackNumber.value, overrideSubtitleStyle.checked, trackName.text.trim())
+                      trackNumber.value, overrideSubtitleStyle.checked, trackName.text.trim(), rulesInput.text.trim())
     }
 
     padding: 0
@@ -285,6 +287,28 @@ Dialog {
                     width: parent.width - parent.padding * 2
                     visible: root.currentPage === 2
                     heading: qsTr("字幕偏好")
+                    Label {
+                        width: parent.width
+                        text: qsTr("Subtitle rules, in priority order (one per line)")
+                        wrapMode: Text.WordWrap
+                        color: Theme.textPrimary
+                    }
+                    TextArea {
+                        id: rulesInput
+                        objectName: "subtitleRulesInput"
+                        width: parent.width
+                        implicitHeight: Math.max(100, contentHeight + topPadding + bottomPadding)
+                        placeholderText: "subtrackname:Signs & Songs\ntracknum:2\nsubtrackname:English"
+                        wrapMode: TextEdit.Wrap
+                        selectByMouse: true
+                        Accessible.name: qsTr("Subtitle priority rules")
+                    }
+                    Label {
+                        width: parent.width
+                        text: qsTr("First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.")
+                        wrapMode: Text.WordWrap
+                        color: Theme.textPrimary
+                    }
                     Label {
                         text: qsTr("Preferred subtitle track name")
                         color: Theme.textPrimary

@@ -23,6 +23,7 @@ Window {
     }
 
     function preferSubtitleLanguage(language: string) {
+        videoStage.defaultSubtitleRules = ""
         videoStage.defaultSubtitleTrackName = ""
         videoStage.defaultSubtitleTrack = 0
         const codes = videoStage.defaultSubtitleLanguage.toLowerCase().split(",")
@@ -34,6 +35,7 @@ Window {
     }
 
     function preferSubtitleTrack(track: int) {
+        videoStage.defaultSubtitleRules = ""
         videoStage.defaultSubtitleLanguage = ""
         videoStage.defaultSubtitleTrackName = ""
         videoStage.defaultSubtitleTrack = track
@@ -41,6 +43,7 @@ Window {
     }
 
     function preferSubtitleTrackName(name: string) {
+        videoStage.defaultSubtitleRules = ""
         videoStage.defaultSubtitleLanguage = ""
         videoStage.defaultSubtitleTrack = 0
         videoStage.defaultSubtitleTrackName = name
@@ -48,6 +51,7 @@ Window {
     }
 
     function clearSubtitlePreference() {
+        videoStage.defaultSubtitleRules = ""
         videoStage.defaultSubtitleLanguage = ""
         videoStage.defaultSubtitleTrack = 0
         videoStage.defaultSubtitleTrackName = ""
@@ -307,11 +311,13 @@ Window {
         subtitleLanguage: videoStage.defaultSubtitleLanguage
         subtitleTrackNumber: videoStage.defaultSubtitleTrack
         subtitleTrackName: videoStage.defaultSubtitleTrackName
+        subtitleRules: videoStage.defaultSubtitleRules
         subtitleStyleOverride: videoStage.subtitleStyleOverride
-        onSubtitleSaved: (language, track, overrideStyle, trackName) => {
+        onSubtitleSaved: (language, track, overrideStyle, trackName, rules) => {
             videoStage.defaultSubtitleLanguage = language
             videoStage.defaultSubtitleTrack = track
             videoStage.defaultSubtitleTrackName = trackName
+            videoStage.defaultSubtitleRules = rules
             videoStage.subtitleStyleOverride = overrideStyle
         }
     }

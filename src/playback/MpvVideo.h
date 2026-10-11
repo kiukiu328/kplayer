@@ -17,6 +17,7 @@ class MpvVideo : public QQuickFramebufferObject
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(bool persistent READ persistent WRITE setPersistent NOTIFY persistentChanged)
+    Q_PROPERTY(QString defaultSubtitleRules READ defaultSubtitleRules WRITE setDefaultSubtitleRules NOTIFY defaultSubtitleRulesChanged)
     Q_PROPERTY(int defaultSubtitleTrack READ defaultSubtitleTrack WRITE setDefaultSubtitleTrack NOTIFY defaultSubtitleTrackChanged)
     Q_PROPERTY(QString defaultSubtitleTrackName READ defaultSubtitleTrackName WRITE setDefaultSubtitleTrackName NOTIFY defaultSubtitleTrackNameChanged)
     Q_PROPERTY(bool subtitleStyleOverride READ subtitleStyleOverride WRITE setSubtitleStyleOverride NOTIFY subtitleStyleChanged)
@@ -64,6 +65,8 @@ public:
 
     bool persistent() const { return m_persistent; }
     void setPersistent(bool persistent);
+    QString defaultSubtitleRules() const { return m_defaultSubtitleRules; }
+    void setDefaultSubtitleRules(const QString &rules);
     int defaultSubtitleTrack() const { return m_defaultSubtitleTrack; }
     void setDefaultSubtitleTrack(int track);
     QString defaultSubtitleTrackName() const { return m_defaultSubtitleTrackName; }
@@ -156,6 +159,7 @@ public:
 
 signals:
     void persistentChanged();
+    void defaultSubtitleRulesChanged();
     void defaultSubtitleTrackChanged();
     void defaultSubtitleTrackNameChanged();
     void sourceChanged();
@@ -254,6 +258,7 @@ private:
     QUrl m_captureFile;
     bool m_persistent = false;
     bool m_restoringPreferences = false;
+    QString m_defaultSubtitleRules;
     int m_defaultSubtitleTrack = 0;
     QString m_defaultSubtitleTrackName;
     bool m_subtitleStyleOverride = true;

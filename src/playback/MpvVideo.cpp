@@ -137,6 +137,7 @@ const std::pair<const char *, const char *> savedPlayerProperties[] = {
     {"audio/preamp", "preamp"},
     {"audio/equalizerEnabled", "equalizerEnabled"},
     {"subtitles/defaultLanguage", "defaultSubtitleLanguage"},
+    {"subtitles/defaultRules", "defaultSubtitleRules"},
     {"subtitles/defaultTrack", "defaultSubtitleTrack"},
     {"subtitles/defaultTrackName", "defaultSubtitleTrackName"},
     {"subtitles/visible", "subtitlesVisible"},
@@ -234,7 +235,7 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
                         &MpvVideo::audioControlsChanged, &MpvVideo::videoFiltersChanged,
                         &MpvVideo::subtitleStyleChanged, &MpvVideo::subtitlesVisibleChanged,
                         &MpvVideo::defaultSubtitleLanguageChanged, &MpvVideo::defaultSubtitleTrackChanged,
-                        &MpvVideo::defaultSubtitleTrackNameChanged})
+                        &MpvVideo::defaultSubtitleTrackNameChanged, &MpvVideo::defaultSubtitleRulesChanged})
         connect(this, signal, this, &MpvVideo::savePreferences);
     connect(this, &QQuickItem::heightChanged, this, &MpvVideo::updateSubtitlePosition);
     auto *resumeTimer = new QTimer(this);
@@ -816,12 +817,46 @@ void MpvVideo::setSubtitleStyleOverride(bool enabled)
     emit subtitleStyleChanged();
 }
 
+void MpvVideo::setDefaultSubtitleRules(const QString &rules)
+{
+    const QString normalized = rules.trimmed();
+    if (m_defaultSubtitleRules == normalized)
+        return;
+    m_defaultSubtitleRules = normalized;
+    emit defaultSubtitleRulesChanged();
+    applySubtitlePreference();
+}
+
 void MpvVideo::applySubtitlePreference()
 {
     if (!m_mpv || !m_mediaLoaded || m_subtitleTracks.isEmpty())
         return;
     int selected = -1;
-    if (!m_defaultSubtitleTrackName.isEmpty()) {
+    for (const QString &line : m_defaultSubtitleRules.split('\n', Qt::SkipEmptyParts)) {
+        const int colon = line.indexOf(':');
+        if (colon < 0)
+            continue;
+        const QString kind = line.left(colon).trimmed().toLower();
+        const QString value = line.mid(colon + 1).trimmed();
+        if (value.isEmpty())
+            continue;
+        bool validNumber = false;
+        const int number = value.toInt(&validNumber);
+        for (const QVariant &entry : m_subtitleTracks) {
+            const auto track = entry.toMap();
+            const QString title = track.value("title").toString().trimmed();
+            const QString filename = QFileInfo(track.value("external-filename").toString()).fileName().trimmed();
+            if ((kind == "tracknum" && validNumber && number > 0 && track.value("id").toInt() == number)
+                || (kind == "subtrackname" && (title.compare(value, Qt::CaseInsensitive) == 0
+                    || filename.compare(value, Qt::CaseInsensitive) == 0))) {
+                selected = track.value("id").toInt();
+                break;
+            }
+        }
+        if (selected >= 0)
+            break;
+    }
+    if (selected < 0 && !m_defaultSubtitleTrackName.isEmpty()) {
         for (const QVariant &entry : m_subtitleTracks) {
             const auto track = entry.toMap();
             const QString title = track.value("title").toString().trimmed();

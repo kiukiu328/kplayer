@@ -1116,6 +1116,7 @@ private slots:
             "-i", subtitles.fileName(), "-i", subtitles.fileName(),
             "-map", "0:v", "-map", "1:s", "-map", "2:s", "-c:v", "ffv1", "-c:s", "srt",
             "-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=jpn",
+            "-metadata:s:s:0", "title=English", "-metadata:s:s:1", "title=Japanese",
             "-disposition:s:0", "default", "-disposition:s:1", "0", media});
         QVERIFY(encoder.waitForFinished(10000));
         QCOMPARE(encoder.exitCode(), 0);
@@ -1133,6 +1134,13 @@ private slots:
         const int english = video->subtitleTracks().first().toMap().value("id").toInt();
         const int japanese = video->subtitleTracks().last().toMap().value("id").toInt();
         QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleRules(QStringLiteral("subtrackname:missing\ntracknum:%1\nsubtrackname:Japanese").arg(english));
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        video->setDefaultSubtitleRules(QStringLiteral("subtrackname: japanese \ntracknum:%1").arg(english));
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleRules("unknown:English\ntracknum:invalid\nsubtrackname:missing");
+        QTRY_COMPARE(video->subtitleTrack(), japanese); // Falls back to language.
+        video->setDefaultSubtitleRules("");
         video->setSubtitleTrack(english);
         QTRY_COMPARE(video->subtitleTrack(), english);
         video->stop();
@@ -2648,7 +2656,7 @@ private slots:
 
         click(window, titleButton);
         QTRY_VERIFY(menu->property("opened").toBool());
-        QCOMPARE(menu->property("width").toReal(), 193.0);
+        QCOMPARE(menu->property("width").toReal(), std::min(420.0, window->width() - 16.0));
         auto *openMedia = item("openMediaMenuItem");
         auto *closeMedia = item("closeMediaMenuItem");
         auto *playlistItem = item("playlistMenuItem");
@@ -2692,7 +2700,8 @@ private slots:
 
         click(window, titleButton, Qt::RightButton);
         QTRY_VERIFY(menu->property("opened").toBool());
-        click(window, stage);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+            stage->mapToScene(QPointF(stage->width() - 8, stage->height() - 8)).toPoint());
         QTRY_VERIFY(!menu->property("visible").toBool());
 
         QSignalSpy playRequests(stage, SIGNAL(playPauseRequested()));

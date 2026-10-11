@@ -4,7 +4,8 @@ import QtQuick.Controls.Basic
 Menu {
     id: root
     popupType: Popup.Item
-    width: Theme.menuWidth
+    width: Math.min(420, parent && parent.Window.window
+        ? parent.Window.window.width - 16 : 420)
     // A submenu's visual parent can be its menu row, rather than the window.
     height: Math.min(implicitHeight, parent && parent.Window.window
         ? parent.Window.window.height - 16 : implicitHeight)

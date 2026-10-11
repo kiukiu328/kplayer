@@ -8,24 +8,26 @@ MenuItem {
     readonly property color textColor: !enabled ? Theme.menuDisabledText
         : highlighted ? Theme.accent : Theme.menuText
     implicitWidth: Theme.menuWidth - 2
-    implicitHeight: Theme.menuRowHeight
+    implicitHeight: Math.max(Theme.menuRowHeight, labelText.implicitHeight + 2)
     padding: 0
     leftPadding: 27
-    rightPadding: 16
+    rightPadding: root.subMenu !== null ? 26 : 16
     font.family: Theme.fontFamily
     font.pixelSize: Theme.menuFontSize
     contentItem: Item {
         implicitWidth: Theme.menuWidth - 45
         Text {
+            id: labelText
             anchors.left: parent.left
             anchors.right: shortcutText.left
             anchors.rightMargin: root.shortcutLabel.length > 0 ? 8 : 0
-            height: parent.height
+            anchors.verticalCenter: parent.verticalCenter
+            wrapMode: Text.Wrap
             verticalAlignment: Text.AlignVCenter
             text: root.text
             color: root.textColor
             font: root.font
-            elide: Text.ElideRight
+            elide: Text.ElideNone
         }
         Text {
             id: shortcutText
