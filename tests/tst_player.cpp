@@ -2833,6 +2833,15 @@ private slots:
             QTRY_COMPARE(video->frameWidthScale(), sizes[i].width());
             QTRY_COMPARE(video->frameHeightScale(), sizes[i].height());
         }
+        // Linux reports navigation keys from the keypad with Num Lock off.
+        const QList<Qt::Key> navigationKeys{Qt::Key_Left, Qt::Key_Right, Qt::Key_Up,
+                                            Qt::Key_Down, Qt::Key_PageUp, Qt::Key_End,
+                                            Qt::Key_Clear};
+        for (qsizetype i = 0; i < navigationKeys.size(); ++i) {
+            press(navigationKeys[i]);
+            QTRY_COMPARE(video->frameWidthScale(), sizes[i].width());
+            QTRY_COMPARE(video->frameHeightScale(), sizes[i].height());
+        }
         press(Qt::Key_9);
         press(Qt::Key_5);
         QTRY_COMPARE(video->frameWidthScale(), 1.0);

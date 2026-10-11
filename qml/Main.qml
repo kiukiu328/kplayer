@@ -667,37 +667,37 @@ Window {
         onActivated: videoStage.toggleSpeed()
     }
     Shortcut {
-        sequence: "Num+5"
+        sequences: ["Num+5", "Num+Clear"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.resetFrameSize()
     }
     Shortcut {
-        sequence: "Num+4"
+        sequences: ["Num+4", "Num+Left"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(-1, 0)
     }
     Shortcut {
-        sequence: "Num+6"
+        sequences: ["Num+6", "Num+Right"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(1, 0)
     }
     Shortcut {
-        sequence: "Num+8"
+        sequences: ["Num+8", "Num+Up"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(0, 1)
     }
     Shortcut {
-        sequence: "Num+2"
+        sequences: ["Num+2", "Num+Down"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(0, -1)
     }
     Shortcut {
-        sequence: "Num+9"
+        sequences: ["Num+9", "Num+PgUp"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(1, 1)
     }
     Shortcut {
-        sequence: "Num+1"
+        sequences: ["Num+1", "Num+End"]
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(-1, -1)
     }
