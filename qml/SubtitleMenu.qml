@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import "SubtitleRules.js" as SubtitleRules
 
 PlayerMenu {
     id: root
@@ -9,19 +10,11 @@ PlayerMenu {
     property string preferredTrackName: ""
     readonly property var currentTrack: player.subtitleTracks.find(
         track => track.id === player.subtitleTrack)
-    readonly property string trackLanguage: currentTrack && currentTrack.lang
-        ? currentTrack.lang.trim().toLowerCase() : ""
-    readonly property string trackName: {
-        if (!currentTrack)
-            return ""
-        if (currentTrack.title && currentTrack.title.trim().length > 0)
-            return currentTrack.title.trim()
-        const path = currentTrack["external-filename"] || ""
-        return path.split(/[\\/]/).pop()
-    }
-    readonly property bool usableLanguage: /^[a-z]{2,3}(-[a-z0-9]+)*$/.test(trackLanguage)
-        && !["und", "zxx", "mul"].includes(trackLanguage)
+    readonly property string trackLanguage: SubtitleRules.valueForTrack(currentTrack, "language")
+    readonly property string trackName: SubtitleRules.trackName(currentTrack)
+    readonly property bool usableLanguage: trackLanguage.length > 0
     signal addRequested()
+    signal addCurrentRuleRequested(string kind)
     signal preferLanguageRequested(string language)
     signal preferTrackNumberRequested(int track)
     signal preferTrackNameRequested(string name)
@@ -122,5 +115,17 @@ PlayerMenu {
                 && root.preferredLanguages.length === 0 && root.preferredTrackNumber === 0
             onTriggered: root.preferTrackNameRequested(root.trackName)
         }
+    }
+    PlayerMenuItem {
+        objectName: "addCurrentSubtitleRuleMenuItem"
+        text: qsTr("Add current subtitle to rules…")
+        enabled: root.player.mediaLoaded && root.currentTrack !== undefined
+        onTriggered: root.addCurrentRuleRequested("")
+    }
+    PlayerMenuItem {
+        objectName: "addCurrentSubtitleLanguageRuleMenuItem"
+        text: qsTr("Add current language to rules…")
+        enabled: root.player.mediaLoaded && root.usableLanguage
+        onTriggered: root.addCurrentRuleRequested("language")
     }
 }

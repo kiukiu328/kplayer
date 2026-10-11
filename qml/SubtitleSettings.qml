@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "SubtitleRules.js" as SubtitleRules
 
 Column {
     id: root
@@ -10,6 +11,11 @@ Column {
     property alias trackNumber: fallbackNumber.value
     property alias trackName: fallbackName.text
     property alias overrideStyle: styleOverride.checked
+    property var currentSubtitleTrack: null
+    readonly property bool hasCurrentSubtitle: currentSubtitleTrack !== null && Number(currentSubtitleTrack.id) > 0
+    readonly property string currentTrackName: SubtitleRules.trackName(currentSubtitleTrack)
+    readonly property string currentTrackLanguage: SubtitleRules.valueForTrack(currentSubtitleTrack, "language")
+    property int ruleActionResult: 0
     readonly property string normalizedLanguage: language.trim().replace(/\s+/g, "").toLowerCase()
     property bool fallbackExpanded: false
     property int nextRuleId: 0
@@ -39,6 +45,7 @@ Column {
         overrideStyle = savedOverride
         fallbackExpanded = savedNumber > 0 || savedName.length > 0
         draggedRuleId = -1
+        ruleActionResult = 0
         rules.clear()
         for (const line of savedRules.split("\n")) {
             const colon = line.indexOf(":")
@@ -55,7 +62,8 @@ Column {
         for (let i = 0; i < rules.count; ++i) {
             const rule = rules.get(i)
             if (rule.value.trim().length > 0)
-                lines.push(rule.kind + ":" + rule.value.trim())
+                lines.push(rule.kind + ":" + (rule.kind === "language"
+                    ? SubtitleRules.languageCode(rule.value) : rule.value.trim()))
         }
         return lines.join("\n")
     }
@@ -63,8 +71,10 @@ Column {
     function ruleError(kind, value) {
         if (value.trim().length === 0)
             return ""
-        if (kind !== "subtrackname" && kind !== "tracknum")
+        if (!["subtrackname", "tracknum", "language"].includes(kind))
             return qsTr("Choose a rule type to use this rule.")
+        if (kind === "language" && SubtitleRules.languageCode(value).length === 0)
+            return qsTr("Enter one language code, such as en or jpn.")
         if (kind === "tracknum" && (!/^\d+$/.test(value.trim())
                 || Number(value) < 1 || Number(value) > 2147483647))
             return qsTr("Enter a whole track number greater than 0.")
@@ -73,7 +83,31 @@ Column {
 
     function editRule(index, role, value) {
         rules.setProperty(index, role, value)
+        ruleActionResult = 0
         ++ruleRevision
+    }
+
+    function addCurrentRule(kind, track) {
+        if (!track)
+            return
+        const type = kind || (SubtitleRules.trackName(track).length > 0 ? "subtrackname" : "tracknum")
+        const value = SubtitleRules.valueForTrack(track, type)
+        if (value.length === 0)
+            return
+        for (let i = 0; i < rules.count; ++i) {
+            const rule = rules.get(i)
+            if (rule.kind === type && SubtitleRules.sameRule(type, rule.value, value)) {
+                ruleActionResult = 2
+                const id = rule.ruleId
+                Qt.callLater(() => root.focusRuleRequested(id))
+                return
+            }
+        }
+        const id = nextRuleId++
+        rules.append({ ruleId: id, kind: type, value: value })
+        ++ruleRevision
+        ruleActionResult = 1
+        Qt.callLater(() => root.focusRuleRequested(id))
     }
 
     function moveRule(from, to) {
@@ -156,7 +190,7 @@ Column {
     Section {
         width: root.width
         heading: qsTr("Priority rules")
-        Hint { text: qsTr("Checked from top to bottom. The first match wins.") }
+        Hint { text: qsTr("Saved rules apply to every video and playlist. The first match from top to bottom wins.") }
         Rectangle {
             objectName: "subtitleRulesEmptyState"
             visible: rules.count === 0
@@ -174,7 +208,7 @@ Column {
                     color: Theme.textPrimary
                     font.bold: true
                 }
-                Hint { text: qsTr("Add a rule to prefer a track name or number, or use the fallback below.") }
+                Hint { text: qsTr("Add a rule to prefer a track name, number, or language, or use the fallback below.") }
             }
         }
         Column {
@@ -346,10 +380,12 @@ Column {
                             Accessible.name: qsTr("Rule type")
                             model: [
                                 { label: qsTr("Track name"), code: "subtrackname" },
-                                { label: qsTr("Track number"), code: "tracknum" }
-                            ].concat(row.kind !== "subtrackname" && row.kind !== "tracknum"
+                                { label: qsTr("Track number"), code: "tracknum" },
+                                { label: qsTr("Language"), code: "language" }
+                            ].concat(!["subtrackname", "tracknum", "language"].includes(row.kind)
                                      ? [{ label: qsTr("Choose type"), code: row.kind }] : [])
-                            currentIndex: row.kind === "subtrackname" ? 0 : row.kind === "tracknum" ? 1 : 2
+                            currentIndex: row.kind === "subtrackname" ? 0 : row.kind === "tracknum" ? 1
+                                          : row.kind === "language" ? 2 : 3
                             onActivated: root.editRule(row.index, "kind", model[currentIndex].code)
                             delegate: ItemDelegate {
                                 id: typeOption
@@ -376,8 +412,10 @@ Column {
                             text: row.value
                             textFormat: TextEdit.PlainText
                             font.pixelSize: 14
-                            placeholderText: row.kind === "tracknum" ? qsTr("e.g. 2") : qsTr("e.g. Signs & Songs")
-                            Accessible.name: row.kind === "tracknum" ? qsTr("Track number") : qsTr("Track name or filename")
+                            placeholderText: row.kind === "tracknum" ? qsTr("e.g. 2")
+                                             : row.kind === "language" ? qsTr("e.g. en or jpn") : qsTr("e.g. Signs & Songs")
+                            Accessible.name: row.kind === "tracknum" ? qsTr("Track number")
+                                             : row.kind === "language" ? qsTr("Language code") : qsTr("Track name or filename")
                             selectByMouse: true
                             KeyNavigation.priority: KeyNavigation.BeforeItem
                             KeyNavigation.tab: removeButton
@@ -398,19 +436,82 @@ Column {
                 }
             }
         }
-        Button {
-            objectName: "addSubtitleRuleButton"
-            text: qsTr("Add rule")
-            onClicked: {
-                const id = root.nextRuleId++
-                rules.append({ ruleId: id, kind: "subtrackname", value: "" })
-                ++root.ruleRevision
-                Qt.callLater(() => root.focusRuleRequested(id))
+        Flow {
+            width: parent.width
+            spacing: 8
+            Button {
+                objectName: "addSubtitleRuleButton"
+                text: qsTr("Add rule")
+                onClicked: {
+                    const id = root.nextRuleId++
+                    rules.append({ ruleId: id, kind: "subtrackname", value: "" })
+                    ++root.ruleRevision
+                    root.ruleActionResult = 0
+                    Qt.callLater(() => root.focusRuleRequested(id))
+                }
+            }
+            Button {
+                id: useCurrent
+                objectName: "useCurrentSubtitleButton"
+                text: qsTr("Use current subtitle")
+                enabled: root.hasCurrentSubtitle
+                onClicked: currentRuleMenu.popup(0, height)
+                contentItem: RowLayout {
+                    spacing: 8
+                    Label {
+                        text: useCurrent.text
+                        font: useCurrent.font
+                        color: useCurrent.enabled ? Theme.textPrimary : Theme.textMuted
+                    }
+                    PlayerIcon {
+                        name: "chevronDown"
+                        color: useCurrent.enabled ? Theme.iconPrimary : Theme.iconMuted
+                        Layout.preferredWidth: 12
+                        Layout.preferredHeight: 12
+                    }
+                }
+                PlayerMenu {
+                    id: currentRuleMenu
+                    objectName: "currentSubtitleRuleMenu"
+                    PlayerMenuItem {
+                        objectName: "useCurrentSubtitleNameMenuItem"
+                        text: root.currentTrackName.length > 0
+                              ? qsTr("Track name: %1").arg(root.currentTrackName) : qsTr("Track name unavailable")
+                        enabled: root.currentTrackName.length > 0
+                        onTriggered: root.addCurrentRule("subtrackname", root.currentSubtitleTrack)
+                    }
+                    PlayerMenuItem {
+                        objectName: "useCurrentSubtitleNumberMenuItem"
+                        text: qsTr("Track number: %1").arg(root.hasCurrentSubtitle ? root.currentSubtitleTrack.id : "")
+                        enabled: root.hasCurrentSubtitle
+                        onTriggered: root.addCurrentRule("tracknum", root.currentSubtitleTrack)
+                    }
+                    PlayerMenuItem {
+                        objectName: "useCurrentSubtitleLanguageMenuItem"
+                        text: root.currentTrackLanguage.length > 0
+                              ? qsTr("Language: %1").arg(root.currentTrackLanguage) : qsTr("Language unavailable")
+                        enabled: root.currentTrackLanguage.length > 0
+                        onTriggered: root.addCurrentRule("language", root.currentSubtitleTrack)
+                    }
+                }
             }
         }
         Hint {
+            objectName: "currentSubtitleRuleHint"
+            text: root.hasCurrentSubtitle
+                ? qsTr("Current subtitle: %1").arg(root.currentSubtitleTrack.label
+                    || root.currentTrackName || qsTr("Track %1").arg(root.currentSubtitleTrack.id))
+                : qsTr("Select a subtitle during playback to add it here.")
+        }
+        Hint {
+            objectName: "subtitleRuleActionHint"
+            visible: root.ruleActionResult !== 0
+            text: root.ruleActionResult === 2 ? qsTr("This rule is already in the list.")
+                  : qsTr("Rule added at the end. Drag it up for higher priority.")
+        }
+        Hint {
             visible: rules.count > 0
-            text: qsTr("Names match a track title or subtitle filename, ignoring case. Blank rules are skipped.")
+            text: qsTr("Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.")
         }
     }
 
@@ -517,5 +618,5 @@ Column {
         }
         Hint { text: qsTr("Use KPlayer's font and alignment for styled subtitles. Turn off to keep the original styling. Bitmap subtitles keep their original appearance.") }
     }
-    Hint { text: qsTr("Changes apply when you save, including to future files.") }
+    Hint { text: qsTr("Changes apply when you save and are kept after restarting.") }
 }

@@ -57,6 +57,11 @@ Window {
         videoStage.defaultSubtitleTrackName = ""
         videoStage.showHint(qsTr("字幕選擇方式：自動"))
     }
+    function addCurrentSubtitleRule(kind: string) {
+        appMenu.dismiss()
+        subtitleMenu.dismiss()
+        advancedSettings.openForSubtitleRule(kind)
+    }
     property list<url> startupFiles: []
     readonly property PlaylistModel mediaPlaylist: playlists.currentPlaylist
     property PlaylistModel playingPlaylist: null
@@ -313,6 +318,7 @@ Window {
         subtitleTrackName: videoStage.defaultSubtitleTrackName
         subtitleRules: videoStage.defaultSubtitleRules
         subtitleStyleOverride: videoStage.subtitleStyleOverride
+        currentSubtitleTrack: videoStage.subtitleTracks.find(track => track.id === videoStage.subtitleTrack) || null
         onSubtitleSaved: (language, track, overrideStyle, trackName, rules) => {
             videoStage.defaultSubtitleLanguage = language
             videoStage.defaultSubtitleTrack = track
@@ -441,6 +447,7 @@ Window {
         parent: window.contentItem
         player: videoStage
         onAddRequested: window.openSubtitles()
+        onAddCurrentRuleRequested: (kind) => window.addCurrentSubtitleRule(kind)
     }
 
     Action {
@@ -541,6 +548,7 @@ Window {
         associateVideosAction: associateVideosAction
         player: videoStage
         onAddSubtitleRequested: window.openSubtitles()
+        onAddCurrentSubtitleRuleRequested: (kind) => window.addCurrentSubtitleRule(kind)
         favorites: favorites
         onFavoriteRequested: (source) => {
             window.mediaPlaylist.appendUniqueUrls([source])

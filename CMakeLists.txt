@@ -50,6 +50,7 @@ set(KPLAYER_QML_FILES
     qml/SubtitleMenu.qml
     qml/AdvancedSettings.qml
     qml/SubtitleSettings.qml
+    qml/SubtitleRules.js
     qml/ControlPanel.qml
     qml/VideoAdjustments.qml
     qml/AppMenu.qml

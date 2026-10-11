@@ -1079,6 +1079,14 @@ Double click to play</source>
             <source>目前字幕軌名稱：未知</source>
             <translation>目前字幕軌名稱：未知</translation>
         </message>
+        <message>
+            <source>Add current subtitle to rules…</source>
+            <translation>將目前字幕加入規則…</translation>
+        </message>
+        <message>
+            <source>Add current language to rules…</source>
+            <translation>將目前語言加入規則…</translation>
+        </message>
     </context>
     <context>
         <name>TitleBar</name>
@@ -1572,8 +1580,8 @@ Double click to play</source>
             <translation>字幕優先規則</translation>
         </message>
         <message>
-            <source>Checked from top to bottom. The first match wins.</source>
-            <translation>由上而下比對，優先使用第一條相符的規則。</translation>
+            <source>Saved rules apply to every video and playlist. The first match from top to bottom wins.</source>
+            <translation>儲存的規則適用於所有影片與播放清單，由上而下優先使用第一條相符的規則。</translation>
         </message>
         <message>
             <source>No rules yet</source>
@@ -1684,8 +1692,76 @@ Double click to play</source>
             <translation>將 KPlayer 的字型與對齊設定套用至樣式字幕。關閉可保留原始樣式。點陣圖字幕會保留原有外觀。</translation>
         </message>
         <message>
-            <source>Changes apply when you save, including to future files.</source>
-            <translation>儲存後立即套用，並用於之後開啟的檔案。</translation>
+            <source>Changes apply when you save and are kept after restarting.</source>
+            <translation>儲存後立即套用，重新啟動程式後也會保留。</translation>
+        </message>
+        <message>
+            <source>Use current subtitle</source>
+            <translation>使用目前字幕</translation>
+        </message>
+        <message>
+            <source>Track name: %1</source>
+            <translation>字幕軌名稱：%1</translation>
+        </message>
+        <message>
+            <source>Track name unavailable</source>
+            <translation>沒有字幕軌名稱</translation>
+        </message>
+        <message>
+            <source>Track number: %1</source>
+            <translation>字幕軌編號：%1</translation>
+        </message>
+        <message>
+            <source>Current subtitle: %1</source>
+            <translation>目前字幕：%1</translation>
+        </message>
+        <message>
+            <source>Track %1</source>
+            <translation>字幕軌 %1</translation>
+        </message>
+        <message>
+            <source>Select a subtitle during playback to add it here.</source>
+            <translation>播放時選擇字幕，即可將該字幕軌加入規則。</translation>
+        </message>
+        <message>
+            <source>This rule is already in the list.</source>
+            <translation>清單中已有此規則。</translation>
+        </message>
+        <message>
+            <source>Rule added at the end. Drag it up for higher priority.</source>
+            <translation>已將規則加入清單末端。向上拖曳可提高優先順序。</translation>
+        </message>
+        <message>
+            <source>Enter one language code, such as en or jpn.</source>
+            <translation>請輸入單一語言代碼，例如 en 或 jpn。</translation>
+        </message>
+        <message>
+            <source>Add a rule to prefer a track name, number, or language, or use the fallback below.</source>
+            <translation>新增規則以指定偏好的字幕軌名稱、編號或語言，或使用下方的備用偏好。</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>語言</translation>
+        </message>
+        <message>
+            <source>Language code</source>
+            <translation>語言代碼</translation>
+        </message>
+        <message>
+            <source>e.g. en or jpn</source>
+            <translation>例如 en 或 jpn</translation>
+        </message>
+        <message>
+            <source>Language: %1</source>
+            <translation>語言：%1</translation>
+        </message>
+        <message>
+            <source>Language unavailable</source>
+            <translation>沒有語言資訊</translation>
+        </message>
+        <message>
+            <source>Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.</source>
+            <translation>名稱比對字幕軌標題或檔名，不區分大小寫。en 與 eng 等語言代碼視為相同語言。空白規則會略過。</translation>
         </message>
     </context>
 </TS>

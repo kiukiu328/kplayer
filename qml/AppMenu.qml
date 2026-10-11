@@ -27,6 +27,7 @@ PlayerMenu {
     required property Favorites favorites
     signal favoriteRequested(url source)
     signal addSubtitleRequested()
+    signal addCurrentSubtitleRuleRequested(string kind)
     signal videoAdjustmentsRequested()
     property bool hasMedia: false
     property bool playing: false
@@ -188,6 +189,7 @@ PlayerMenu {
         onPreferTrackNameRequested: (name) => root.preferSubtitleTrackNameRequested(name)
         onAutomaticPreferenceRequested: root.automaticSubtitlePreferenceRequested()
         onAddRequested: root.addSubtitleRequested()
+        onAddCurrentRuleRequested: (kind) => root.addCurrentSubtitleRuleRequested(kind)
     }
     PlayerMenu {
         title: qsTr("視訊")

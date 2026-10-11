@@ -5,6 +5,7 @@
 #include <QCryptographicHash>
 #include <QFileInfo>
 #include <QLocale>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
@@ -121,6 +122,21 @@ private:
 };
 
 namespace {
+bool subtitleLanguageMatches(const QString &trackLanguage, const QString &requestedLanguage)
+{
+    const QString code = trackLanguage.trimmed().toLower().replace('_', '-');
+    const QString requested = requestedLanguage.trimmed().toLower().replace('_', '-');
+    static const QRegularExpression syntax(QStringLiteral("^[a-z]{2,3}(?:-[a-z0-9]+)*$"));
+    const auto usable = [](const QString &value) {
+        const QString base = value.section('-', 0, 0);
+        return syntax.match(value).hasMatch() && base != "und" && base != "zxx" && base != "mul";
+    };
+    if (!usable(code) || !usable(requested))
+        return false;
+    const auto language = QLocale(requested).language();
+    return code == requested || (language != QLocale::C && language == QLocale(code).language());
+}
+
 const std::pair<const char *, const char *> savedPlayerProperties[] = {
     {"playback/maximumSpeed", "maximumSpeed"},
     {"playback/volume", "volume"},
@@ -194,7 +210,7 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
              std::pair{"background", "color"},
              std::pair{"background-color", "#101010"},
              std::pair{"osd-level", "0"},
-             std::pair{"sub-ass-override", "strip"},
+             std::pair{"sub-ass-override", "scale"},
              std::pair{"sub-font", "Segoe UI"},
              std::pair{"sub-font-size", "18"},
              // Explicit pitch correction replaces mpv's automatic filter, whose default
@@ -848,7 +864,8 @@ void MpvVideo::applySubtitlePreference()
             const QString filename = QFileInfo(track.value("external-filename").toString()).fileName().trimmed();
             if ((kind == "tracknum" && validNumber && number > 0 && track.value("id").toInt() == number)
                 || (kind == "subtrackname" && (title.compare(value, Qt::CaseInsensitive) == 0
-                    || filename.compare(value, Qt::CaseInsensitive) == 0))) {
+                    || filename.compare(value, Qt::CaseInsensitive) == 0))
+                || (kind == "language" && subtitleLanguageMatches(track.value("lang").toString(), value))) {
                 selected = track.value("id").toInt();
                 break;
             }
@@ -882,9 +899,7 @@ void MpvVideo::applySubtitlePreference()
         for (const QString &language : languages) {
             for (const QVariant &entry : m_subtitleTracks) {
                 const auto track = entry.toMap();
-                const QString code = track.value("lang").toString().toLower();
-                const auto locale = QLocale(language).language();
-                if (code == language || (locale != QLocale::C && locale == QLocale(code).language())) {
+                if (subtitleLanguageMatches(track.value("lang").toString(), language)) {
                     selected = track.value("id").toInt();
                     break;
                 }

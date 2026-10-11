@@ -12,7 +12,10 @@ Dialog {
     property int subtitleTrackNumber: 0
     property string subtitleTrackName: ""
     property string subtitleRules: ""
-    property bool subtitleStyleOverride: true
+    property bool subtitleStyleOverride: false
+    property var currentSubtitleTrack: null
+    property var pendingSubtitleTrack: null
+    property string pendingRuleKind: ""
     signal subtitleSaved(string language, int track, bool overrideStyle, string trackName, string rules)
     property int currentPage: 0
     property point dragOffset: Qt.point(0, 0)
@@ -46,6 +49,30 @@ Dialog {
                                subtitleRules, subtitleStyleOverride)
         const view = settingsScroll.contentItem as Flickable
         view.contentY = 0
+        if (pendingSubtitleTrack) {
+            subtitleSettings.addCurrentRule(pendingRuleKind, pendingSubtitleTrack)
+            pendingSubtitleTrack = null
+            pendingRuleKind = ""
+        }
+    }
+    onClosed: {
+        pendingSubtitleTrack = null
+        pendingRuleKind = ""
+    }
+    function openForCurrentSubtitleRule() {
+        openForSubtitleRule("")
+    }
+    function openForSubtitleRule(kind: string) {
+        if (!currentSubtitleTrack)
+            return
+        currentPage = 2
+        if (opened) {
+            subtitleSettings.addCurrentRule(kind, currentSubtitleTrack)
+        } else {
+            pendingSubtitleTrack = currentSubtitleTrack
+            pendingRuleKind = kind
+            open()
+        }
     }
     onAccepted: {
         speedSaved(customSpeed.value / 10, speedLimit.value / 10)
@@ -317,6 +344,7 @@ Dialog {
                     objectName: "subtitleSettings"
                     width: parent.width - parent.padding * 2
                     visible: root.currentPage === 2
+                    currentSubtitleTrack: root.currentSubtitleTrack
                     viewport: settingsScroll.contentItem as Flickable
                     onRevealRequested: (y, height) => {
                         const view = settingsScroll.contentItem as Flickable

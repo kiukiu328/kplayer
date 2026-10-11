@@ -261,7 +261,7 @@ private:
     QString m_defaultSubtitleRules;
     int m_defaultSubtitleTrack = 0;
     QString m_defaultSubtitleTrackName;
-    bool m_subtitleStyleOverride = true;
+    bool m_subtitleStyleOverride = false;
     QString m_defaultSubtitleLanguage;
     bool m_subtitlesVisible = true;
     QVariantList m_subtitleTracks;

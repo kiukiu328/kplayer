@@ -1079,6 +1079,14 @@ Double click to play</translation>
             <source>目前字幕軌名稱：未知</source>
             <translation>Current subtitle track name: Unknown</translation>
         </message>
+        <message>
+            <source>Add current subtitle to rules…</source>
+            <translation>Add current subtitle to rules…</translation>
+        </message>
+        <message>
+            <source>Add current language to rules…</source>
+            <translation>Add current language to rules…</translation>
+        </message>
     </context>
     <context>
         <name>TitleBar</name>
@@ -1572,8 +1580,8 @@ Double click to play</translation>
             <translation>Priority rules</translation>
         </message>
         <message>
-            <source>Checked from top to bottom. The first match wins.</source>
-            <translation>Checked from top to bottom. The first match wins.</translation>
+            <source>Saved rules apply to every video and playlist. The first match from top to bottom wins.</source>
+            <translation>Saved rules apply to every video and playlist. The first match from top to bottom wins.</translation>
         </message>
         <message>
             <source>No rules yet</source>
@@ -1684,8 +1692,76 @@ Double click to play</translation>
             <translation>Use KPlayer's font and alignment for styled subtitles. Turn off to keep the original styling. Bitmap subtitles keep their original appearance.</translation>
         </message>
         <message>
-            <source>Changes apply when you save, including to future files.</source>
-            <translation>Changes apply when you save, including to future files.</translation>
+            <source>Changes apply when you save and are kept after restarting.</source>
+            <translation>Changes apply when you save and are kept after restarting.</translation>
+        </message>
+        <message>
+            <source>Use current subtitle</source>
+            <translation>Use current subtitle</translation>
+        </message>
+        <message>
+            <source>Track name: %1</source>
+            <translation>Track name: %1</translation>
+        </message>
+        <message>
+            <source>Track name unavailable</source>
+            <translation>Track name unavailable</translation>
+        </message>
+        <message>
+            <source>Track number: %1</source>
+            <translation>Track number: %1</translation>
+        </message>
+        <message>
+            <source>Current subtitle: %1</source>
+            <translation>Current subtitle: %1</translation>
+        </message>
+        <message>
+            <source>Track %1</source>
+            <translation>Track %1</translation>
+        </message>
+        <message>
+            <source>Select a subtitle during playback to add it here.</source>
+            <translation>Select a subtitle during playback to add it here.</translation>
+        </message>
+        <message>
+            <source>This rule is already in the list.</source>
+            <translation>This rule is already in the list.</translation>
+        </message>
+        <message>
+            <source>Rule added at the end. Drag it up for higher priority.</source>
+            <translation>Rule added at the end. Drag it up for higher priority.</translation>
+        </message>
+        <message>
+            <source>Enter one language code, such as en or jpn.</source>
+            <translation>Enter one language code, such as en or jpn.</translation>
+        </message>
+        <message>
+            <source>Add a rule to prefer a track name, number, or language, or use the fallback below.</source>
+            <translation>Add a rule to prefer a track name, number, or language, or use the fallback below.</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>Language</translation>
+        </message>
+        <message>
+            <source>Language code</source>
+            <translation>Language code</translation>
+        </message>
+        <message>
+            <source>e.g. en or jpn</source>
+            <translation>e.g. en or jpn</translation>
+        </message>
+        <message>
+            <source>Language: %1</source>
+            <translation>Language: %1</translation>
+        </message>
+        <message>
+            <source>Language unavailable</source>
+            <translation>Language unavailable</translation>
+        </message>
+        <message>
+            <source>Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.</source>
+            <translation>Names match titles or filenames, ignoring case. Language codes such as en and eng are equivalent. Blank rules are skipped.</translation>
         </message>
     </context>
 </TS>

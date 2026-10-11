@@ -1031,6 +1031,153 @@ private slots:
         QTRY_VERIFY(save->isEnabled());
         click(window, save);
         QTRY_COMPARE(video->defaultSubtitleRules(), QStringLiteral("tracknum:3"));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        type = findItem(window->contentItem(), "subtitleRuleType0");
+        value = findItem(window->contentItem(), "subtitleRuleValue0");
+        QVERIFY(type && value);
+        QTest::qWait(250);
+        click(window, type);
+        auto *languageOption = findItem(window->contentItem(), "subtitleRuleType0Option2");
+        QTRY_VERIFY(languageOption && languageOption->isVisible());
+        click(window, languageOption);
+        value->setProperty("text", "en,ja");
+        QTRY_VERIFY(!save->isEnabled());
+        value->setProperty("text", "und");
+        QVERIFY(!save->isEnabled());
+        value->setProperty("text", "EN");
+        QTRY_VERIFY(save->isEnabled());
+        click(window, save);
+        QTRY_COMPARE(video->defaultSubtitleRules(), QStringLiteral("language:en"));
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void subtitleStyleOverrideDefaultsOffAndPersists()
+    {
+        {
+            MpvVideo video;
+            QVERIFY(!video.subtitleStyleOverride());
+            video.setPersistent(true);
+            QVERIFY(!video.subtitleStyleOverride());
+            video.setSubtitleStyleOverride(true);
+            QVERIFY(video.subtitleStyleOverride());
+            QCOMPARE(QSettings().value("subtitles/styleOverride").toBool(), true);
+        }
+        {
+            MpvVideo video;
+            video.setPersistent(true);
+            QVERIFY(video.subtitleStyleOverride());
+            video.setSubtitleStyleOverride(false);
+        }
+        MpvVideo video;
+        video.setPersistent(true);
+        QVERIFY(!video.subtitleStyleOverride());
+    }
+
+    void currentSubtitleCanBeAddedToPriorityRules()
+    {
+        QTemporaryDir directory;
+        const QUrl media = makeVideo(directory.filePath("episode.y4m"));
+        QFile subtitle(directory.filePath("Signs & Songs.srt"));
+        QVERIFY(subtitle.open(QIODevice::WriteOnly));
+        subtitle.write("1\n00:00:00,000 --> 00:00:29,000\nSubtitle\n");
+        subtitle.close();
+        QList<QQmlError> warnings;
+        QQmlApplicationEngine engine;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&](const QList<QQmlError> &items) { warnings.append(items); });
+        engine.setInitialProperties({{"mediaSource", media}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        auto *menu = window->findChild<QObject *>("subtitleSelectionMenu");
+        QVERIFY(video && dialog && menu);
+        auto *quickAdd = menu->findChild<QObject *>("addCurrentSubtitleRuleMenuItem");
+        auto *useCurrent = qobject_cast<QQuickItem *>(dialog->findChild<QObject *>("useCurrentSubtitleButton"));
+        QVERIFY(quickAdd);
+        QVERIFY(useCurrent);
+        QVERIFY(!quickAdd->property("enabled").toBool());
+        QVERIFY(!useCurrent->isEnabled());
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        video->togglePause();
+        QVERIFY(video->addSubtitle(QUrl::fromLocalFile(subtitle.fileName())));
+        QTRY_VERIFY(video->subtitleTrack() > 0);
+        const int track = video->subtitleTrack();
+        video->setDefaultSubtitleRules("subtrackname:Existing");
+        QTRY_VERIFY(quickAdd->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(quickAdd, "triggered"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QCOMPARE(dialog->property("currentPage").toInt(), 2);
+        auto *value = findItem(window->contentItem(), "subtitleRuleValue1");
+        QTRY_VERIFY(value && value->hasActiveFocus());
+        QCOMPARE(value->property("text").toString(), QStringLiteral("Signs & Songs.srt"));
+        QCOMPARE(video->defaultSubtitleRules(), QStringLiteral("subtrackname:Existing"));
+        auto *style = findItem(window->contentItem(), "subtitleStyleOverrideInput");
+        QVERIFY(style && !style->property("checked").toBool());
+        auto *languageChoice = dialog->findChild<QObject *>("useCurrentSubtitleLanguageMenuItem");
+        QVERIFY(languageChoice && !languageChoice->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(quickAdd, "triggered"));
+        QVERIFY(!findItem(window->contentItem(), "subtitleRuleValue2"));
+        auto *settings = findItem(window->contentItem(), "subtitleSettings");
+        QVERIFY(settings);
+        QCOMPARE(settings->property("ruleActionResult").toInt(), 2);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        QCOMPARE(video->defaultSubtitleRules(), QStringLiteral("subtrackname:Existing"));
+
+        QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QVERIFY(useCurrent->isEnabled());
+        auto *scroll = findItem(window->contentItem(), "advancedSettingsScroll");
+        QVERIFY(scroll);
+        auto *view = scroll->property("contentItem").value<QQuickItem *>();
+        QVERIFY(view);
+        auto *content = view->property("contentItem").value<QQuickItem *>();
+        QVERIFY(content);
+        const auto captureCurrent = [&](const char *objectName) {
+            const qreal y = useCurrent->mapToItem(content, QPointF{}).y();
+            view->setProperty("contentY", std::max(0.0, y - view->height() / 2));
+            QTest::qWait(250);
+            click(window, useCurrent);
+            auto *item = qobject_cast<QQuickItem *>(settings->findChild<QObject *>(objectName));
+            QTest::qWait(100);
+            if (!item || !item->isVisible())
+                return false;
+            click(window, item);
+            return true;
+        };
+        QVERIFY(captureCurrent("useCurrentSubtitleNameMenuItem"));
+        value = findItem(window->contentItem(), "subtitleRuleValue1");
+        QTRY_VERIFY(value && value->hasActiveFocus());
+        QCOMPARE(value->property("text").toString(), QStringLiteral("Signs & Songs.srt"));
+        QVERIFY(captureCurrent("useCurrentSubtitleNumberMenuItem"));
+        value = findItem(window->contentItem(), "subtitleRuleValue2");
+        QTRY_VERIFY(value && value->hasActiveFocus());
+        QCOMPARE(value->property("text").toString(), QString::number(track));
+        QVERIFY(captureCurrent("useCurrentSubtitleNumberMenuItem"));
+        QVERIFY(!findItem(window->contentItem(), "subtitleRuleValue3"));
+        QCOMPARE(settings->property("ruleActionResult").toInt(), 2);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+        const QString saved = QStringLiteral("subtrackname:Existing\nsubtrackname:Signs & Songs.srt\ntracknum:%1").arg(track);
+        QTRY_COMPARE(video->defaultSubtitleRules(), saved);
+        QCOMPARE(QSettings().value("subtitles/defaultRules").toString(), saved);
+
+        // Untitled embedded subtitles can still be captured by their number.
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        dialog->setProperty("currentSubtitleTrack", QVariantMap{{"id", 7}});
+        QVERIFY(QMetaObject::invokeMethod(dialog, "openForCurrentSubtitleRule"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        value = findItem(window->contentItem(), "subtitleRuleValue3");
+        QTRY_VERIFY(value && value->hasActiveFocus());
+        QCOMPARE(value->property("text").toString(), QStringLiteral("7"));
+        auto *nameChoice = settings->findChild<QObject *>("useCurrentSubtitleNameMenuItem");
+        QVERIFY(nameChoice && !nameChoice->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+        QCOMPARE(video->defaultSubtitleRules(), saved);
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
     }
 
@@ -1048,7 +1195,7 @@ private slots:
         auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
         auto *language = engine.singletonInstance<AppLanguage *>("KPlayer", "AppLanguage");
         QVERIFY(video && dialog && language);
-        video->setDefaultSubtitleRules("subtrackname:Signs & Songs\ntracknum:2");
+        video->setDefaultSubtitleRules("subtrackname:Signs & Songs\ntracknum:2\nlanguage:ja");
         video->setDefaultSubtitleLanguage("zh,en");
         dialog->setProperty("currentPage", 2);
         const QString captureDirectory = qEnvironmentVariable("KPLAYER_SUBTITLE_CAPTURE");
@@ -1065,6 +1212,10 @@ private slots:
                 QVERIFY(type && value);
                 QTRY_COMPARE(type->property("displayText").toString(), code == "en"
                         ? QStringLiteral("Track name") : QStringLiteral("字幕軌名稱"));
+                auto *languageType = findItem(window->contentItem(), "subtitleRuleType2");
+                QVERIFY(languageType);
+                QTRY_COMPARE(languageType->property("displayText").toString(), code == "en"
+                        ? QStringLiteral("Language") : QStringLiteral("語言"));
                 auto *save = findItem(window->contentItem(), "advancedSettingsSaveButton");
                 QVERIFY(save);
                 QTRY_COMPARE(save->property("text").toString(), code == "en"
@@ -1296,6 +1447,74 @@ private slots:
         const int english = video->subtitleTracks().first().toMap().value("id").toInt();
         const int japanese = video->subtitleTracks().last().toMap().value("id").toInt();
         QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->togglePause();
+
+        // Capture language through both the settings chooser and subtitle menus.
+        auto *settingsDialog = window->findChild<QObject *>("advancedSettingsDialog");
+        auto *subtitleMenu = window->findChild<QObject *>("subtitleSelectionMenu");
+        QVERIFY(settingsDialog && subtitleMenu);
+        auto *quickLanguage = subtitleMenu->findChild<QObject *>("addCurrentSubtitleLanguageRuleMenuItem");
+        QVERIFY(quickLanguage && quickLanguage->property("enabled").toBool());
+        settingsDialog->setProperty("currentPage", 2);
+        QVERIFY(QMetaObject::invokeMethod(settingsDialog, "open"));
+        QTRY_VERIFY(settingsDialog->property("opened").toBool());
+        auto *useCurrent = findItem(window->contentItem(), "useCurrentSubtitleButton");
+        QVERIFY(useCurrent);
+        QTest::qWait(250);
+        click(window, useCurrent);
+        auto *languageChoice = qobject_cast<QQuickItem *>(
+            settingsDialog->findChild<QObject *>("useCurrentSubtitleLanguageMenuItem"));
+        QVERIFY(languageChoice);
+        QTRY_VERIFY(languageChoice->isVisible() && languageChoice->isEnabled());
+        click(window, languageChoice);
+        auto *ruleValue = findItem(window->contentItem(), "subtitleRuleValue0");
+        QTRY_VERIFY(ruleValue && ruleValue->hasActiveFocus());
+        QCOMPARE(ruleValue->property("text").toString(), QStringLiteral("jpn"));
+        QCOMPARE(findItem(window->contentItem(), "subtitleRuleType0")->property("currentIndex").toInt(), 2);
+        QCOMPARE(video->defaultSubtitleRules(), QString{}); // Capture is still a draft.
+        QVERIFY(QMetaObject::invokeMethod(settingsDialog, "accept"));
+        QTRY_COMPARE(video->defaultSubtitleRules(), QStringLiteral("language:jpn"));
+        QTRY_VERIFY(!settingsDialog->property("visible").toBool());
+        video->setDefaultSubtitleRules("language:ja");
+        QVERIFY(QMetaObject::invokeMethod(quickLanguage, "triggered"));
+        QTRY_VERIFY(settingsDialog->property("opened").toBool());
+        QVERIFY(!findItem(window->contentItem(), "subtitleRuleValue1")); // ja and jpn are the same rule.
+        QCOMPARE(findItem(window->contentItem(), "subtitleSettings")->property("ruleActionResult").toInt(), 2);
+        QVERIFY(QMetaObject::invokeMethod(settingsDialog, "reject"));
+        QTRY_VERIFY(!settingsDialog->property("visible").toBool());
+        auto *appMenu = window->findChild<QObject *>("appMenu");
+        QVERIFY(appMenu);
+        auto *appLanguage = appMenu->findChild<QObject *>("addCurrentSubtitleLanguageRuleMenuItem");
+        QVERIFY(appLanguage && appLanguage->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(appLanguage, "triggered"));
+        QTRY_VERIFY(settingsDialog->property("opened").toBool());
+        QVERIFY(!findItem(window->contentItem(), "subtitleRuleValue1"));
+        QVERIFY(QMetaObject::invokeMethod(settingsDialog, "reject"));
+        QTRY_VERIFY(!settingsDialog->property("visible").toBool());
+
+        // Language competes with names and numbers in the same ordered list.
+        video->setDefaultSubtitleRules("");
+        video->setDefaultSubtitleLanguage("ja_JP");
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleRules("language:en\nsubtrackname:Japanese");
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        QCOMPARE(QSettings().value("subtitles/defaultRules").toString(), QStringLiteral("language:en\nsubtrackname:Japanese"));
+        video->stop();
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded());
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        video->setDefaultSubtitleRules("subtrackname:Japanese\nlanguage:eng");
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleRules(QStringLiteral("language:ENg\ntracknum:%1").arg(japanese));
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        video->setDefaultSubtitleRules(QStringLiteral("language:en_US\ntracknum:%1").arg(japanese));
+        QTRY_COMPARE(video->subtitleTrack(), english);
+        video->setDefaultSubtitleRules(QStringLiteral("language:ja\ntracknum:%1").arg(english));
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleRules("language:xx\nlanguage:jpn\nsubtrackname:English");
+        QTRY_COMPARE(video->subtitleTrack(), japanese);
+        video->setDefaultSubtitleRules(QStringLiteral("language:und\nlanguage:zxx\nlanguage:mul\ntracknum:%1").arg(english));
+        QTRY_COMPARE(video->subtitleTrack(), english);
         video->setDefaultSubtitleRules(QStringLiteral("subtrackname:missing\ntracknum:%1\nsubtrackname:Japanese").arg(english));
         QTRY_COMPARE(video->subtitleTrack(), english);
         video->setDefaultSubtitleRules(QStringLiteral("subtrackname: japanese \ntracknum:%1").arg(english));
@@ -1333,6 +1552,87 @@ private slots:
         QTRY_VERIFY(video->mediaLoaded());
         QTRY_COMPARE(video->subtitleTrack(), english);
         QCOMPARE(video->errorString(), QString{});
+    }
+
+    void subtitlePriorityRulesApplyToAllFilesAndPersist()
+    {
+        const QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");
+        if (ffmpeg.isEmpty())
+            QSKIP("ffmpeg is needed to create the multilingual Matroska fixture");
+        QTemporaryDir directory;
+        const auto rawVideo = makeVideo(directory.filePath("video.y4m"));
+        QFile subtitles(directory.filePath("text.srt"));
+        QVERIFY(subtitles.open(QIODevice::WriteOnly));
+        subtitles.write("1\n00:00:00,000 --> 00:00:29,000\nSubtitle\n");
+        subtitles.close();
+        const QUrl first = QUrl::fromLocalFile(directory.filePath("first.mkv"));
+        QProcess encoder;
+        encoder.start(ffmpeg, {"-v", "error", "-i", rawVideo.toLocalFile(),
+            "-i", subtitles.fileName(), "-i", subtitles.fileName(),
+            "-map", "0:v", "-map", "1:s", "-map", "2:s", "-c:v", "ffv1", "-c:s", "srt",
+            "-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=jpn",
+            "-metadata:s:s:0", "title=English", "-metadata:s:s:1", "title=Japanese",
+            "-disposition:s:0", "default", "-disposition:s:1", "0", first.toLocalFile()});
+        QVERIFY(encoder.waitForFinished(10000));
+        QCOMPARE(encoder.exitCode(), 0);
+        QVERIFY(QDir(directory.path()).mkdir("other"));
+        const QUrl second = QUrl::fromLocalFile(directory.filePath("other/second.mkv"));
+        QVERIFY(QFile::copy(first.toLocalFile(), second.toLocalFile()));
+        QString savedRules;
+        {
+            QQmlApplicationEngine engine;
+            engine.setInitialProperties({{"mediaSource", first}});
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            auto *playlists = window->findChild<PlaylistCollection *>();
+            QVERIFY(video && playlists);
+            video->play();
+            QTRY_COMPARE(video->subtitleTracks().size(), 2);
+            const int english = video->subtitleTracks().first().toMap().value("id").toInt();
+            const int japanese = video->subtitleTracks().last().toMap().value("id").toInt();
+            savedRules = QStringLiteral("subtrackname:Missing\nlanguage:ja\ntracknum:%1").arg(english);
+            video->setDefaultSubtitleRules(savedRules);
+            QTRY_COMPARE(video->subtitleTrack(), japanese);
+            video->setSubtitleTrack(english);
+            QTRY_COMPARE(video->subtitleTrack(), english);
+            QCOMPARE(video->defaultSubtitleRules(), savedRules);
+
+            // A manual choice belongs to this file; the next file uses the global rules.
+            QCOMPARE(playlists->currentPlaylist()->appendUrls({second}), 1);
+            QVERIFY(QMetaObject::invokeMethod(window, "playTrack", Q_ARG(int, 1)));
+            QTRY_COMPARE(video->source(), second);
+            QTRY_COMPARE(video->subtitleTracks().size(), 2);
+            QTRY_COMPARE(video->subtitleTrack(), japanese);
+            QCOMPARE(video->defaultSubtitleRules(), savedRules);
+
+            QCOMPARE(playlists->addPlaylist("Another playlist"), 1);
+            QCOMPARE(playlists->currentPlaylist()->appendUrls({first}), 1);
+            QVERIFY(QMetaObject::invokeMethod(window, "playTrack", Q_ARG(int, 0)));
+            QTRY_COMPARE(video->source(), first);
+            QTRY_COMPARE(video->subtitleTracks().size(), 2);
+            QTRY_COMPARE(video->subtitleTrack(), japanese);
+            QCOMPARE(video->defaultSubtitleRules(), savedRules);
+            window->close();
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.setInitialProperties({{"startupFiles", QVariant::fromValue(QList<QUrl>{second})}});
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            QVERIFY(video);
+            QCOMPARE(video->defaultSubtitleRules(), savedRules);
+            QTRY_COMPARE(video->source(), second);
+            QTRY_VERIFY(video->playing());
+            QTRY_COMPARE(video->subtitleTracks().size(), 2);
+            QTRY_COMPARE(video->subtitleTrack(), video->subtitleTracks().last().toMap().value("id").toInt());
+            QCOMPARE(video->errorString(), QString{});
+        }
     }
 
     void subtitleStyleChangesRenderedAss()
@@ -1385,7 +1685,7 @@ private slots:
         QTRY_VERIFY(video->subtitleTrack() > 0);
         video->seek(2);
         QTRY_VERIFY(video->position() >= 1.9);
-        video->setSubtitleStyleOverride(false);
+        QVERIFY(!video->subtitleStyleOverride());
         video->setSubtitleFontSize(48);
         QSignalSpy captures(video, &MpvVideo::frameCaptured);
         const auto capture = [&](const QString &name) {
@@ -1623,7 +1923,7 @@ private slots:
         auto *menu = window->findChild<QObject *>("subtitleSelectionMenu");
         QVERIFY(menu);
         QTRY_VERIFY(menu->property("opened").toBool());
-        QCOMPARE(menu->property("count").toInt(), 7 + video->subtitleTracks().size());
+        QCOMPARE(menu->property("count").toInt(), 9 + video->subtitleTracks().size());
         QVERIFY(menuItemAt(menu, 5)->property("checked").toBool());
         click(window, menuItemAt(menu, 6));
         QTRY_COMPARE(video->subtitleTrack(), secondId);
