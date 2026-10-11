@@ -50,7 +50,6 @@
             <source>字幕偏好</source>
             <translation>Subtitle preferences</translation>
         </message>
-
         <message>
             <source>最高播放速度 (×)</source>
             <translation>Maximum playback speed (×)</translation>
@@ -147,6 +146,34 @@
         <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Subtitle rules (drag to reorder)</source>
+            <translation>Subtitle rules (drag to reorder)</translation>
+        </message>
+        <message>
+            <source>Track name</source>
+            <translation>Track name</translation>
+        </message>
+        <message>
+            <source>Track number</source>
+            <translation>Track number</translation>
+        </message>
+        <message>
+            <source>Track name or filename</source>
+            <translation>Track name or filename</translation>
+        </message>
+        <message>
+            <source>Remove rule</source>
+            <translation>Remove rule</translation>
+        </message>
+        <message>
+            <source>Add rule</source>
+            <translation>Add rule</translation>
+        </message>
+        <message>
+            <source>First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.</source>
+            <translation>First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.</translation>
         </message>
     </context>
     <context>
@@ -1528,6 +1555,137 @@ Double click to play</translation>
         <message>
             <source>Register video file types and open Windows Default apps</source>
             <translation>Register video file types and open Windows Default apps</translation>
+        </message>
+    </context>
+    <context>
+        <name>SubtitleSettings</name>
+        <message>
+            <source>Choose a rule type to use this rule.</source>
+            <translation>Choose a rule type to use this rule.</translation>
+        </message>
+        <message>
+            <source>Enter a whole track number greater than 0.</source>
+            <translation>Enter a whole track number greater than 0.</translation>
+        </message>
+        <message>
+            <source>Priority rules</source>
+            <translation>Priority rules</translation>
+        </message>
+        <message>
+            <source>Checked from top to bottom. The first match wins.</source>
+            <translation>Checked from top to bottom. The first match wins.</translation>
+        </message>
+        <message>
+            <source>No rules yet</source>
+            <translation>No rules yet</translation>
+        </message>
+        <message>
+            <source>Add a rule to prefer a track name or number, or use the fallback below.</source>
+            <translation>Add a rule to prefer a track name or number, or use the fallback below.</translation>
+        </message>
+        <message>
+            <source>Reorder rule %1</source>
+            <translation>Reorder rule %1</translation>
+        </message>
+        <message>
+            <source>Drag to reorder. Alt+Up / Alt+Down also moves this rule.</source>
+            <translation>Drag to reorder. Alt+Up / Alt+Down also moves this rule.</translation>
+        </message>
+        <message>
+            <source>Rule %1</source>
+            <translation>Rule %1</translation>
+        </message>
+        <message>
+            <source>Remove rule %1</source>
+            <translation>Remove rule %1</translation>
+        </message>
+        <message>
+            <source>Rule type</source>
+            <translation>Rule type</translation>
+        </message>
+        <message>
+            <source>Track name</source>
+            <translation>Track name</translation>
+        </message>
+        <message>
+            <source>Track number</source>
+            <translation>Track number</translation>
+        </message>
+        <message>
+            <source>Choose type</source>
+            <translation>Choose type</translation>
+        </message>
+        <message>
+            <source>e.g. 2</source>
+            <translation>e.g. 2</translation>
+        </message>
+        <message>
+            <source>e.g. Signs &amp; Songs</source>
+            <translation>e.g. Signs &amp; Songs</translation>
+        </message>
+        <message>
+            <source>Track name or filename</source>
+            <translation>Track name or filename</translation>
+        </message>
+        <message>
+            <source>Add rule</source>
+            <translation>Add rule</translation>
+        </message>
+        <message>
+            <source>Names match a track title or subtitle filename, ignoring case. Blank rules are skipped.</source>
+            <translation>Names match a track title or subtitle filename, ignoring case. Blank rules are skipped.</translation>
+        </message>
+        <message>
+            <source>When no rule matches</source>
+            <translation>When no rule matches</translation>
+        </message>
+        <message>
+            <source>Preferred languages</source>
+            <translation>Preferred languages</translation>
+        </message>
+        <message>
+            <source>e.g. zh,en or jpn</source>
+            <translation>e.g. zh,en or jpn</translation>
+        </message>
+        <message>
+            <source>Comma-separated language codes, in priority order. Leave blank for automatic selection.</source>
+            <translation>Comma-separated language codes, in priority order. Leave blank for automatic selection.</translation>
+        </message>
+        <message>
+            <source>Fallback track overrides</source>
+            <translation>Fallback track overrides</translation>
+        </message>
+        <message>
+            <source>Preferred track name</source>
+            <translation>Preferred track name</translation>
+        </message>
+        <message>
+            <source>Track title or external subtitle filename</source>
+            <translation>Track title or external subtitle filename</translation>
+        </message>
+        <message>
+            <source>Preferred track number</source>
+            <translation>Preferred track number</translation>
+        </message>
+        <message>
+            <source>A matching name is tried before the track number, then languages. Leave the name blank and number at 0 to use languages only.</source>
+            <translation>A matching name is tried before the track number, then languages. Leave the name blank and number at 0 to use languages only.</translation>
+        </message>
+        <message>
+            <source>Subtitle appearance</source>
+            <translation>Subtitle appearance</translation>
+        </message>
+        <message>
+            <source>Override ASS subtitle styles</source>
+            <translation>Override ASS subtitle styles</translation>
+        </message>
+        <message>
+            <source>Use KPlayer's font and alignment for styled subtitles. Turn off to keep the original styling. Bitmap subtitles keep their original appearance.</source>
+            <translation>Use KPlayer's font and alignment for styled subtitles. Turn off to keep the original styling. Bitmap subtitles keep their original appearance.</translation>
+        </message>
+        <message>
+            <source>Changes apply when you save, including to future files.</source>
+            <translation>Changes apply when you save, including to future files.</translation>
         </message>
     </context>
 </TS>

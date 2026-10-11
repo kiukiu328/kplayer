@@ -22,10 +22,11 @@ Dialog {
                            (parent.height - height) / 2 + dragOffset.y))
     onAboutToShow: dragOffset = Qt.point(0, 0)
     readonly property var pageTitles: [qsTr("一般"), qsTr("播放"), qsTr("字幕")]
+    readonly property string saveButtonText: qsTr("Save")
+    readonly property string cancelButtonText: qsTr("Cancel")
     title: qsTr("進階設定")
     modal: true
     focus: true
-    standardButtons: Dialog.Save | Dialog.Cancel
     closePolicy: Popup.CloseOnEscape
     font.family: Theme.fontFamily
     palette.window: Theme.chromeBackground
@@ -38,29 +39,20 @@ Dialog {
     palette.highlightedText: Theme.chromeBackground
 
     onOpened: {
-        standardButton(Dialog.Save).text = Qt.binding(() => qsTr("Save"))
-        standardButton(Dialog.Cancel).text = Qt.binding(() => qsTr("Cancel"))
         speedLimit.value = Math.round(maximumSpeed * 10)
         customSpeed.value = Math.round(playbackSpeed * 10)
         interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
-        trackNumber.value = subtitleTrackNumber
-        trackName.text = subtitleTrackName
-        rulesInput.text = subtitleRules
-        overrideSubtitleStyle.checked = subtitleStyleOverride
-        languageCodes.text = subtitleLanguage
-        languageChoice.currentIndex = 0
-        for (let i = 0; i < languageChoice.model.length; ++i) {
-            if (languageChoice.model[i].code === subtitleLanguage) {
-                languageChoice.currentIndex = i
-                break
-            }
-        }
+        subtitleSettings.reset(subtitleLanguage, subtitleTrackNumber, subtitleTrackName,
+                               subtitleRules, subtitleStyleOverride)
+        const view = settingsScroll.contentItem as Flickable
+        view.contentY = 0
     }
     onAccepted: {
         speedSaved(customSpeed.value / 10, speedLimit.value / 10)
         AppLanguage.language = interfaceLanguage.currentIndex === 1 ? "en" : "zh_TW"
-        subtitleSaved(languageCodes.text.trim().replace(/\s+/g, "").toLowerCase(),
-                      trackNumber.value, overrideSubtitleStyle.checked, trackName.text.trim(), rulesInput.text.trim())
+        subtitleSaved(subtitleSettings.normalizedLanguage, subtitleSettings.trackNumber,
+                      subtitleSettings.overrideStyle, subtitleSettings.trackName.trim(),
+                      subtitleSettings.serializedRules())
     }
 
     padding: 0
@@ -68,6 +60,43 @@ Dialog {
         color: Theme.chromeBackground
         border.color: Theme.buttonBackground
         radius: 12
+    }
+    footer: Item {
+        implicitHeight: 72
+        RowLayout {
+            anchors { fill: parent; margins: 16 }
+            spacing: 10
+            Item { Layout.fillWidth: true }
+            Button {
+                id: cancelButton
+                objectName: "advancedSettingsCancelButton"
+                text: root.cancelButtonText
+                implicitWidth: Math.max(96, contentItem.implicitWidth + 32)
+                implicitHeight: 40
+                onClicked: root.reject()
+                background: Rectangle {
+                    radius: 6
+                    color: cancelButton.hovered ? Theme.buttonHover : Theme.searchBackground
+                    border.color: cancelButton.activeFocus ? Theme.accent : Theme.buttonBackground
+                }
+            }
+            Button {
+                id: saveButton
+                objectName: "advancedSettingsSaveButton"
+                text: root.saveButtonText
+                enabled: subtitleSettings.rulesValid
+                implicitWidth: Math.max(96, contentItem.implicitWidth + 32)
+                implicitHeight: 40
+                font.bold: true
+                palette.buttonText: enabled ? Theme.chromeBackground : Theme.textMuted
+                onClicked: root.accept()
+                background: Rectangle {
+                    radius: 6
+                    color: saveButton.enabled ? Theme.accent : Theme.buttonBackground
+                    border.color: saveButton.activeFocus ? Theme.textPrimary : Theme.transparent
+                }
+            }
+        }
     }
     header: Item {
         implicitHeight: 60
@@ -283,102 +312,19 @@ Dialog {
                         }
                     }
                 }
-                SettingsCard {
+                SubtitleSettings {
+                    id: subtitleSettings
+                    objectName: "subtitleSettings"
                     width: parent.width - parent.padding * 2
                     visible: root.currentPage === 2
-                    heading: qsTr("字幕偏好")
-                    Label {
-                        width: parent.width
-                        text: qsTr("Subtitle rules, in priority order (one per line)")
-                        wrapMode: Text.WordWrap
-                        color: Theme.textPrimary
-                    }
-                    TextArea {
-                        id: rulesInput
-                        objectName: "subtitleRulesInput"
-                        width: parent.width
-                        implicitHeight: Math.max(100, contentHeight + topPadding + bottomPadding)
-                        placeholderText: "subtrackname:Signs & Songs\ntracknum:2\nsubtrackname:English"
-                        wrapMode: TextEdit.Wrap
-                        selectByMouse: true
-                        Accessible.name: qsTr("Subtitle priority rules")
-                    }
-                    Label {
-                        width: parent.width
-                        text: qsTr("First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.")
-                        wrapMode: Text.WordWrap
-                        color: Theme.textPrimary
-                    }
-                    Label {
-                        text: qsTr("Preferred subtitle track name")
-                        color: Theme.textPrimary
-                    }
-                    TextField {
-                        id: trackName
-                        objectName: "subtitleTrackNameInput"
-                        width: parent.width
-                        placeholderText: qsTr("Track title or external subtitle filename")
-                        selectByMouse: true
-                        Accessible.name: qsTr("Preferred subtitle track name")
-                    }
-                    Label {
-                        text: qsTr("Preferred subtitle track number (0 = language / automatic)")
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        color: Theme.textPrimary
-                    }
-                    SpinBox {
-                        id: trackNumber
-                        objectName: "subtitleTrackNumberInput"
-                        width: parent.width
-                        from: 0
-                        to: 9999
-                        editable: true
-                        Accessible.name: qsTr("Preferred subtitle track number")
-                    }
-                    CheckBox {
-                        id: overrideSubtitleStyle
-                        objectName: "subtitleStyleOverrideInput"
-                        width: parent.width
-                        text: qsTr("Apply font and alignment to styled ASS subtitles")
-                    }
-                    Label {
-                        text: qsTr("預設字幕語言")
-                        color: Theme.textPrimary
-                        font.pixelSize: Theme.smallFontSize
-                    }
-                    SettingsComboBox {
-                        id: languageChoice
-                        objectName: "subtitleLanguageChoice"
-                        width: parent.width
-                        textRole: "label"
-                        model: [
-                            { label: qsTr("自動 / 自訂"), code: "" },
-                            { label: "中文", code: "zh,zho,chi" },
-                            { label: "English", code: "en,eng" },
-                            { label: "日本語", code: "ja,jpn" },
-                            { label: "한국어", code: "ko,kor" },
-                            { label: "Français", code: "fr,fra,fre" },
-                            { label: "Deutsch", code: "de,deu,ger" },
-                            { label: "Español", code: "es,spa" },
-                            { label: "Português", code: "pt,por" },
-                            { label: "Italiano", code: "it,ita" }
-                        ]
-                        onActivated: languageCodes.text = model[currentIndex].code
-                    }
-                    TextField {
-                        id: languageCodes
-                        objectName: "subtitleLanguageCodes"
-                        width: parent.width
-                        placeholderText: qsTr("語言代碼，例如 zh,en 或 jpn")
-                        selectByMouse: true
-                        Accessible.name: qsTr("預設字幕語言代碼")
-                    }
-                    Label {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        color: Theme.textMuted
-                        text: qsTr("Names match exactly, ignoring case. Selection priority: name, track number, language, then automatic. Leave the name blank to skip it. Saved changes apply immediately and to future files. Bitmap subtitles keep their original font.")
+                    viewport: settingsScroll.contentItem as Flickable
+                    onRevealRequested: (y, height) => {
+                        const view = settingsScroll.contentItem as Flickable
+                        const top = subtitleSettings.mapToItem(view.contentItem, 0, y).y
+                        if (top < view.contentY)
+                            view.contentY = top
+                        else if (top + height > view.contentY + view.height)
+                            view.contentY = top + height - view.height
                     }
                 }
             }

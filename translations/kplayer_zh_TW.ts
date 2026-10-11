@@ -147,6 +147,34 @@
             <source>Cancel</source>
             <translation>取消</translation>
         </message>
+        <message>
+            <source>Subtitle rules (drag to reorder)</source>
+            <translation>字幕規則（拖曳以調整順序）</translation>
+        </message>
+        <message>
+            <source>Track name</source>
+            <translation>字幕軌名稱</translation>
+        </message>
+        <message>
+            <source>Track number</source>
+            <translation>字幕軌編號</translation>
+        </message>
+        <message>
+            <source>Track name or filename</source>
+            <translation>字幕軌名稱或檔名</translation>
+        </message>
+        <message>
+            <source>Remove rule</source>
+            <translation>移除規則</translation>
+        </message>
+        <message>
+            <source>Add rule</source>
+            <translation>新增規則</translation>
+        </message>
+        <message>
+            <source>First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.</source>
+            <translation>優先使用第一條相符的規則。名稱比對字幕軌標題或字幕檔名，不區分大小寫。若沒有符合的規則，則使用下方偏好設定。</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
@@ -1527,6 +1555,137 @@ Double click to play</source>
         <message>
             <source>Register video file types and open Windows Default apps</source>
             <translation>註冊影片檔案類型並開啟 Windows 預設應用程式</translation>
+        </message>
+    </context>
+    <context>
+        <name>SubtitleSettings</name>
+        <message>
+            <source>Choose a rule type to use this rule.</source>
+            <translation>請選擇規則類型以使用此規則。</translation>
+        </message>
+        <message>
+            <source>Enter a whole track number greater than 0.</source>
+            <translation>請輸入大於 0 的整數字幕軌編號。</translation>
+        </message>
+        <message>
+            <source>Priority rules</source>
+            <translation>字幕優先規則</translation>
+        </message>
+        <message>
+            <source>Checked from top to bottom. The first match wins.</source>
+            <translation>由上而下比對，優先使用第一條相符的規則。</translation>
+        </message>
+        <message>
+            <source>No rules yet</source>
+            <translation>尚未新增規則</translation>
+        </message>
+        <message>
+            <source>Add a rule to prefer a track name or number, or use the fallback below.</source>
+            <translation>新增規則以指定偏好的字幕軌名稱或編號，或使用下方的備用偏好。</translation>
+        </message>
+        <message>
+            <source>Reorder rule %1</source>
+            <translation>調整第 %1 條規則的順序</translation>
+        </message>
+        <message>
+            <source>Drag to reorder. Alt+Up / Alt+Down also moves this rule.</source>
+            <translation>拖曳以調整順序，也可按 Alt+↑／Alt+↓ 移動此規則。</translation>
+        </message>
+        <message>
+            <source>Rule %1</source>
+            <translation>第 %1 條規則</translation>
+        </message>
+        <message>
+            <source>Remove rule %1</source>
+            <translation>移除第 %1 條規則</translation>
+        </message>
+        <message>
+            <source>Rule type</source>
+            <translation>規則類型</translation>
+        </message>
+        <message>
+            <source>Track name</source>
+            <translation>字幕軌名稱</translation>
+        </message>
+        <message>
+            <source>Track number</source>
+            <translation>字幕軌編號</translation>
+        </message>
+        <message>
+            <source>Choose type</source>
+            <translation>選擇類型</translation>
+        </message>
+        <message>
+            <source>e.g. 2</source>
+            <translation>例如 2</translation>
+        </message>
+        <message>
+            <source>e.g. Signs &amp; Songs</source>
+            <translation>例如 Signs &amp; Songs</translation>
+        </message>
+        <message>
+            <source>Track name or filename</source>
+            <translation>字幕軌名稱或檔名</translation>
+        </message>
+        <message>
+            <source>Add rule</source>
+            <translation>新增規則</translation>
+        </message>
+        <message>
+            <source>Names match a track title or subtitle filename, ignoring case. Blank rules are skipped.</source>
+            <translation>名稱比對字幕軌標題或字幕檔名，不區分大小寫。空白規則會略過。</translation>
+        </message>
+        <message>
+            <source>When no rule matches</source>
+            <translation>沒有相符規則時</translation>
+        </message>
+        <message>
+            <source>Preferred languages</source>
+            <translation>偏好的字幕語言</translation>
+        </message>
+        <message>
+            <source>e.g. zh,en or jpn</source>
+            <translation>例如 zh,en 或 jpn</translation>
+        </message>
+        <message>
+            <source>Comma-separated language codes, in priority order. Leave blank for automatic selection.</source>
+            <translation>以逗號分隔語言代碼，依偏好順序排列。留空則自動選擇。</translation>
+        </message>
+        <message>
+            <source>Fallback track overrides</source>
+            <translation>指定備用字幕軌</translation>
+        </message>
+        <message>
+            <source>Preferred track name</source>
+            <translation>偏好的字幕軌名稱</translation>
+        </message>
+        <message>
+            <source>Track title or external subtitle filename</source>
+            <translation>字幕軌標題或外部字幕檔名</translation>
+        </message>
+        <message>
+            <source>Preferred track number</source>
+            <translation>偏好的字幕軌編號</translation>
+        </message>
+        <message>
+            <source>A matching name is tried before the track number, then languages. Leave the name blank and number at 0 to use languages only.</source>
+            <translation>先比對名稱，再使用字幕軌編號，最後依語言選擇。名稱留空、編號設為 0 時，僅使用語言偏好。</translation>
+        </message>
+        <message>
+            <source>Subtitle appearance</source>
+            <translation>字幕外觀</translation>
+        </message>
+        <message>
+            <source>Override ASS subtitle styles</source>
+            <translation>覆寫 ASS 字幕樣式</translation>
+        </message>
+        <message>
+            <source>Use KPlayer's font and alignment for styled subtitles. Turn off to keep the original styling. Bitmap subtitles keep their original appearance.</source>
+            <translation>將 KPlayer 的字型與對齊設定套用至樣式字幕。關閉可保留原始樣式。點陣圖字幕會保留原有外觀。</translation>
+        </message>
+        <message>
+            <source>Changes apply when you save, including to future files.</source>
+            <translation>儲存後立即套用，並用於之後開啟的檔案。</translation>
         </message>
     </context>
 </TS>

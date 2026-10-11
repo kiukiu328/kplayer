@@ -49,6 +49,7 @@ set(KPLAYER_QML_FILES
     qml/PlayerMenuSeparator.qml
     qml/SubtitleMenu.qml
     qml/AdvancedSettings.qml
+    qml/SubtitleSettings.qml
     qml/ControlPanel.qml
     qml/VideoAdjustments.qml
     qml/AppMenu.qml
