@@ -123,7 +123,6 @@ private:
 namespace {
 const std::pair<const char *, const char *> savedPlayerProperties[] = {
     {"playback/maximumSpeed", "maximumSpeed"},
-    {"playback/speed", "speed"},
     {"playback/volume", "volume"},
     {"playback/muted", "muted"},
     {"video/aspectRatio", "aspectRatio"},
@@ -176,6 +175,8 @@ void MpvVideo::savePreferences()
     QSettings settings;
     for (const auto &[key, name] : savedPlayerProperties)
         settings.setValue(key, property(name));
+    // Each new player starts at 1x; only Z's remembered speed is durable.
+    settings.remove("playback/speed");
     settings.setValue("playback/lastSpeed", m_lastSpeed);
 }
 

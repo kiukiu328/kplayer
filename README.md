@@ -230,7 +230,7 @@ playlist selections keep their own keyboard behavior.
 - In fullscreen, move near the top for the title bar, bottom for controls, or right edge for the playlist.
 - The fullscreen cursor hides after three idle seconds and returns when the mouse moves. Menus, dialogs, and control drags keep it visible.
 - Right-click a playlist file and choose **Open file location** to open its folder (and select the file in Windows Explorer). This action is unavailable for online URLs.
-- Scroll long playlist titles horizontally. Selecting tracks or playlist tabs keeps playback running; double-click or press Enter to play a selection.
+- Hold Shift while scrolling to scroll long playlist titles horizontally. Selecting tracks or playlist tabs keeps playback running; double-click or press Enter to play a selection.
 - Arrow seeks show the resulting playback time in the blue hint, using the system font.
 - Left-click Previous/Next to seek 10 seconds; right-click to change playlist items.
 - Use the bottom settings button to open the floating **Control Panel** for audio,
@@ -257,14 +257,16 @@ KPlayer automatically stores these locally using Qt settings:
 
 | Data | Restored on startup |
 | --- | --- |
-| Playback | Last position per file, speed, previous non-1× speed for `Z`, speed limit, volume, mute, repeat mode |
+| Playback | Last position per file, previous non-1× speed for `Z`, speed limit, volume, mute, repeat mode |
 | Subtitles | Preferred track name, number and languages, visibility, font, size, position, alignment, ASS style override |
 | Audio and video | Equalizer bands, preamp and enable state; aspect ratio, color adjustments, soften/sharpen/deblock filters |
 | Window | Normal size, maximized state, always on top, playlist width and normal playlist/control visibility |
 | Library and interface | Playlists and selected items, favorites, interface language |
 
 Closing in fullscreen preserves the normal window layout; the next launch opens
-windowed or maximized. Pressing Play or reopening a file resumes at its last
+windowed or maximized. New windows start at 1× speed; press `Z` to restore the
+last adjusted speed (and press it again to return to 1×).
+Pressing Play or reopening a file resumes at its last
 stopped position, including after restarting the app. Completed files start from
 the beginning. Positions are also saved every five seconds during playback.
 A–B loop points, frame stretching, and subtitle timing offsets are temporary;

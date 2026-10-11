@@ -372,6 +372,19 @@ Rectangle {
             property point pressPosition
             property int pressedSource: -1
             property bool collapseOnRelease: false
+            onWheel: (wheel) => {
+                if (!(wheel.modifiers & Qt.ShiftModifier)) {
+                    wheel.accepted = false
+                    return
+                }
+                const pixels = wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.pixelDelta.x
+                const angle = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
+                const delta = pixels !== 0 ? pixels : angle / 120 * 60
+                wheel.accepted = true
+                if (!root.draggingTracks)
+                    trackList.contentX = Math.max(0, Math.min(
+                        trackList.contentWidth - trackList.width, trackList.contentX - delta))
+            }
             onPressed: (mouse) => {
                 const row = trackList.indexAt(mouse.x + trackList.contentX, mouse.y + trackList.contentY)
                 pressedSource = filteredTracks.sourceIndex(row)

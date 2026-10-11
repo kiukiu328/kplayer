@@ -998,7 +998,9 @@ private slots:
             QVERIFY(video);
             QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
             QCOMPARE(video->maximumSpeed(), 24.0);
-            QCOMPARE(video->speed(), 12.5);
+            QCOMPARE(video->speed(), 1.0);
+            video->toggleSpeed();
+            QTRY_COMPARE(video->speed(), 12.5);
             QCOMPARE(video->defaultSubtitleTrack(), 2);
             QVERIFY(!video->subtitleStyleOverride());
         }
@@ -1045,6 +1047,8 @@ private slots:
             QTRY_COMPARE(window->size(), window->screen()->size());
             window->close();
         }
+        // Old installations may still have an active-speed key. Ignore it on startup.
+        QSettings().setValue("playback/speed", 24.0);
         {
             QQmlApplicationEngine engine;
             engine.loadFromModule("KPlayer", "Main");
@@ -1053,7 +1057,7 @@ private slots:
             QVERIFY(exposeWindow(window));
             auto *video = window->findChild<MpvVideo *>();
             QVERIFY(video);
-            QTRY_COMPARE(video->speed(), 24.0);
+            QTRY_COMPARE(video->speed(), 1.0);
             QCOMPARE(video->maximumSpeed(), 32.0);
             QTRY_COMPARE(video->volume(), 37.0);
             QTRY_VERIFY(video->muted());
@@ -1075,7 +1079,10 @@ private slots:
             QVERIFY(window->property("controlsVisible").toBool());
             QCOMPARE(window->visibility(), QWindow::Windowed);
             QCOMPARE(window->size(), QSize(1150, 700));
-            video->toggleSpeed();
+            QTest::keyClick(window, Qt::Key_Z);
+            QTRY_COMPARE(video->speed(), 24.0);
+            QVERIFY(!QSettings().contains("playback/speed"));
+            QTest::keyClick(window, Qt::Key_Z);
             QTRY_COMPARE(video->speed(), 1.0);
         }
         {
@@ -2298,6 +2305,64 @@ private slots:
         QTRY_COMPARE(list->property("count").toInt(), 1);
         QTRY_COMPARE(list->property("contentWidth").toReal(), list->width());
         QTRY_VERIFY(!scroll->isVisible());
+    }
+
+    void playlistShiftWheelScrollsHorizontally()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *queue = window->findChild<PlaylistModel *>();
+        QList<QUrl> tracks{QUrl("https://example.com/" + QString(180, 'W') + ".mkv")};
+        for (int i = 0; i < 40; ++i)
+            tracks.append(QUrl(QStringLiteral("https://example.com/short%1.mkv").arg(i)));
+        queue->appendUrls(tracks);
+        auto *list = findItem(window->contentItem(), "trackList");
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        QVERIFY(list && panel);
+        QTRY_VERIFY(list->property("contentWidth").toReal() > list->width() + 500);
+        QTRY_VERIFY(list->property("contentHeight").toReal() > list->height());
+        const auto wheelAt = [window, list](QPoint angle, QPoint pixels,
+                                          Qt::KeyboardModifiers modifiers) {
+            const QPoint local = list->mapToScene({100, 60}).toPoint();
+            QTest::mouseMove(window, local);
+            QWheelEvent event(local, window->mapToGlobal(local), pixels, angle,
+                              Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(window, &event);
+        };
+        wheelAt({0, -120}, {}, Qt::NoModifier);
+        QTRY_VERIFY(list->property("contentY").toReal() > 0);
+        QTRY_VERIFY(!list->property("moving").toBool());
+        QCOMPARE(list->property("contentX").toReal(), 0.0);
+        const qreal verticalPosition = list->property("contentY").toReal();
+        const int selected = panel->property("selectedSourceIndex").toInt();
+        wheelAt({0, -120}, {}, Qt::ShiftModifier);
+        QTRY_VERIFY(list->property("contentX").toReal() > 0);
+        QCOMPARE(list->property("contentY").toReal(), verticalPosition);
+        wheelAt({0, 120}, {}, Qt::ShiftModifier);
+        QTRY_COMPARE(list->property("contentX").toReal(), 0.0);
+        // Trackpad pixels and platforms that remap Shift's wheel delta to X.
+        wheelAt({}, {0, -45}, Qt::ShiftModifier);
+        QTRY_COMPARE(list->property("contentX").toReal(), 45.0);
+        wheelAt({-120, 0}, {}, Qt::ShiftModifier);
+        QTRY_VERIFY(list->property("contentX").toReal() > 45);
+        const qreal maximum = list->property("contentWidth").toReal() - list->width();
+        wheelAt({}, {-10000, 0}, Qt::ShiftModifier);
+        QTRY_COMPARE(list->property("contentX").toReal(), maximum);
+        wheelAt({}, {0, 10000}, Qt::ShiftModifier);
+        QTRY_COMPARE(list->property("contentX").toReal(), 0.0);
+        QCOMPARE(list->property("contentY").toReal(), verticalPosition);
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), selected);
+        QCOMPARE(queue->currentIndex(), 0);
+        // With no title overflow, Shift must not fall back to vertical scrolling.
+        findItem(window->contentItem(), "playlistSearch")->setProperty("text", "short");
+        QTRY_COMPARE(list->property("contentWidth").toReal(), list->width());
+        const qreal filteredPosition = list->property("contentY").toReal();
+        wheelAt({0, -120}, {}, Qt::ShiftModifier);
+        QCOMPARE(list->property("contentX").toReal(), 0.0);
+        QCOMPARE(list->property("contentY").toReal(), filteredPosition);
     }
 
     void playlistSearchAndEditingPreservePlayback()
