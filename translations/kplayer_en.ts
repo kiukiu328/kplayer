@@ -3,6 +3,14 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>時間軸預覽</source>
+            <translation>Timeline preview</translation>
+        </message>
+        <message>
+            <source>顯示時間軸影片預覽</source>
+            <translation>Show video preview on the timeline</translation>
+        </message>
+        <message>
             <source>Preferred subtitle track name</source>
             <translation>Preferred subtitle track name</translation>
         </message>

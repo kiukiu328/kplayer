@@ -10,6 +10,7 @@ Rectangle {
     property bool muted: false
     property real volume: 100
     property url mediaSource
+    property bool previewEnabled: true
     property bool playlistVisible: true
     property bool controlPanelVisible: false
     readonly property bool interacting: positionSlider.pressed || volumeSlider.pressed
@@ -66,7 +67,7 @@ Rectangle {
             // Commit one exact seek on release; playback updates never fight a drag.
             live: false
             backendValue: root.position
-            previewEnabled: true
+            previewEnabled: root.previewEnabled
             onMoved: {
                 if (!pressed)
                     root.seekRequested(value)

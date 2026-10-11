@@ -1276,6 +1276,13 @@ private slots:
             auto *maximum = findItem(window->contentItem(), "maximumSpeedInput");
             auto *speed = findItem(window->contentItem(), "customSpeedInput");
             QVERIFY(maximum && speed);
+            auto *previewToggle = findItem(window->contentItem(), "seekPreviewInput");
+            auto *seek = findItem(window->contentItem(), "positionSlider");
+            QVERIFY(previewToggle && seek);
+            QVERIFY(previewToggle->property("checked").toBool());
+            QVERIFY(seek->property("previewEnabled").toBool());
+            previewToggle->setProperty("checked", false);
+            QVERIFY(seek->property("previewEnabled").toBool());
             QCOMPARE(maximum->property("value").toInt(), 160);
             maximum->setProperty("value", 240);
             speed->setProperty("value", 125);
@@ -1286,6 +1293,7 @@ private slots:
             track->setProperty("value", 2);
             overrideStyle->setProperty("checked", false);
             QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+            QTRY_VERIFY(!seek->property("previewEnabled").toBool());
             QTRY_COMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
             QCOMPARE(video->maximumSpeed(), 24.0);
             QTRY_COMPARE(video->speed(), 12.5);
@@ -1294,12 +1302,15 @@ private slots:
             QTest::keyClick(window, Qt::Key_F5);
             QTRY_VERIFY(dialog->property("opened").toBool());
             QCOMPARE(codes->property("text").toString(), QStringLiteral("ja,jpn"));
+            QVERIFY(!previewToggle->property("checked").toBool());
+            previewToggle->setProperty("checked", true);
             codes->setProperty("text", "en");
             track->setProperty("value", 3);
             overrideStyle->setProperty("checked", true);
             maximum->setProperty("value", 80);
             QTest::keyClick(window, Qt::Key_Escape);
             QTRY_VERIFY(!dialog->property("visible").toBool());
+            QVERIFY(!seek->property("previewEnabled").toBool());
             QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
             QCOMPARE(video->maximumSpeed(), 24.0);
         }
@@ -1309,6 +1320,9 @@ private slots:
             QVERIFY(!engine.rootObjects().isEmpty());
             auto *video = engine.rootObjects().first()->findChild<MpvVideo *>();
             QVERIFY(video);
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            auto *seek = findItem(window->contentItem(), "positionSlider");
+            QVERIFY(seek && !seek->property("previewEnabled").toBool());
             QCOMPARE(video->defaultSubtitleLanguage(), QStringLiteral("ja,jpn"));
             QCOMPARE(video->maximumSpeed(), 24.0);
             QCOMPARE(video->speed(), 1.0);
@@ -3498,6 +3512,75 @@ private slots:
         QCOMPARE(video->errorString(), QString{});
     }
 
+    void trackNavigationAfterSeeking_data()
+    {
+        QTest::addColumn<bool>("fullscreen");
+        QTest::addColumn<bool>("drag");
+        QTest::newRow("window-click") << false << false;
+        QTest::newRow("window-drag") << false << true;
+        QTest::newRow("fullscreen-click") << true << false;
+        QTest::newRow("fullscreen-drag") << true << true;
+    }
+
+    void trackNavigationAfterSeeking()
+    {
+        QFETCH(bool, fullscreen);
+        QFETCH(bool, drag);
+        QTemporaryDir directory;
+        const QUrl first = makeVideo(directory.filePath("first.y4m"));
+        const QUrl second = makeVideo(directory.filePath("second.y4m"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", first}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *seek = findItem(window->contentItem(), "positionSlider");
+        QVERIFY(video && playlist && seek);
+        QCOMPARE(playlist->appendUrls({second}), 1);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        if (fullscreen) {
+            QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+            QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+            QTRY_COMPARE(window->size(), window->screen()->size());
+            QTest::mouseMove(window, {window->width() / 2, window->height() / 2}, 20);
+            QTest::mouseMove(window, {window->width() / 2, window->height() - 2}, 20);
+            QTRY_VERIFY(seek->isVisible());
+        }
+        click(window, seek);
+        if (drag) {
+            const QPoint start = seek->mapToScene({seek->width() / 2, seek->height() / 2}).toPoint();
+            const QPoint end = seek->mapToScene({seek->width() * 0.75, seek->height() / 2}).toPoint();
+            QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+            QTest::mouseMove(window, end, 20);
+            QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+        }
+        QTRY_VERIFY(seek->hasActiveFocus());
+        QTRY_VERIFY(qAbs(video->position() - (drag ? 23 : 15)) < 1);
+        const double position = video->position();
+        QTest::keyClick(window, Qt::Key_Left);
+        QTRY_VERIFY(qAbs(video->position() - (position - 1)) < 0.2);
+        QTest::keyClick(window, Qt::Key_PageDown);
+        QTRY_COMPARE(video->source(), second);
+        QCOMPARE(playlist->currentIndex(), 1);
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        click(window, seek);
+        QTRY_VERIFY(seek->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_PageUp);
+        QTRY_COMPARE(video->source(), first);
+        QCOMPARE(playlist->currentIndex(), 0);
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        auto *search = findItem(window->contentItem(), "playlistSearch");
+        QTRY_VERIFY(search->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_PageDown);
+        QCOMPARE(video->source(), first);
+        QCOMPARE(playlist->currentIndex(), 0);
+    }
+
     void keyboardShortcutsRespectPlaylistSearch()
     {
         QTemporaryDir directory;
@@ -4222,6 +4305,42 @@ private slots:
         QCOMPARE(panel->property("contextSource").toUrl(), remote);
         QCOMPARE(video->source(), first);
         QCOMPARE(requests.count(), 0);
+    }
+
+    void timelinePreviewCanBeDisabled()
+    {
+        QTemporaryDir directory;
+        const QUrl source = makeVideo(directory.filePath("preview.y4m"));
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", source}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *seek = findItem(window->contentItem(), "positionSlider");
+        auto *preview = window->findChild<MpvPreview *>();
+        auto *preferences = window->findChild<QObject *>("playbackPreferences");
+        QVERIFY(video && seek && preview && preferences);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        click(window, seek);
+        QTRY_VERIFY(preview->active());
+        QVERIFY(preferences->setProperty("previewEnabled", false));
+        QTRY_VERIFY(!seek->property("previewVisible").toBool());
+        QTRY_VERIFY(!preview->active());
+        const QPoint point = seek->mapToScene({seek->width() * 0.25, seek->height() / 2}).toPoint();
+        QTest::mouseMove(window, point, 20);
+        QVERIFY(!preview->active());
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, point);
+        QVERIFY(!seek->property("previewVisible").toBool());
+        QVERIFY(!preview->active());
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, point);
+        QTRY_VERIFY(qAbs(video->position() - 7) < 1);
+        QVERIFY(preferences->setProperty("previewEnabled", true));
+        QTRY_VERIFY(seek->property("previewVisible").toBool());
+        QTRY_VERIFY(preview->active());
     }
 
     void fullscreenTimelinePreviewShowsHoveredFrame()

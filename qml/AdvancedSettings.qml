@@ -8,6 +8,8 @@ Dialog {
     property string subtitleLanguage: ""
     property real maximumSpeed: 16
     property real playbackSpeed: 1
+    property bool previewEnabled: true
+    signal previewSaved(bool enabled)
     signal speedSaved(real speed, real maximum)
     property int subtitleTrackNumber: 0
     property string subtitleTrackName: ""
@@ -44,6 +46,7 @@ Dialog {
     onOpened: {
         speedLimit.value = Math.round(maximumSpeed * 10)
         customSpeed.value = Math.round(playbackSpeed * 10)
+        seekPreview.checked = previewEnabled
         interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
         subtitleSettings.reset(subtitleLanguage, subtitleTrackNumber, subtitleTrackName,
                                subtitleRules, subtitleStyleOverride)
@@ -76,6 +79,7 @@ Dialog {
     }
     onAccepted: {
         speedSaved(customSpeed.value / 10, speedLimit.value / 10)
+        previewSaved(seekPreview.checked)
         AppLanguage.language = interfaceLanguage.currentIndex === 1 ? "en" : "zh_TW"
         subtitleSaved(subtitleSettings.normalizedLanguage, subtitleSettings.trackNumber,
                       subtitleSettings.overrideStyle, subtitleSettings.trackName.trim(),
@@ -337,6 +341,17 @@ Dialog {
                             valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * 10)
                             Accessible.name: qsTr("播放速度 (×)")
                         }
+                    }
+                }
+                SettingsCard {
+                    width: parent.width - parent.padding * 2
+                    visible: root.currentPage === 1
+                    heading: qsTr("時間軸預覽")
+                    CheckBox {
+                        id: seekPreview
+                        objectName: "seekPreviewInput"
+                        width: parent.width
+                        text: qsTr("顯示時間軸影片預覽")
                     }
                 }
                 SubtitleSettings {

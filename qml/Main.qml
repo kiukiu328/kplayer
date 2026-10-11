@@ -85,7 +85,7 @@ Window {
         ? qsTr("Controls shown") : qsTr("Controls hidden"))
     onIsFullscreenChanged: videoStage.showHint(isFullscreen
         ? qsTr("Fullscreen") : qsTr("Fullscreen off"))
-    readonly property bool playbackShortcutsEnabled: !playlist.editingSearch
+    readonly property bool trackNavigationShortcutsEnabled: !playlist.editingSearch
         && !controlPanel.active
         && !playlist.menuOpen
         && !mediaDialog.visible
@@ -94,6 +94,8 @@ Window {
         && !appMenu.visible && !infoDialog.visible
         && !advancedSettings.visible && !videoAdjustments.visible
         && !hasInteractiveFocus()
+    readonly property bool playbackShortcutsEnabled: trackNavigationShortcutsEnabled
+        && !hasSliderFocus()
     readonly property bool activationShortcutsEnabled: playbackShortcutsEnabled
         && !hasButtonFocus()
 
@@ -101,7 +103,15 @@ Window {
         // Focus scopes can give their delegate or content item the active focus.
         for (let item = window.activeFocusItem; item !== null; item = item.parent) {
             if (item instanceof TextInput || item instanceof TextEdit
-                || item instanceof Slider || item.objectName === "trackList")
+                || item.objectName === "trackList")
+                return true
+        }
+        return false
+    }
+
+    function hasSliderFocus(): bool {
+        for (let item = window.activeFocusItem; item !== null; item = item.parent) {
+            if (item instanceof Slider)
                 return true
         }
         return false
@@ -269,6 +279,7 @@ Window {
         objectName: "playbackPreferences"
         category: "playback"
         property real playlistWidth: Theme.playlistWidth
+        property bool previewEnabled: true
     }
     Settings {
         id: windowPreferences
@@ -309,6 +320,8 @@ Window {
         height: Math.min(600, window.height - 32)
         maximumSpeed: videoStage.maximumSpeed
         playbackSpeed: videoStage.speed
+        previewEnabled: playbackPreferences.previewEnabled
+        onPreviewSaved: (enabled) => playbackPreferences.previewEnabled = enabled
         onSpeedSaved: (speed, maximum) => {
             videoStage.maximumSpeed = maximum
             videoStage.speed = speed
@@ -727,12 +740,12 @@ Window {
     }
     Shortcut {
         sequence: "PgUp"
-        enabled: window.playbackShortcutsEnabled
+        enabled: window.trackNavigationShortcutsEnabled
         onActivated: window.skipTrack(-1)
     }
     Shortcut {
         sequence: "PgDown"
-        enabled: window.playbackShortcutsEnabled
+        enabled: window.trackNavigationShortcutsEnabled
         onActivated: window.skipTrack(1)
     }
     Shortcut {
@@ -837,7 +850,7 @@ Window {
         Item {
             anchors.top: parent.top
             width: parent.width
-            height: Theme.titleHeight + 16
+            height: titleBar.visible ? Theme.titleHeight : 8
             z: 4
             HoverHandler {
                 id: topHover
@@ -907,6 +920,7 @@ Window {
                     muted: videoStage.muted
                     volume: videoStage.volume
                     mediaSource: videoStage.source
+                    previewEnabled: playbackPreferences.previewEnabled
                     playlistVisible: window.playlistVisible
                     controlPanelVisible: controlPanel.visible
                     onPlaylistRequested: window.playlistVisible = !window.playlistVisible
