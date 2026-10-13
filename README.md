@@ -135,6 +135,18 @@ pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w
 From the repository root in PowerShell:
 
 ```powershell
+.\scripts\build-exe.ps1
+.\build-windows\KPlayer.exe
+```
+
+The script builds `build-windows/KPlayer.exe` in Release mode and deploys its
+runtime dependencies. Use `-Msys2Root 'D:\msys64'` or
+`-BuildDirectory 'build-custom-exe'` to override the tool and output locations.
+Relative build directories are resolved from the repository root.
+
+To build manually with the optional tests enabled:
+
+```powershell
 $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
 cmake -S . -B build-windows -G Ninja `
     -DCMAKE_BUILD_TYPE=Release `
