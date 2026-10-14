@@ -50,6 +50,7 @@ Item {
             HoverHandler {
                 cursorShape: handle.cursorShape
             }
+            onWheel: (wheel) => wheel.accepted = true
             onPressed: root.resizeRequested(resizeEdges)
         }
     }

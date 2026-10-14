@@ -961,6 +961,7 @@ Window {
                 }
                 property real startX
                 property real startWidth
+                onWheel: (wheel) => wheel.accepted = true
                 onPressed: (mouse) => {
                     startX = mapToItem(window.contentItem, mouse.x, mouse.y).x
                     startWidth = playlist.width

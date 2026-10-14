@@ -42,6 +42,12 @@ Rectangle {
     implicitHeight: Theme.seekHeight + Theme.transportHeight + (compact ? Theme.seekHeight : 0)
     height: implicitHeight
     color: Theme.chromeBackground
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        acceptedButtons: Qt.NoButton
+        onWheel: (wheel) => wheel.accepted = true
+    }
     Rectangle {
         width: parent.width
         height: Theme.dividerWidth
@@ -95,6 +101,12 @@ Rectangle {
             border.width: 1
             border.color: Theme.iconMuted
             z: 10
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton
+                onWheel: (wheel) => wheel.accepted = true
+            }
 
             MpvPreview {
                 id: previewVideo

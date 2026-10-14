@@ -16,6 +16,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEnterEvent>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -2948,6 +2949,32 @@ private slots:
         wheelAt({0, -120}, {}, Qt::ShiftModifier);
         QCOMPARE(list->property("contentX").toReal(), 0.0);
         QCOMPARE(list->property("contentY").toReal(), filteredPosition);
+
+        // The same horizontal scrolling must stay local over fullscreen video.
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(video);
+        video->setVolume(37);
+        video->setMuted(true);
+        QTest::qWait(50);
+        QSignalSpy volumeChanges(video, &MpvVideo::volumeChanged);
+        QSignalSpy muteChanges(video, &MpvVideo::mutedChanged);
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        window->setProperty("playlistVisible", true);
+        findItem(window->contentItem(), "playlistSearch")->setProperty("text", "");
+        QTRY_VERIFY(list->property("contentWidth").toReal() > list->width() + 500);
+        QSignalSpy renderedFrames(window, &QQuickWindow::frameSwapped);
+        window->update();
+        QTRY_VERIFY(!renderedFrames.isEmpty());
+        wheelAt({0, -120}, {}, Qt::ShiftModifier);
+        QTRY_VERIFY(list->property("contentX").toReal() > 0);
+        wheelAt({}, {0, -45}, Qt::ShiftModifier);
+        wheelAt({0, 120}, {}, Qt::ShiftModifier);
+        QVERIFY(volumeChanges.isEmpty());
+        QVERIFY(muteChanges.isEmpty());
+        QCOMPARE(video->volume(), 37.0);
+        QVERIFY(video->muted());
     }
 
     void playlistSearchAndEditingPreservePlayback()
@@ -4136,6 +4163,159 @@ private slots:
         QCOMPARE(panel->width(), savedWidth);
     }
 
+    void mouseWheelDoesNotLeakThroughUi_data()
+    {
+        QTest::addColumn<bool>("fullscreen");
+        QTest::newRow("windowed") << false;
+        QTest::newRow("fullscreen") << true;
+    }
+
+    void mouseWheelDoesNotLeakThroughUi()
+    {
+        QFETCH(bool, fullscreen);
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *queue = window->findChild<PlaylistModel *>();
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        auto *list = findItem(panel, "trackList");
+        auto *bar = findItem(window->contentItem(), "playbackBar");
+        QVERIFY(video && queue && panel && list && bar);
+        if (fullscreen) {
+            QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+            QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+            QTRY_COMPARE(window->size(), window->screen()->size());
+            window->setProperty("playlistVisible", true);
+            window->setProperty("controlsVisible", true);
+        }
+        QTRY_VERIFY(panel->isVisible() && bar->isVisible());
+        video->setVolume(50);
+        video->setMuted(true);
+        QTest::qWait(50);
+        QSignalSpy volumeChanges(video, &MpvVideo::volumeChanged);
+        QSignalSpy muteChanges(video, &MpvVideo::mutedChanged);
+        QElapsedTimer wheelTimer;
+        wheelTimer.start();
+        const auto wheelAt = [window, &wheelTimer](QQuickItem *target, QPointF position,
+                                      QPoint angle, QPoint pixels = {},
+                                      Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+            const QPoint local = target->mapToScene(position).toPoint();
+            QTest::mouseMove(window, local, 20);
+            QWheelEvent event(local, window->mapToGlobal(local), pixels, angle,
+                              Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+            // Flickable calculates velocity from timestamps across wheel events.
+            event.setTimestamp(wheelTimer.elapsed() + 1);
+            QCoreApplication::sendEvent(window, &event);
+            QTest::qWait(30);
+        };
+
+        // Empty and short lists cannot consume scrolling through movement.
+        for (int count : {0, 1}) {
+            if (count)
+                queue->appendUrls({QUrl("https://example.com/short.mkv")});
+            QTRY_COMPARE(list->property("count").toInt(), count);
+            for (const QPoint angle : {QPoint(0, 120), QPoint(0, -120)}) {
+                wheelAt(list, {100, 60}, angle);
+                QVERIFY2(volumeChanges.isEmpty(), "Wheel over an empty/short playlist changed volume");
+                QVERIFY(muteChanges.isEmpty());
+            }
+            wheelAt(list, {100, 60}, {}, {0, 40});
+            QVERIFY2(volumeChanges.isEmpty(), "Playlist trackpad scrolling changed volume");
+            QVERIFY(muteChanges.isEmpty());
+            wheelAt(list, {100, 60}, {0, -120}, {}, Qt::ShiftModifier);
+            QVERIFY(volumeChanges.isEmpty());
+            QVERIFY(muteChanges.isEmpty());
+        }
+
+        // Real scrolling still works; both ends must keep unhandled events local.
+        QList<QUrl> tracks;
+        for (int i = 0; i < 80; ++i)
+            tracks.append(QUrl(QStringLiteral("https://example.com/episode%1.mkv").arg(i)));
+        queue->appendUrls(tracks);
+        QTRY_VERIFY(list->property("contentHeight").toReal() > list->height());
+        QSignalSpy renderedFrames(window, &QQuickWindow::frameSwapped);
+        window->update();
+        QTRY_VERIFY(!renderedFrames.isEmpty());
+        QTRY_VERIFY(!list->property("moving").toBool());
+        list->setProperty("contentY", list->property("originY"));
+        const int selected = panel->property("selectedSourceIndex").toInt();
+        wheelAt(list, {100, 60}, {0, 120});
+        QVERIFY2(volumeChanges.isEmpty(), "Wheel at the playlist's top changed volume");
+        wheelAt(list, {100, 60}, {0, -120});
+        QTRY_VERIFY(list->property("contentY").toReal() > list->property("originY").toReal());
+        QTRY_VERIFY(!list->property("moving").toBool());
+        QVERIFY(volumeChanges.isEmpty());
+        const qreal bottom = list->property("originY").toReal()
+                + list->property("contentHeight").toReal() - list->height();
+        list->setProperty("contentY", bottom - 10);
+        wheelAt(list, {100, 60}, {0, -240});
+        QTRY_VERIFY(list->property("atYEnd").toBool());
+        QTRY_VERIFY(!list->property("moving").toBool());
+        QVERIFY2(volumeChanges.isEmpty(), "Scrolling to the playlist's bottom changed volume");
+        list->setProperty("contentY", bottom);
+        wheelAt(list, {100, 60}, {0, -120});
+        QVERIFY2(volumeChanges.isEmpty(), "Wheel at the playlist's bottom changed volume");
+        wheelAt(list, {100, 60}, {}, {0, -40});
+        QVERIFY(volumeChanges.isEmpty());
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), selected);
+        QCOMPARE(queue->currentIndex(), 0);
+
+        // Backgrounds, buttons, text fields and disabled controls sit above video
+        // in fullscreen, but none should pass wheel events to its volume handler.
+        for (const char *name : {"playlistTabs", "playlistVerticalScrollBar", "playlistFooter", "playlistSearch",
+                                "playlistOptionsButton", "showCurrentTrackButton",
+                                "moveUpButton", "addPlaylistButton", "sortPlaylistButton",
+                                "playbackTimestamps", "playButton", "stopButton", "muteButton",
+                                "settingsButton", "positionSlider", "playlistResizeHandle",
+                                "titleBar", "appMenuButton", "pinButton"}) {
+            auto *target = findItem(window->contentItem(), QString::fromLatin1(name));
+            QVERIFY2(target, name);
+            // Moving to the top first reveals the fullscreen title bar.
+            if (target->height() == 0) {
+                QTest::mouseMove(window, {window->width() / 2, 1}, 20);
+                QTRY_VERIFY(target->height() > 0);
+            }
+            for (const QPoint angle : {QPoint(0, 120), QPoint(0, -120)}) {
+                wheelAt(target, {target->width() / 2, target->height() / 2}, angle);
+                QVERIFY2(volumeChanges.isEmpty(), name);
+                QVERIFY2(muteChanges.isEmpty(), name);
+            }
+            wheelAt(target, {target->width() / 2, target->height() / 2}, {}, {0, 40});
+            QVERIFY2(volumeChanges.isEmpty(), name);
+            QVERIFY2(muteChanges.isEmpty(), name);
+        }
+
+        // Modal dialog content and the dimmed area must also isolate scrolling.
+        QVERIFY(QMetaObject::invokeMethod(window, "showAdvancedSettings"));
+        auto *settings = window->findChild<QObject *>("advancedSettingsDialog");
+        QVERIFY(settings);
+        QTRY_VERIFY(settings->property("opened").toBool());
+        auto *settingsScroll = findItem(window->contentItem(), "advancedSettingsScroll");
+        QVERIFY(settingsScroll);
+        wheelAt(settingsScroll, {settingsScroll->width() / 2, 15}, {0, 120});
+        QVERIFY(volumeChanges.isEmpty());
+        wheelAt(window->contentItem(), {30, window->height() / 2.0}, {0, 120});
+        QVERIFY(volumeChanges.isEmpty());
+        QVERIFY(muteChanges.isEmpty());
+        QVERIFY(QMetaObject::invokeMethod(settings, "close"));
+        QTRY_VERIFY(!settings->property("visible").toBool());
+
+        QVERIFY(QMetaObject::invokeMethod(window, "showAppMenu"));
+        auto *menu = window->findChild<QObject *>("appMenu");
+        QVERIFY(menu);
+        QTRY_VERIFY(menu->property("opened").toBool());
+        auto *menuItem = menuItemAt(menu, 0);
+        QVERIFY(menuItem);
+        wheelAt(menuItem, {menuItem->width() / 2, menuItem->height() / 2}, {0, 120});
+        QVERIFY(volumeChanges.isEmpty());
+        QVERIFY(muteChanges.isEmpty());
+        QCOMPARE(video->volume(), 50.0);
+        QVERIFY(video->muted());
+    }
+
     void mouseWheelAdjustsVolume()
     {
         QQmlApplicationEngine engine;
@@ -4178,6 +4358,30 @@ private slots:
         QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
         wheelAt(stage, {0, 120});
         QTRY_COMPARE(video->volume(), 5.0);
+
+        // An enabled volume slider keeps its own one-percent wheel step, with
+        // no second change from the fullscreen video below the playback bar.
+        window->setProperty("controlsVisible", true);
+        auto *bar = findItem(window->contentItem(), "playbackBar");
+        auto *slider = findItem(bar, "volumeSlider");
+        QVERIFY(bar && slider);
+        QTRY_VERIFY(bar->isVisible());
+        video->setVolume(50);
+        video->setMuted(true);
+        QSignalSpy seekRequests(bar, SIGNAL(seekRequested(double)));
+        QVERIFY(seekRequests.isValid());
+        wheelAt(slider, {0, 120});
+        QTRY_COMPARE(video->volume(), 51.0);
+        QVERIFY(!video->muted());
+        wheelAt(slider, {0, -120});
+        QTRY_COMPARE(video->volume(), 50.0);
+        QCOMPARE(seekRequests.count(), 0);
+        slider->setEnabled(false);
+        video->setMuted(true);
+        wheelAt(slider, {0, 120});
+        QTest::qWait(50);
+        QCOMPARE(video->volume(), 50.0);
+        QVERIFY(video->muted());
     }
 
     void videoBackgroundIncludesLetterboxing()

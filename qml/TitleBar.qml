@@ -19,6 +19,13 @@ Rectangle {
     height: Theme.titleHeight
     color: Theme.chromeBackground
 
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        acceptedButtons: Qt.NoButton
+        onWheel: (wheel) => wheel.accepted = true
+    }
+
     Rectangle {
         id: appButton
         objectName: "appMenuButton"

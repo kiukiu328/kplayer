@@ -196,6 +196,14 @@ Rectangle {
     }
 
     color: Theme.panelBackground
+    // Views and controls handle wheels first. Keep any unhandled scrolling
+    // (including empty lists and their bounds) off the video underneath.
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        acceptedButtons: Qt.NoButton
+        onWheel: (wheel) => wheel.accepted = true
+    }
     Row {
         id: header
         width: parent.width
@@ -352,7 +360,10 @@ Rectangle {
         }
         Accessible.role: Accessible.List
         Accessible.name: qsTr("Playlist items")
-        ScrollBar.vertical: ScrollBar { id: playlistScrollBar }
+        ScrollBar.vertical: ScrollBar {
+            id: playlistScrollBar
+            objectName: "playlistVerticalScrollBar"
+        }
         ScrollBar.horizontal: ScrollBar {
             id: playlistHorizontalScrollBar
             objectName: "playlistHorizontalScrollBar"
