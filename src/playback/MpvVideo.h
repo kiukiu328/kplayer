@@ -199,6 +199,7 @@ private:
     void setPosition(double seconds);
     void setDuration(double seconds);
     void setSeekable(bool seekable);
+    void syncSpeed();
     QString subtitleLabel(const QVariantMap &track) const;
     void updateSubtitleTracks(const mpv_node &node);
     void clearSubtitleTracks();
@@ -232,6 +233,8 @@ private:
     double m_maximumSpeed = 16.0;
     double m_speed = 1.0;
     double m_lastSpeed = 1.0;
+    quint64 m_speedRevision = 0;
+    bool m_speedPending = false;
     QString m_aspectRatio = QStringLiteral("no");
     double m_frameWidthScale = 1.0;
     double m_frameHeightScale = 1.0;

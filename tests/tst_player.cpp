@@ -21,7 +21,10 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
+#include <QKeyEvent>
 #include <QMimeData>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQuickWindow>
@@ -43,6 +46,7 @@
 #endif
 
 #include <clocale>
+#include <atomic>
 
 class FileLocationReceiver : public QObject
 {
@@ -2008,6 +2012,60 @@ private slots:
         QCOMPARE(collection->currentPlaylist()->count(), 2);
         QCOMPARE(playlist->count(), 2);
         video->stop();
+    }
+
+    void speedChangesIgnoreStaleMpvNotifications()
+    {
+        MpvVideo video;
+        QSignalSpy speedChanges(&video, &MpvVideo::speedChanged);
+        // Queue changes before mpv's initial observation and replies reach Qt.
+        video.setSpeed(2.0);
+        video.toggleSpeed();
+        video.toggleSpeed();
+        QCOMPARE(video.speed(), 2.0);
+        QCOMPARE(speedChanges.count(), 3);
+        QTest::qWait(100);
+        QCOMPARE(video.speed(), 2.0);
+        QCOMPARE(speedChanges.count(), 3);
+    }
+
+    void speedToggleIgnoresKeyRepeat()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        QVERIFY(video && stage);
+        click(window, stage);
+        QVERIFY(window->property("playbackShortcutsEnabled").toBool());
+        video->setSpeed(2.0);
+        QTest::qWait(100); // Let mpv acknowledge the starting speed before counting toggles.
+        QCOMPARE(video->speed(), 2.0);
+        QSignalSpy speedChanges(video, &MpvVideo::speedChanged);
+
+        QTest::keyPress(window, Qt::Key_Z);
+        QCOMPARE(video->speed(), 1.0);
+        for (int repeat = 0; repeat < 3; ++repeat) {
+            QKeyEvent release(QEvent::KeyRelease, Qt::Key_Z, Qt::NoModifier,
+                              QStringLiteral("z"), true);
+            QCoreApplication::sendEvent(window, &release);
+            QKeyEvent press(QEvent::KeyPress, Qt::Key_Z, Qt::NoModifier,
+                            QStringLiteral("z"), true);
+            QCoreApplication::sendEvent(window, &press);
+        }
+        QTest::keyRelease(window, Qt::Key_Z);
+        QTest::qWait(100);
+        QCOMPARE(video->speed(), 1.0);
+        QCOMPARE(speedChanges.count(), 1);
+
+        // A separate press still restores the remembered speed immediately.
+        QTest::keyClick(window, Qt::Key_Z);
+        QTest::qWait(100);
+        QCOMPARE(video->speed(), 2.0);
+        QCOMPARE(speedChanges.count(), 2);
     }
 
     void subtitleMenuAndPotPlayerShortcuts()
@@ -4448,6 +4506,76 @@ private slots:
         QTest::qWait(50);
         QCOMPARE(video->volume(), 50.0);
         QVERIFY(video->muted());
+    }
+
+    void videoRenderingResetsPixelTransferState()
+    {
+        QTemporaryDir directory;
+        QFile file(directory.filePath("ten-bit.y4m"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("YUV4MPEG2 W64 H36 F1:1 Ip A1:1 C420p10\n");
+        QDataStream stream(&file);
+        stream.setByteOrder(QDataStream::LittleEndian);
+        for (int frame = 0; frame < 30; ++frame) {
+            file.write("FRAME\n");
+            for (int pixel = 0; pixel < 64 * 36; ++pixel)
+                stream << quint16(frame < 15 ? 128 : 880);
+            for (int pixel = 0; pixel < 64 * 36 / 2; ++pixel)
+                stream << quint16(512);
+        }
+        file.close();
+
+        std::atomic<bool> desktopGl{false};
+        std::atomic<int> injectedFrames{0};
+        QQuickWindow window;
+        window.resize(640, 360);
+        // Qt's resetOpenGLState() leaves pixel-transfer state alone. Emulate
+        // another renderer leaving byte swapping enabled in the shared context.
+        connect(&window, &QQuickWindow::beforeRendering, &window, [&] {
+            auto *context = QOpenGLContext::currentContext();
+            if (context && !context->isOpenGLES()) {
+                desktopGl = true;
+                context->functions()->glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
+                ++injectedFrames;
+            }
+        }, Qt::DirectConnection);
+        connect(&window, &QQuickWindow::afterRendering, &window, [] {
+            auto *context = QOpenGLContext::currentContext();
+            if (context && !context->isOpenGLES())
+                context->functions()->glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
+        }, Qt::DirectConnection);
+        auto *video = new MpvVideo(window.contentItem());
+        video->setSize(window.size());
+        video->setSource(QUrl::fromLocalFile(file.fileName()));
+        window.show();
+        QVERIFY(exposeWindow(&window));
+        if (!desktopGl)
+            QSKIP("Byte swapping is specific to desktop OpenGL.");
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        QTRY_VERIFY(!video->playing());
+        const auto centerColor = [&] {
+            const QImage image = window.grabWindow();
+            return image.isNull() ? QColor{} : image.pixelColor(image.rect().center());
+        };
+        const auto neutral = [](const QColor &color) {
+            return color.isValid() && qAbs(color.red() - color.green()) < 8
+                && qAbs(color.green() - color.blue()) < 8;
+        };
+        video->seek(20);
+        QTRY_VERIFY(qAbs(video->position() - 20) < 0.1);
+        QTRY_VERIFY_WITH_TIMEOUT(neutral(centerColor()) && centerColor().red() > 160, 5000);
+        video->seek(3);
+        QTRY_VERIFY(qAbs(video->position() - 3) < 0.1);
+        QTRY_VERIFY_WITH_TIMEOUT(neutral(centerColor()) && centerColor().red() < 80, 5000);
+        // The same frame remains correct when Qt replaces the target FBO.
+        window.resize(800, 450);
+        video->setSize(window.size());
+        QTRY_VERIFY_WITH_TIMEOUT(neutral(centerColor()) && centerColor().red() < 80, 5000);
+        QVERIFY(injectedFrames > 2);
+        QCOMPARE(video->errorString(), QString{});
+        video->stop();
     }
 
     void videoBackgroundIncludesLetterboxing()

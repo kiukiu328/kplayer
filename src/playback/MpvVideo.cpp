@@ -1,5 +1,6 @@
 #include "MpvVideo.h"
 #include "MpvErrors.h"
+#include "MpvOpenGL.h"
 
 #include <QDebug>
 #include <QCryptographicHash>
@@ -10,7 +11,6 @@
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
-#include <QQuickOpenGLUtils>
 #include <QTimer>
 
 #include <mpv/client.h>
@@ -48,7 +48,7 @@ public:
 
     void render() override
     {
-        QQuickOpenGLUtils::resetOpenGLState();
+        MpvOpenGL::resetState();
         if (!m_initialized) {
             m_initialized = true;
             if (m_mpv) {
@@ -97,13 +97,16 @@ public:
                 {MPV_RENDER_PARAM_INVALID, nullptr}
             };
             mpv_render_context_update(m_context);
-            mpv_render_context_render(m_context, params);
+            const int result = mpv_render_context_render(m_context, params);
+            if (result < 0)
+                emit failed(MpvErrors::description(result));
         } else {
+            framebufferObject()->bind();
             auto *gl = QOpenGLContext::currentContext()->functions();
             gl->glClearColor(16.0f / 255, 16.0f / 255, 16.0f / 255, 1);
             gl->glClear(GL_COLOR_BUFFER_BIT);
         }
-        QQuickOpenGLUtils::resetOpenGLState();
+        MpvOpenGL::resetState();
     }
 
 signals:
@@ -122,6 +125,8 @@ private:
 };
 
 namespace {
+constexpr quint64 speedRequestMask = quint64{1} << 63;
+
 int subtitleLanguageMatchScore(const QString &trackLanguage, const QString &requestedLanguage)
 {
     const QString code = trackLanguage.trimmed().toLower().replace('_', '-');
@@ -513,11 +518,15 @@ void MpvVideo::setSpeed(double speed)
     speed = std::clamp(speed, 0.2, m_maximumSpeed);
     if (qFuzzyCompare(m_speed, speed))
         return;
-    const int result = mpv_set_property_async(m_mpv.get(), 0, "speed", MPV_FORMAT_DOUBLE, &speed);
+    const quint64 revision = m_speedRevision + 1;
+    const int result = mpv_set_property_async(m_mpv.get(), speedRequestMask | revision,
+                                             "speed", MPV_FORMAT_DOUBLE, &speed);
     if (result < 0) {
         setError(MpvErrors::description(result));
         return;
     }
+    m_speedRevision = revision;
+    m_speedPending = true;
     m_speed = speed;
     if (!qFuzzyCompare(speed, 1.0))
         m_lastSpeed = speed;
@@ -527,6 +536,20 @@ void MpvVideo::setSpeed(double speed)
 void MpvVideo::toggleSpeed()
 {
     setSpeed(qFuzzyCompare(m_speed, 1.0) ? m_lastSpeed : 1.0);
+}
+
+void MpvVideo::syncSpeed()
+{
+    // Older property notifications must not undo a newer, still queued request.
+    if (m_speedPending)
+        return;
+    double speed = 0;
+    // Read the current value rather than replaying an already queued observation.
+    if (mpv_get_property(m_mpv.get(), "speed", MPV_FORMAT_DOUBLE, &speed) >= 0
+        && std::isfinite(speed) && !qFuzzyCompare(m_speed, speed)) {
+        m_speed = speed;
+        emit speedChanged();
+    }
 }
 
 void MpvVideo::setAspectRatio(const QString &ratio)
@@ -1185,6 +1208,11 @@ void MpvVideo::processEvents()
     while (const auto *event = mpv_wait_event(m_mpv.get(), 0)) {
         if (event->event_id == MPV_EVENT_NONE)
             break;
+        if (event->event_id == MPV_EVENT_SET_PROPERTY_REPLY
+            && event->reply_userdata == (speedRequestMask | m_speedRevision)) {
+            m_speedPending = false;
+            syncSpeed();
+        }
         if (event->event_id == MPV_EVENT_COMMAND_REPLY && event->reply_userdata == 1001) {
             const QUrl file = std::exchange(m_captureFile, QUrl{});
             if (event->error >= 0)
@@ -1227,10 +1255,8 @@ void MpvVideo::processEvents()
                     setPosition(value);
                 else if (std::strcmp(property->name, "duration") == 0 && !m_stopped)
                     setDuration(value);
-                else if (std::strcmp(property->name, "speed") == 0 && m_speed != value) {
-                    m_speed = value;
-                    emit speedChanged();
-                }
+                else if (std::strcmp(property->name, "speed") == 0)
+                    syncSpeed();
                 else if (std::strcmp(property->name, "volume") == 0 && m_volume != value) {
                     m_volume = value;
                     emit volumeChanged();

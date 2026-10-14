@@ -690,6 +690,7 @@ Window {
 
     Shortcut {
         sequence: "Z"
+        autoRepeat: false
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.toggleSpeed()
     }

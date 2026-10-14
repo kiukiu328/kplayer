@@ -1,11 +1,11 @@
 #include "MpvPreview.h"
 #include "MpvErrors.h"
+#include "MpvOpenGL.h"
 
 #include <QOpenGLContext>
 #include <QLoggingCategory>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
-#include <QQuickOpenGLUtils>
 
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
@@ -43,7 +43,7 @@ public:
 
     void render() override
     {
-        QQuickOpenGLUtils::resetOpenGLState();
+        MpvOpenGL::resetState();
         if (!m_initialized) {
             m_initialized = true;
             if (m_mpv) {
@@ -82,11 +82,12 @@ public:
             else if (m_revision)
                 emit frameRendered(m_revision);
         } else {
+            framebufferObject()->bind();
             auto *gl = QOpenGLContext::currentContext()->functions();
             gl->glClearColor(0, 0, 0, 1);
             gl->glClear(GL_COLOR_BUFFER_BIT);
         }
-        QQuickOpenGLUtils::resetOpenGLState();
+        MpvOpenGL::resetState();
     }
 
 signals:

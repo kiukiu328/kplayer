@@ -92,6 +92,7 @@ set(KPLAYER_SOURCES
     src/playback/MpvVideo.h
     src/playback/MpvVideo.cpp
     src/playback/MpvErrors.h
+    src/playback/MpvOpenGL.h
     src/playback/MpvPreview.h
     src/playback/MpvPreview.cpp
     src/playback/PlaylistModel.h
