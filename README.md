@@ -319,6 +319,37 @@ file discovery, language switching, shortcuts, playback controls, and previews.
 They need an OpenGL-capable desktop. For headless Linux, use an X server with
 OpenGL support and a window manager for fullscreen and focus tests.
 
+On a Linux Wayland desktop with KWin and LayerShellQt installed, enable the
+second-monitor runner to keep working while GUI tests run:
+
+```sh
+cmake -S . -B build/dev -DKPLAYER_BUILD_TESTS=ON -DKPLAYER_TEST_SECOND_MONITOR=ON -DKPLAYER_TEST_SCREEN=DP-1
+cmake --build build/dev --parallel
+ctest --test-dir build/dev --output-on-failure
+```
+
+The C++ tests run inside a private virtual KWin display, where they can activate
+windows and exercise shortcuts normally. A passive live preview appears on the
+selected monitor and cannot receive keyboard or mouse input. Use your second
+monitor's output name (from `kscreen-doctor -o`) for `KPLAYER_TEST_SCREEN`;
+Qt's screen ordering can differ from KDE's display priorities. If the monitor
+or Wayland layer-shell support is unavailable, the runner fails before starting
+the tests. The CMake option is saved in the build directory for future CTest runs;
+disable it with `-DKPLAYER_TEST_SECOND_MONITOR=OFF` to restore the desktop runner.
+The private display uses Mesa's `llvmpipe` software renderer. Image checks for
+video adjustments, frame scaling, and timeline previews run separately with
+`softpipe` to provide consistent pixel readback. Both runs appear in the same
+passive preview; their JUnit reports are `player-tests.xml` and
+`player-tests-rendering.xml`. Override the
+renderers with `KPLAYER_TEST_RENDERER` and `KPLAYER_TEST_IMAGE_RENDERER`.
+Audio fixtures retain access to the desktop's PipeWire/PulseAudio connection.
+
+For a focused C++ check, use the same runner:
+
+```sh
+python3 scripts/run-gui-tests.py --monitor build/dev/KPlayerTestMonitor --screen=DP-1 --kwin kwin_wayland -- ./build/dev/KPlayerTests trackNavigationAfterSeeking
+```
+
 To test an existing seekable video longer than three seconds on Windows:
 
 ```powershell

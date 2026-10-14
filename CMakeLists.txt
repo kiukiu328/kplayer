@@ -219,9 +219,37 @@ if(KPLAYER_BUILD_TESTS)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(KPlayerTests PRIVATE Qt6::DBus)
     endif()
-    add_test(NAME player COMMAND KPlayerTests
-        -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")
-    set_tests_properties(player PROPERTIES TIMEOUT 120)
+    option(KPLAYER_TEST_SECOND_MONITOR
+        "Run GUI tests in an isolated compositor with a non-focusable second-monitor preview" OFF)
+    if(KPLAYER_TEST_SECOND_MONITOR)
+        set(KPLAYER_TEST_SCREEN "" CACHE STRING "Output name for the passive GUI test preview")
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            message(FATAL_ERROR "The second-monitor test runner requires Linux Wayland")
+        endif()
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        find_package(LayerShellQt REQUIRED)
+        find_program(KPLAYER_TEST_KWIN kwin_wayland REQUIRED)
+        find_program(KPLAYER_TEST_DBUS dbus-run-session REQUIRED)
+        qt_add_executable(KPlayerTestMonitor tests/test_monitor.cpp)
+        target_link_libraries(KPlayerTestMonitor PRIVATE Qt6::Gui LayerShellQt::Interface)
+        # Replace the native desktop launch; focus requests remain inside KWin's
+        # private virtual display, while a read-only layer surface shows the run.
+        add_test(NAME player
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-gui-tests.py"
+                --monitor $<TARGET_FILE:KPlayerTestMonitor>
+                "--screen=${KPLAYER_TEST_SCREEN}"
+                --image-test=videoMenusApplyAdjustmentsAndFavorites
+                --image-test=numpadShortcutsResizeVideoFrame
+                --image-test=timelinePreviewShowsHoveredFrame
+                --kwin "${KPLAYER_TEST_KWIN}" --dbus "${KPLAYER_TEST_DBUS}"
+                -- $<TARGET_FILE:KPlayerTests>
+                -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")
+        set_tests_properties(player PROPERTIES TIMEOUT 300)
+    else()
+        add_test(NAME player COMMAND KPlayerTests
+            -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/player-tests.xml,junitxml")
+        set_tests_properties(player PROPERTIES TIMEOUT 120)
+    endif()
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         qt_add_executable(PlaybackInhibitorTests
             tests/tst_playbackinhibitor.cpp

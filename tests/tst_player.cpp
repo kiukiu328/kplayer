@@ -41,6 +41,10 @@
 #include <QUuid>
 #include <QWheelEvent>
 #include <QScopeGuard>
+#include <QSaveFile>
+#include <QTimer>
+#include <QQuickItemGrabResult>
+#include <QPointer>
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
 #endif
@@ -2923,11 +2927,12 @@ private slots:
             auto *video = window->findChild<MpvVideo *>();
             video->play();
             QTRY_VERIFY(video->mediaLoaded() && video->seekable());
-            QVERIFY(video->position() >= 12 && video->position() < 14);
+            // Loaded/seekable can arrive before mpv's resumed time-pos event.
+            QTRY_VERIFY_WITH_TIMEOUT(video->position() >= 12 && video->position() < 14, 1000);
             video->setSource(second);
             video->play();
             QTRY_VERIFY(video->mediaLoaded() && video->seekable());
-            QVERIFY(video->position() >= 4 && video->position() < 6);
+            QTRY_VERIFY_WITH_TIMEOUT(video->position() >= 4 && video->position() < 6, 1000);
             QTRY_VERIFY(video->playing());
             video->seek(29.5);
             QTRY_VERIFY_WITH_TIMEOUT(video->stopped(), 5000);
@@ -5140,8 +5145,52 @@ int main(int argc, char **argv)
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
     std::setlocale(LC_NUMERIC, "C");
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    // Optional read-only preview of the private test display. Native activation
+    // and shortcut checks still run normally inside the isolated compositor.
+    const QString mirrorPath = qEnvironmentVariable("KPLAYER_TEST_MIRROR");
+    QSharedPointer<QQuickItemGrabResult> mirrorGrab;
+    QPointer<QQuickWindow> mirrorWindow;
+    QMetaObject::Connection mirrorReady;
+    quint64 mirrorRequest = 0;
+    bool mirrorPending = false;
+    QObject mirrorContext;
+    QTimer mirrorTimer;
+    if (!mirrorPath.isEmpty()) {
+        QObject::connect(&mirrorTimer, &QTimer::timeout, &mirrorContext, [&] {
+            if (mirrorPending && mirrorWindow)
+                return;
+            QObject::disconnect(mirrorReady);
+            mirrorGrab.reset();
+            mirrorPending = false;
+            auto *window = qobject_cast<QQuickWindow *>(QGuiApplication::focusWindow());
+            if (!window || !window->isExposed())
+                return;
+            // Capture the existing scene asynchronously rather than re-entering
+            // QQuickWindow rendering during QtTest's event-loop waits.
+            mirrorGrab = window->contentItem()->grabToImage();
+            if (!mirrorGrab)
+                return;
+            mirrorWindow = window;
+            mirrorPending = true;
+            const quint64 request = ++mirrorRequest;
+            mirrorReady = QObject::connect(mirrorGrab.data(), &QQuickItemGrabResult::ready,
+                                           &mirrorContext, [&, request] {
+                if (request != mirrorRequest || !mirrorGrab)
+                    return;
+                QSaveFile file(mirrorPath);
+                if (file.open(QIODevice::WriteOnly) && mirrorGrab->image().save(&file, "PNG"))
+                    file.commit();
+                mirrorPending = false;
+            });
+        });
+        mirrorTimer.start(1000);
+    }
     PlayerTests tests;
-    return QTest::qExec(&tests, argc, argv);
+    const int result = QTest::qExec(&tests, argc, argv);
+    mirrorTimer.stop();
+    QObject::disconnect(mirrorReady);
+    mirrorGrab.reset();
+    return result;
 }
 
 #include "tst_player.moc"
