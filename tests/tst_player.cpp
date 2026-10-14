@@ -309,6 +309,72 @@ private slots:
         }
     }
 
+    void startupScrollsToLastPlayedTrack_data()
+    {
+        QTest::addColumn<int>("playlistIndex");
+        QTest::addColumn<bool>("initiallyHidden");
+        QTest::newRow("default-visible") << 0 << false;
+        QTest::newRow("default-hidden") << 0 << true;
+        QTest::newRow("saved-visible") << 1 << false;
+        QTest::newRow("saved-hidden") << 1 << true;
+    }
+
+    void startupScrollsToLastPlayedTrack()
+    {
+        QFETCH(int, playlistIndex);
+        QFETCH(bool, initiallyHidden);
+        QTemporaryDir directory;
+        const QUrl lastPlayed = makeVideo(directory.filePath("last-played.y4m"));
+        QVERIFY(!lastPlayed.isEmpty());
+        QList<QUrl> tracks;
+        for (int i = 0; i < 100; ++i)
+            tracks.append(QUrl(QStringLiteral("https://example.com/episode%1.mkv").arg(i)));
+        const int lastIndex = 75;
+        tracks[lastIndex] = lastPlayed;
+        {
+            PlaylistCollection playlists;
+            playlists.setPersistent(true);
+            playlists.defaultPlaylist()->appendUrls(tracks);
+            playlists.defaultPlaylist()->setCurrentIndex(lastIndex);
+            playlists.addPlaylist("Saved");
+            playlists.currentPlaylist()->appendUrls(tracks);
+            playlists.currentPlaylist()->setCurrentIndex(lastIndex);
+            playlists.setCurrentIndex(playlistIndex);
+        }
+        QSettings().setValue("window/playlistShown", !initiallyHidden);
+
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        auto *video = window->findChild<MpvVideo *>();
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        QVERIFY(playlists && video && panel);
+        auto *list = findItem(panel, "trackList");
+        QVERIFY(list);
+        QCOMPARE(playlists->currentIndex(), playlistIndex);
+        QCOMPARE(playlists->currentPlaylist()->currentIndex(), lastIndex);
+        QCOMPARE(video->source(), lastPlayed);
+        QVERIFY(video->stopped());
+        QCOMPARE(panel->isVisible(), !initiallyHidden);
+        if (initiallyHidden)
+            window->setProperty("playlistVisible", true);
+        QTRY_VERIFY(panel->isVisible());
+        QTRY_COMPARE(list->property("currentIndex").toInt(), lastIndex);
+        QTRY_VERIFY(list->property("contentY").toReal() > 0);
+        QQuickItem *row = nullptr;
+        QTRY_VERIFY((row = findItem(list, QStringLiteral("track%1").arg(lastIndex))));
+        QTRY_VERIFY(row->mapToItem(list, QPointF()).y() >= -0.5);
+        QTRY_VERIFY(row->mapToItem(list, QPointF(0, row->height())).y() <= list->height() + 0.5);
+        QCOMPARE(panel->property("selectedRows").toList(), QVariantList{lastIndex});
+        QVERIFY(video->stopped());
+        QCOMPARE(video->source(), lastPlayed);
+        QVERIFY2(warnings.isEmpty(), "Startup playlist positioning generated QML warnings");
+    }
+
     void folderImportsCreateNaturallySortedIndependentPlaylists()
     {
         QTemporaryDir directory;

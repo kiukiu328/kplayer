@@ -27,10 +27,25 @@ Rectangle {
     property int selectionAnchor: -1
     property bool editingQueue: false
     property bool draggingTracks: false
+    property bool initialSelectionPending: true
     property real dragY: 0
     property int dropBoundary: -1
     property real dropLineY: 0
     readonly property var platformStyleHints: Qt.styleHints
+
+    // Restored models already have their current index before signal handlers
+    // are connected. Position once after layout, or when a hidden panel opens.
+    Component.onCompleted: Qt.callLater(root.restoreInitialSelection)
+    onVisibleChanged: if (visible && initialSelectionPending)
+        Qt.callLater(root.restoreInitialSelection)
+
+    function restoreInitialSelection() {
+        if (!initialSelectionPending || !visible || trackList.width <= 0 || trackList.height <= 0)
+            return
+        trackList.forceLayout()
+        selectSource(playlistModel.currentIndex)
+        initialSelectionPending = false
+    }
 
     PlayerMenu {
         id: fileMenu
