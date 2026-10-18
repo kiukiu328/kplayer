@@ -153,3 +153,27 @@ int VideoLibrary::addDroppedUrls(PlaylistCollection *playlists, const QList<QUrl
     }
     return added;
 }
+
+int VideoLibrary::addDroppedUrlsToPlaylist(PlaylistModel *playlist, const QList<QUrl> &urls)
+{
+    if (!playlist)
+        return 0;
+    QList<QUrl> tracks;
+    QSet<QString> visited;
+    const auto append = [&](const QUrl &url) {
+        const QString key = PlaylistModel::sourceKey(url);
+        if (!visited.contains(key)) {
+            visited.insert(key);
+            tracks.append(url);
+        }
+    };
+    for (const QUrl &url : urls) {
+        if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
+            for (const QUrl &video : folderVideos(QDir(url.toLocalFile())))
+                append(video);
+        } else {
+            append(url);
+        }
+    }
+    return playlist->appendUrls(tracks);
+}

@@ -16,6 +16,7 @@ public:
     Q_INVOKABLE int addSiblingVideos(PlaylistModel *playlist, const QList<QUrl> &files);
     Q_INVOKABLE int addFolderPlaylist(PlaylistCollection *playlists, const QUrl &folder);
     Q_INVOKABLE int addDroppedUrls(PlaylistCollection *playlists, const QList<QUrl> &urls);
+    Q_INVOKABLE int addDroppedUrlsToPlaylist(PlaylistModel *playlist, const QList<QUrl> &urls);
     Q_INVOKABLE bool canOpenFileLocation(const QUrl &source) const;
     Q_INVOKABLE bool openFileLocation(const QUrl &source);
 };

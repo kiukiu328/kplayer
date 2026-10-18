@@ -271,6 +271,10 @@ Rectangle {
                 Keys.onReturnPressed: root.playlistCollection.currentIndex = index
                 Keys.onSpacePressed: root.playlistCollection.currentIndex = index
                 TapHandler { onTapped: root.playlistCollection.currentIndex = playlistTab.index }
+                TapHandler {
+                    acceptedButtons: Qt.MiddleButton
+                    onTapped: root.playlistCollection.removePlaylist(playlistTab.index)
+                }
             }
         }
         Rectangle {
@@ -314,6 +318,23 @@ Rectangle {
                 width: parent.width
                 height: Theme.dividerWidth
                 color: Theme.border
+            }
+        }
+        DropArea {
+            anchors.fill: parent
+            onEntered: (drag) => { drag.accepted = drag.hasUrls }
+            onDropped: (drop) => {
+                if (drop.hasUrls && root.videoLibrary.addDroppedUrls(root.playlistCollection, drop.urls) > 0)
+                    drop.acceptProposedAction()
+                else
+                    drop.accepted = false
+            }
+            Rectangle {
+                anchors.fill: parent
+                visible: parent.containsDrag
+                color: Theme.transparent
+                border.color: Theme.accent
+                border.width: 2
             }
         }
     }
@@ -564,17 +585,18 @@ Rectangle {
         y: Math.max(0, Math.min(trackList.height - height, root.dropLineY - trackList.contentY))
     }
     DropArea {
-        anchors.fill: parent
+        anchors.top: tabs.bottom
+        anchors.bottom: parent.bottom
+        width: parent.width
         onEntered: (drag) => { drag.accepted = drag.hasUrls }
         onDropped: (drop) => {
-            if (drop.hasUrls && root.videoLibrary.addDroppedUrls(root.playlistCollection, drop.urls) > 0)
+            if (drop.hasUrls && root.videoLibrary.addDroppedUrlsToPlaylist(root.playlistModel, drop.urls) > 0)
                 drop.acceptProposedAction()
             else
                 drop.accepted = false
         }
         Rectangle {
             anchors.fill: parent
-            anchors.topMargin: header.height + tabs.height
             anchors.bottomMargin: footer.height
             visible: parent.containsDrag
             color: Theme.transparent

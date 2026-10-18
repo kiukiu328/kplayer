@@ -467,8 +467,8 @@ private slots:
         QCOMPARE(playlists->currentPlaylist()->count(), 2);
         QCOMPARE(playlists->currentPlaylist()->currentSource(), first);
         QVERIFY(exposeWindow(window));
-        auto *panel = item("playlistPanel");
-        const QPoint point = panel->mapToScene({panel->width() / 2, panel->height() / 2}).toPoint();
+        auto *tabs = item("playlistTabs");
+        const QPoint point = tabs->mapToScene({tabs->width() / 2, tabs->height() / 2}).toPoint();
         QMimeData files;
         files.setUrls({QUrl::fromLocalFile(directory.path())});
         QDragEnterEvent enter(point, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
@@ -485,6 +485,105 @@ private slots:
         if (!capturePath.isEmpty())
             QVERIFY(window->grabWindow().save(capturePath));
         QVERIFY2(warnings.isEmpty(), "Playlist folder/save actions generated QML warnings");
+    }
+
+    void playlistFolderDropTargetsAndMiddleClick()
+    {
+        QTemporaryDir directory;
+        QDir folder(directory.path());
+        QVERIFY(folder.mkdir("Series"));
+        QVERIFY(folder.mkdir("Extra"));
+        QVERIFY(folder.mkdir("empty"));
+        const QUrl originalSource = makeVideo(directory.filePath("original.y4m"));
+        const QUrl ten = makeVideo(directory.filePath("Series/episode10.y4m"));
+        const QUrl two = makeVideo(directory.filePath("Series/episode2.y4m"));
+        const QUrl extra = makeVideo(directory.filePath("Extra/extra.y4m"));
+        const QUrl seriesFolder = QUrl::fromLocalFile(directory.filePath("Series"));
+        const QUrl extraFolder = QUrl::fromLocalFile(directory.filePath("Extra"));
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.setInitialProperties({{"mediaSource", originalSource}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto item = [window](const char *name) {
+            return findItem(window->contentItem(), QString::fromLatin1(name));
+        };
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        auto *video = window->findChild<MpvVideo *>();
+        QVERIFY(playlists && video && item("trackList") && item("playlistTabs"));
+        auto *original = playlists->currentPlaylist();
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        const quint64 revision = video->loadRevision();
+        const auto center = [](QQuickItem *target) {
+            return target->mapToScene({target->width() / 2, target->height() / 2}).toPoint();
+        };
+        const auto dropUrls = [&](const QList<QUrl> &urls, const QPoint &start, const QPoint &end) {
+            QMimeData files;
+            files.setUrls(urls);
+            QDragEnterEvent enter(start, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(window, &enter);
+            QDragMoveEvent move(end, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(window, &move);
+            QDropEvent drop(end, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(window, &drop);
+            return drop.isAccepted();
+        };
+
+        // A drop over an existing tab creates a separate, naturally sorted queue.
+        QVERIFY(dropUrls({seriesFolder}, center(item("trackList")), center(item("playlistTab0"))));
+        QCOMPARE(playlists->count(), 2);
+        auto *series = playlists->currentPlaylist();
+        QCOMPARE(playlists->currentName(), QStringLiteral("Series"));
+        QCOMPARE(series->count(), 2);
+        QCOMPARE(series->currentSource(), two);
+        QCOMPARE(series->data(series->index(1), PlaylistModel::SourceRole).toUrl(), ten);
+        QCOMPARE(original->count(), 1);
+
+        // Moving from the tab bar into the content appends to the selected queue.
+        QVERIFY(dropUrls({extraFolder}, center(item("playlistTabs")), center(item("trackList"))));
+        QCOMPARE(playlists->count(), 2);
+        QCOMPARE(playlists->currentPlaylist(), series);
+        QCOMPARE(series->count(), 3);
+        QCOMPARE(series->data(series->index(2), PlaylistModel::SourceRole).toUrl(), extra);
+        QCOMPARE(series->currentSource(), two);
+
+        // Mixed file/folder drops expand each file once and preserve explicit order.
+        const QPoint content = center(item("trackList"));
+        QVERIFY(dropUrls({extra, seriesFolder, seriesFolder}, content, content));
+        QCOMPARE(series->count(), 6);
+        QCOMPARE(series->data(series->index(3), PlaylistModel::SourceRole).toUrl(), extra);
+        QCOMPARE(series->data(series->index(4), PlaylistModel::SourceRole).toUrl(), two);
+        QCOMPARE(series->data(series->index(5), PlaylistModel::SourceRole).toUrl(), ten);
+        QVERIFY(!dropUrls({QUrl::fromLocalFile(directory.filePath("empty"))}, content, content));
+        QCOMPARE(series->count(), 6);
+
+        // The unused part of the tab strip is also a tab drop target.
+        auto *tabs = item("playlistTabs");
+        const QPoint blank = tabs->mapToScene({tabs->width() - 2, tabs->height() / 2}).toPoint();
+        QVERIFY(dropUrls({extraFolder}, content, blank));
+        QCOMPARE(playlists->count(), 3);
+        auto *extraQueue = playlists->currentPlaylist();
+        QCOMPARE(extraQueue->count(), 1);
+        QCOMPARE(video->source(), originalSource);
+        QCOMPARE(video->loadRevision(), revision);
+        QVERIFY(video->playing());
+
+        click(window, item("playlistTab1"), Qt::MiddleButton);
+        QTRY_COMPARE(playlists->count(), 2);
+        QCOMPARE(playlists->currentPlaylist(), extraQueue);
+        QCOMPARE(playlists->currentIndex(), 1);
+        click(window, item("playlistTab1"), Qt::MiddleButton);
+        QTRY_COMPARE(playlists->count(), 1);
+        QCOMPARE(playlists->currentPlaylist(), original);
+        click(window, item("playlistTab0"), Qt::MiddleButton);
+        QCOMPARE(playlists->count(), 1);
+        QCOMPARE(video->source(), originalSource);
+        QCOMPARE(video->loadRevision(), revision);
+        QVERIFY(video->playing());
+        QVERIFY2(warnings.isEmpty(), "Playlist drop/middle-click generated QML warnings");
     }
 
     void responsiveControlsFitInBothLanguages()

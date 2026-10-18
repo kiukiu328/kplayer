@@ -243,6 +243,8 @@ playlist selections keep their own keyboard behavior.
 - The fullscreen cursor hides after three idle seconds and returns when the mouse moves. Menus, dialogs, and control drags keep it visible.
 - Right-click a playlist file and choose **Open file location** to open its folder (and select the file in Windows Explorer). This action is unavailable for online URLs.
 - Hold Shift while scrolling to scroll long playlist titles horizontally. Selecting tracks or playlist tabs keeps playback running; double-click or press Enter to play a selection.
+- Middle-click a playlist tab to remove it. The Default tab is permanent.
+- Drop folders onto the playlist tab bar to create one tab per folder, or onto the track list to append their videos to the current playlist. Folder videos use natural filename order; subfolders are not scanned.
 - Arrow seeks show the resulting playback time in the blue hint, using the system font.
 - Left-click Previous/Next to seek 10 seconds; right-click to change playlist items.
 - Use the bottom settings button to open the floating **Control Panel** for audio,
