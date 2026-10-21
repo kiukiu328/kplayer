@@ -111,7 +111,7 @@ your regular user, then install the generated package:
 
 ```sh
 bash scripts/build-arch.sh
-sudo pacman -U build/arch/kplayer-0.1.0-1-$(uname -m).pkg.tar.zst
+sudo pacman -U build/arch/kplayer-0.1.0-1-$(uname -m).pkg.tar.zst --noconfirm
 ```
 
 The script packages the current working source, including local edits, into

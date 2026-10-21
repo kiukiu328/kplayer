@@ -14,6 +14,8 @@
 #include <QDataStream>
 #include <QDebug>
 #include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QEnterEvent>
 #include <QElapsedTimer>
@@ -51,6 +53,7 @@
 
 #include <clocale>
 #include <atomic>
+#include <utility>
 
 class FileLocationReceiver : public QObject
 {
@@ -2907,9 +2910,11 @@ private slots:
     void dropFilesIntoPlaylist()
     {
         QTemporaryDir directory;
-        const QUrl first = makeAudio(directory.filePath("first media.wav"));
-        const QUrl second = makeAudio(directory.filePath(QString::fromUtf8("第二首.wav")));
+        const QUrl first = makeVideo(directory.filePath("first media.y4m"));
+        const QUrl second = makeVideo(directory.filePath(QString::fromUtf8("第二集.Y4M")));
+        const QUrl audio = makeAudio(directory.filePath("audio.wav"));
         QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
         engine.loadFromModule("KPlayer", "Main");
         QVERIFY(!engine.rootObjects().isEmpty());
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -2919,7 +2924,7 @@ private slots:
         QVERIFY(panel && playlist);
         const QPoint point = panel->mapToScene({panel->width() / 2, panel->height() / 2}).toPoint();
         QMimeData files;
-        files.setUrls({first, second, QUrl::fromLocalFile(directory.path())});
+        files.setUrls({first, audio, second, QUrl::fromLocalFile(directory.path())});
         QDragEnterEvent enter(point, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(window, &enter);
         QVERIFY(enter.isAccepted());
@@ -2937,6 +2942,72 @@ private slots:
         QCoreApplication::sendEvent(window, &invalid);
         QVERIFY(!invalid.isAccepted());
         QCOMPARE(playlist->count(), 2);
+        QVERIFY2(warnings.isEmpty(), "Video file drops generated QML warnings");
+    }
+
+    void playlistRejectsNonVideoDrops()
+    {
+        QTemporaryDir directory;
+        const QUrl audio = makeAudio(directory.filePath("audio.wav"));
+        const QUrl supported = makeVideo(directory.filePath("episode.y4m"));
+        QList<QUrl> rejected{audio, QUrl::fromLocalFile(directory.filePath("missing.mp4")),
+                             QUrl("https://example.com/audio.wav"),
+                             QUrl("https://example.com/image.png"),
+                             QUrl("https:/missing-host.mp4"),
+                             QUrl("ftp://example.com/video.mp4")};
+        for (const QString &name : {QStringLiteral("image.png"), QStringLiteral("notes.txt"),
+                                    QStringLiteral("source.ts")}) {
+            QFile file(directory.filePath(name));
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("export const text = 'not a video';\n");
+            file.close();
+            rejected.append(QUrl::fromLocalFile(file.fileName()));
+        }
+        QVERIFY(QDir(directory.path()).mkdir("empty"));
+        rejected.append(QUrl::fromLocalFile(directory.filePath("empty")));
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        QVERIFY(playlists);
+        auto *playlist = playlists->currentPlaylist();
+        for (const char *name : {"trackList", "playlistTab0", "playlistTabs"}) {
+            auto *target = findItem(window->contentItem(), QString::fromLatin1(name));
+            QVERIFY2(target, name);
+            // Use the unused tab-strip space as well as an actual tab.
+            const qreal x = QByteArray(name) == "playlistTabs"
+                ? target->width() - 2 : target->width() / 2;
+            const QPoint point = target->mapToScene({x, target->height() / 2}).toPoint();
+            for (const QUrl &url : std::as_const(rejected)) {
+                QMimeData files;
+                files.setUrls({url});
+                QDragEnterEvent enter(point, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(window, &enter);
+                QVERIFY2(!enter.isAccepted(), qPrintable(url.toString()));
+                QDropEvent drop(point, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(window, &drop);
+                QVERIFY2(!drop.isAccepted(), qPrintable(url.toString()));
+                QCOMPARE(playlist->count(), 0);
+                QCOMPARE(playlists->count(), 1);
+            }
+
+            // Revalidate at the drop itself if the MIME payload changes after entry.
+            QMimeData changed;
+            changed.setUrls({supported});
+            QDragEnterEvent enter(point, Qt::CopyAction, &changed, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(window, &enter);
+            QVERIFY(enter.isAccepted());
+            changed.setUrls({audio});
+            QDropEvent drop(point, Qt::CopyAction, &changed, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(window, &drop);
+            QVERIFY(!drop.isAccepted());
+            QCOMPARE(playlist->count(), 0);
+            QCOMPARE(playlists->count(), 1);
+        }
+        QVERIFY2(warnings.isEmpty(), "Rejected playlist drops generated QML warnings");
     }
 
     void playlistAcceptsFilesInOrder()
@@ -4389,6 +4460,123 @@ private slots:
         QTRY_COMPARE(window->visibility(), QWindow::Windowed);
         QTRY_VERIFY(panel->isVisible());
         QCOMPARE(panel->width(), savedWidth);
+    }
+
+    void fullscreenVideoDragRevealsPlaylist_data()
+    {
+        QTest::addColumn<bool>("initiallyVisible");
+        QTest::addColumn<bool>("enterAtRightEdge");
+        QTest::addColumn<bool>("dropOnTab");
+        QTest::newRow("video-to-content-shown") << true << false << false;
+        QTest::newRow("video-to-tab-hidden") << false << false << true;
+        QTest::newRow("edge-to-content-hidden") << false << true << false;
+        QTest::newRow("edge-to-tab-shown") << true << true << true;
+    }
+
+    void fullscreenVideoDragRevealsPlaylist()
+    {
+        QFETCH(bool, initiallyVisible);
+        QFETCH(bool, enterAtRightEdge);
+        QFETCH(bool, dropOnTab);
+        QTemporaryDir directory;
+        const QUrl originalSource = makeVideo(directory.filePath("playing.y4m"));
+        const QUrl addedSource = makeVideo(directory.filePath("added.y4m"));
+        const QUrl audio = makeAudio(directory.filePath("audio.wav"));
+        QQmlApplicationEngine engine;
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.setInitialProperties({{"mediaSource", originalSource}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *panel = findItem(window->contentItem(), "playlistPanel");
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        auto *video = window->findChild<MpvVideo *>();
+        auto *playlists = window->findChild<PlaylistCollection *>();
+        QVERIFY(panel && stage && video && playlists);
+        auto *playlist = playlists->currentPlaylist();
+        window->setProperty("playlistVisible", initiallyVisible);
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        const quint64 revision = video->loadRevision();
+        QCOMPARE(playlist->count(), 1);
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QTRY_COMPARE(window->size(), window->screen()->size());
+        const QPoint center(window->width() / 2, window->height() / 2);
+        QTest::mouseMove(window, center);
+        QTRY_VERIFY(!panel->isVisible());
+        const QPoint start = enterAtRightEdge
+            ? QPoint(window->width() - 2, center.y()) : center;
+
+        // Unsupported files neither accept the drag nor expose the hidden panel.
+        QMimeData rejected;
+        rejected.setUrls({audio});
+        QDragEnterEvent invalid(start, Qt::CopyAction, &rejected, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &invalid);
+        QVERIFY(!invalid.isAccepted());
+        QVERIFY(!panel->isVisible());
+        QDragLeaveEvent invalidLeave;
+        QCoreApplication::sendEvent(window, &invalidLeave);
+
+        QMimeData files;
+        files.setUrls({addedSource, audio});
+        QDragEnterEvent enter(start, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &enter);
+        QVERIFY(enter.isAccepted());
+        QTRY_VERIFY(panel->isVisible());
+        QVERIFY(!window->property("playlistVisible").toBool());
+        QTRY_COMPARE(stage->size(), QSizeF(window->size()));
+        QCOMPARE(video->source(), originalSource);
+        QCOMPARE(video->loadRevision(), revision);
+        QVERIFY(video->playing());
+
+        // Leaving the application clears only the temporary drag reveal.
+        QDragLeaveEvent leave;
+        QCoreApplication::sendEvent(window, &leave);
+        QTRY_VERIFY(!panel->isVisible());
+        QCOMPARE(playlist->count(), 1);
+        QDragEnterEvent reenter(start, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &reenter);
+        QVERIFY(reenter.isAccepted());
+        QTRY_VERIFY(panel->isVisible());
+        auto *target = findItem(panel, dropOnTab ? "playlistTab0" : "trackList");
+        QVERIFY(target);
+        const QPoint end = target->mapToScene({target->width() / 2, target->height() / 2}).toPoint();
+        QDragMoveEvent move(end, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &move);
+        QVERIFY(move.isAccepted());
+        QCoreApplication::processEvents();
+        QVERIFY(panel->isVisible());
+        QDropEvent drop(end, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &drop);
+        QVERIFY(drop.isAccepted());
+        QTRY_COMPARE(playlist->count(), 2);
+        QCOMPARE(playlists->count(), 1);
+        QCOMPARE(playlist->data(playlist->index(1), PlaylistModel::SourceRole).toUrl(), addedSource);
+        QCOMPARE(playlist->currentSource(), originalSource);
+        QCOMPARE(video->source(), originalSource);
+        QCOMPARE(video->loadRevision(), revision);
+        QVERIFY(video->playing());
+        QTRY_VERIFY(!panel->isVisible());
+        QVERIFY(!window->property("playlistVisible").toBool());
+
+        // A manually opened fullscreen playlist stays open after cancellation.
+        window->setProperty("playlistVisible", true);
+        QTRY_VERIFY(panel->isVisible());
+        QDragEnterEvent manual(start, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &manual);
+        QVERIFY(manual.isAccepted());
+        QDragLeaveEvent manualLeave;
+        QCoreApplication::sendEvent(window, &manualLeave);
+        QVERIFY(panel->isVisible());
+        window->setProperty("playlistVisible", false);
+        QTRY_VERIFY(!panel->isVisible());
+        QVERIFY(QMetaObject::invokeMethod(window, "toggleFullscreen"));
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        QTRY_COMPARE(window->property("playlistVisible").toBool(), initiallyVisible);
+        QTRY_COMPARE(panel->isVisible(), initiallyVisible);
+        QVERIFY2(warnings.isEmpty(), "Fullscreen video drops generated QML warnings");
     }
 
     void mouseWheelDoesNotLeakThroughUi_data()

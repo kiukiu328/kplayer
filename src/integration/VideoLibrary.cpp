@@ -17,7 +17,7 @@ namespace {
 bool hasTransportStreamHeader(const QFileInfo &entry)
 {
     // .ts and .mts also name TypeScript sources. Check packet sync bytes before
-    // adding these ambiguous extensions from the opened file's folder.
+    // accepting local files with these ambiguous extensions.
     const QString suffix = entry.suffix().toLower();
     if (suffix != "ts" && suffix != "mts")
         return true;
@@ -39,6 +39,25 @@ bool hasTransportStreamHeader(const QFileInfo &entry)
     return false;
 }
 
+bool isVideoFile(const QFileInfo &file)
+{
+    return file.isFile() && file.isReadable()
+        && VideoFormats::extensions().contains(file.suffix().toLower())
+        && hasTransportStreamHeader(file);
+}
+
+bool isVideoUrl(const QUrl &url)
+{
+    if (!url.isValid() || url.isEmpty())
+        return false;
+    if (url.isLocalFile())
+        return isVideoFile(QFileInfo(url.toLocalFile()));
+    return (url.scheme() == QStringLiteral("http") || url.scheme() == QStringLiteral("https"))
+        && !url.host().isEmpty()
+        && VideoFormats::extensions().contains(
+            QFileInfo(url.fileName(QUrl::FullyDecoded)).suffix().toLower());
+}
+
 QList<QUrl> folderVideos(const QDir &folder)
 {
     QCollator collator(QLocale(QLocale::English, QLocale::UnitedStates));
@@ -50,8 +69,7 @@ QList<QUrl> folderVideos(const QDir &folder)
     });
     QList<QUrl> videos;
     for (const QFileInfo &entry : entries) {
-        if (VideoFormats::extensions().contains(entry.suffix().toLower())
-            && hasTransportStreamHeader(entry))
+        if (isVideoFile(entry))
             videos.append(QUrl::fromLocalFile(entry.absoluteFilePath()));
     }
     return videos;
@@ -139,7 +157,12 @@ int VideoLibrary::addDroppedUrls(PlaylistCollection *playlists, const QList<QUrl
     if (!playlists)
         return 0;
     // Files retain their explicit order in the original queue; each folder gets its own tab.
-    int added = playlists->currentPlaylist()->appendUrls(urls);
+    QList<QUrl> videos;
+    for (const QUrl &url : urls) {
+        if (isVideoUrl(url))
+            videos.append(url);
+    }
+    int added = playlists->currentPlaylist()->appendUrls(videos);
     QSet<QString> visited;
     for (const QUrl &url : urls) {
         if (!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isDir())
@@ -152,6 +175,18 @@ int VideoLibrary::addDroppedUrls(PlaylistCollection *playlists, const QList<QUrl
             added += playlists->currentPlaylist()->count();
     }
     return added;
+}
+
+bool VideoLibrary::canDropUrls(const QList<QUrl> &urls) const
+{
+    for (const QUrl &url : urls) {
+        if (isVideoUrl(url))
+            return true;
+        if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()
+            && !folderVideos(QDir(url.toLocalFile())).isEmpty())
+            return true;
+    }
+    return false;
 }
 
 int VideoLibrary::addDroppedUrlsToPlaylist(PlaylistModel *playlist, const QList<QUrl> &urls)
@@ -171,7 +206,7 @@ int VideoLibrary::addDroppedUrlsToPlaylist(PlaylistModel *playlist, const QList<
         if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
             for (const QUrl &video : folderVideos(QDir(url.toLocalFile())))
                 append(video);
-        } else {
+        } else if (isVideoUrl(url)) {
             append(url);
         }
     }

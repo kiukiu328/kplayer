@@ -842,8 +842,8 @@ Right click: next track</source>
             <translation>將目前播放清單另存為…</translation>
         </message>
         <message>
-            <source>拖曳檔案或資料夾到此處</source>
-            <translation>拖曳檔案或資料夾到此處</translation>
+            <source>拖曳影片檔案或資料夾到此處</source>
+            <translation>拖曳影片檔案或資料夾到此處</translation>
         </message>
         <message>
             <location filename="../qml/PlaylistPanel.qml" line="63" />

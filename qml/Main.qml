@@ -69,6 +69,7 @@ Window {
     property int visibilityBeforeFullscreen: Window.Windowed
     readonly property bool isFullscreen: visibility === Window.FullScreen
     property bool playlistVisible: true
+    property bool videoDragActive: false
     property bool controlsVisible: true
     property bool alwaysOnTop: false
     property bool playlistBeforeFullscreen: true
@@ -218,6 +219,10 @@ Window {
         }
     }
 
+    function updateVideoDrag() {
+        videoDragActive = fullscreenVideoDrag.containsDrag || playlist.receivingVideoDrag
+    }
+
     function formatTime(seconds: real): string {
         const total = Math.max(0, Math.floor(seconds))
         return [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
@@ -360,6 +365,7 @@ Window {
         objectName: "fullscreenCursor"
         window: window
         enabled: window.isFullscreen && !playlist.menuOpen && !playlist.draggingTracks
+            && !window.videoDragActive
             && !playlistResizeHandle.pressed && !playback.interacting
             && !appMenu.visible && !subtitleMenu.visible && !controlPanel.active
             && !mediaDialog.visible && !folderDialog.visible && !subtitleDialog.visible
@@ -867,6 +873,24 @@ Window {
             anchors.bottom: parent.bottom
             width: parent.width
 
+            DropArea {
+                id: fullscreenVideoDrag
+                anchors.fill: parent
+                enabled: window.isFullscreen
+                onEntered: (drag) => {
+                    drag.accepted = drag.hasUrls && library.canDropUrls(drag.urls)
+                    if (drag.accepted)
+                        window.videoDragActive = true
+                }
+                // Defer clearing until the playlist's drop area has received the
+                // same move, so switching targets keeps the panel visible.
+                onExited: Qt.callLater(window.updateVideoDrag)
+                onDropped: (drop) => {
+                    drop.accepted = false
+                    Qt.callLater(window.updateVideoDrag)
+                }
+            }
+
             Item {
                 anchors.left: parent.left
                 anchors.top: parent.top
@@ -984,7 +1008,7 @@ Window {
                 anchors.topMargin: window.isFullscreen ? titleBar.height : 0
                 z: 1
                 visible: window.playlistVisible || (window.isFullscreen
-                    && (playlistHover.hovered || editingSearch || menuOpen
+                    && (window.videoDragActive || playlistHover.hovered || editingSearch || menuOpen
                         || draggingTracks || playlistResizeHandle.containsMouse
                         || playlistResizeHandle.pressed))
                 width: visible
@@ -992,6 +1016,12 @@ Window {
                 playlistModel: window.mediaPlaylist
                 playlistCollection: playlists
                 videoLibrary: library
+                onReceivingVideoDragChanged: {
+                    if (receivingVideoDrag)
+                        window.videoDragActive = true
+                    else
+                        Qt.callLater(window.updateVideoDrag)
+                }
                 onTrackRequested: (index) => window.playTrack(index)
                 onAddRequested: window.openMedia(false)
                 onAddFolderRequested: folderDialog.open()

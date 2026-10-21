@@ -16,6 +16,7 @@ Rectangle {
     readonly property bool editingSearch: search.activeFocus
     readonly property bool menuOpen: playlistOptions.visible || sortOptions.visible
         || playlistNameDialog.visible || fileMenu.visible
+    readonly property bool receivingVideoDrag: tabsDrop.containsDrag || tracksDrop.containsDrag
     property int mappingRevision: 0
     property url contextSource
     readonly property int selectedSourceIndex: {
@@ -321,8 +322,11 @@ Rectangle {
             }
         }
         DropArea {
+            id: tabsDrop
             anchors.fill: parent
-            onEntered: (drag) => { drag.accepted = drag.hasUrls }
+            onEntered: (drag) => {
+                drag.accepted = drag.hasUrls && root.videoLibrary.canDropUrls(drag.urls)
+            }
             onDropped: (drop) => {
                 if (drop.hasUrls && root.videoLibrary.addDroppedUrls(root.playlistCollection, drop.urls) > 0)
                     drop.acceptProposedAction()
@@ -553,7 +557,7 @@ Rectangle {
             width: parent.width - 32
             horizontalAlignment: Text.AlignHCenter
             text: root.playlistModel.count === 0
-                ? qsTr("拖曳檔案或資料夾到此處") : qsTr("No matching tracks")
+                ? qsTr("拖曳影片檔案或資料夾到此處") : qsTr("No matching tracks")
             wrapMode: Text.Wrap
             visible: trackList.count === 0
             color: Theme.textMuted
@@ -585,10 +589,13 @@ Rectangle {
         y: Math.max(0, Math.min(trackList.height - height, root.dropLineY - trackList.contentY))
     }
     DropArea {
+        id: tracksDrop
         anchors.top: tabs.bottom
         anchors.bottom: parent.bottom
         width: parent.width
-        onEntered: (drag) => { drag.accepted = drag.hasUrls }
+        onEntered: (drag) => {
+            drag.accepted = drag.hasUrls && root.videoLibrary.canDropUrls(drag.urls)
+        }
         onDropped: (drop) => {
             if (drop.hasUrls && root.videoLibrary.addDroppedUrlsToPlaylist(root.playlistModel, drop.urls) > 0)
                 drop.acceptProposedAction()
