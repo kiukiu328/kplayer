@@ -5,6 +5,11 @@ import "SubtitleRules.js" as SubtitleRules
 PlayerMenu {
     id: root
     required property var player
+    required property var shortcutBindings
+    function shortcutLabel(command: string): string {
+        const entries = shortcutBindings.entries
+        return shortcutBindings.label(command)
+    }
     property string preferredLanguages: ""
     property int preferredTrackNumber: 0
     property string preferredTrackName: ""
@@ -24,7 +29,7 @@ PlayerMenu {
     PlayerMenuItem {
         objectName: "subtitleVisibilityMenuItem"
         text: qsTr("顯示字幕")
-        shortcutLabel: "Alt+H"
+        shortcutLabel: root.shortcutLabel("subtitlesVisible")
         checkable: true
         checked: root.player.subtitlesVisible
         onTriggered: root.player.subtitlesVisible = !root.player.subtitlesVisible
@@ -32,13 +37,13 @@ PlayerMenu {
     PlayerMenuItem {
         objectName: "addSubtitleMenuItem"
         text: qsTr("新增字幕…")
-        shortcutLabel: "Alt+O"
+        shortcutLabel: root.shortcutLabel("openSubtitles")
         enabled: root.player.mediaLoaded
         onTriggered: root.addRequested()
     }
     PlayerMenuItem {
         text: qsTr("切換字幕")
-        shortcutLabel: "Alt+L"
+        shortcutLabel: root.shortcutLabel("cycleSubtitle")
         enabled: root.player.mediaLoaded && root.player.subtitleTracks.length > 0
         onTriggered: root.player.cycleSubtitle()
     }

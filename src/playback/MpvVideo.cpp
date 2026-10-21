@@ -4,14 +4,18 @@
 
 #include <QDebug>
 #include <QCryptographicHash>
+#include <QDateTime>
+#include <QDir>
 #include <QFileInfo>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QTimer>
+#include <QUuid>
 
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
@@ -127,6 +131,29 @@ private:
 namespace {
 constexpr quint64 speedRequestMask = quint64{1} << 63;
 
+QString defaultCaptureDirectory()
+{
+    QString pictures = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (pictures.isEmpty())
+        pictures = QDir::home().filePath(QStringLiteral("Pictures"));
+    return QDir::cleanPath(QDir(pictures).absoluteFilePath(QStringLiteral("KPlayer")));
+}
+
+QString normalizedCaptureDirectory(const QString &directory)
+{
+    QString normalized = directory.trimmed();
+    const QUrl url(normalized);
+    if (url.isLocalFile())
+        normalized = url.toLocalFile();
+    normalized = QDir::fromNativeSeparators(normalized);
+    if (normalized == QStringLiteral("~"))
+        normalized = QDir::homePath();
+    else if (normalized.startsWith(QStringLiteral("~/")))
+        normalized = QDir::home().filePath(normalized.mid(2));
+    return normalized.isEmpty() ? defaultCaptureDirectory()
+                               : QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
+}
+
 int subtitleLanguageMatchScore(const QString &trackLanguage, const QString &requestedLanguage)
 {
     const QString code = trackLanguage.trimmed().toLower().replace('_', '-');
@@ -192,6 +219,7 @@ int subtitleLanguageMatchScore(const QString &trackLanguage, const QString &requ
 }
 
 const std::pair<const char *, const char *> savedPlayerProperties[] = {
+    {"capture/directory", "captureDirectory"},
     {"playback/maximumSpeed", "maximumSpeed"},
     {"playback/volume", "volume"},
     {"playback/muted", "muted"},
@@ -251,7 +279,8 @@ void MpvVideo::savePreferences()
     settings.setValue("playback/lastSpeed", m_lastSpeed);
 }
 
-MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
+MpvVideo::MpvVideo(QQuickItem *parent)
+    : QQuickFramebufferObject(parent), m_captureDirectory(defaultCaptureDirectory())
 {
     auto *handle = mpv_create();
     if (!handle) {
@@ -304,6 +333,7 @@ MpvVideo::MpvVideo(QQuickItem *parent) : QQuickFramebufferObject(parent)
                         &MpvVideo::aspectRatioChanged, &MpvVideo::videoAdjustmentsChanged,
                         &MpvVideo::audioControlsChanged, &MpvVideo::videoFiltersChanged,
                         &MpvVideo::subtitleStyleChanged, &MpvVideo::subtitlesVisibleChanged,
+                        &MpvVideo::captureDirectoryChanged,
                         &MpvVideo::defaultSubtitleLanguageChanged, &MpvVideo::defaultSubtitleTrackChanged,
                         &MpvVideo::defaultSubtitleTrackNameChanged, &MpvVideo::defaultSubtitleRulesChanged})
         connect(this, signal, this, &MpvVideo::savePreferences);
@@ -839,15 +869,77 @@ void MpvVideo::clearLoop()
     emit loopPointsChanged();
 }
 
+void MpvVideo::setCaptureDirectory(const QString &directory)
+{
+    const QString normalized = normalizedCaptureDirectory(directory);
+    if (normalized == m_captureDirectory)
+        return;
+    m_captureDirectory = normalized;
+    emit captureDirectoryChanged();
+}
+
+QString MpvVideo::capturePathFromUrl(const QUrl &folder) const
+{
+    return QDir::toNativeSeparators(folder.toLocalFile());
+}
+
+QUrl MpvVideo::capturePathToUrl(const QString &directory) const
+{
+    return QUrl::fromLocalFile(normalizedCaptureDirectory(directory));
+}
+
+void MpvVideo::captureCurrentFrame()
+{
+    if (!m_mpv || !m_mediaLoaded || m_stopped || !m_captureFile.isEmpty())
+        return;
+    if (!QDir().mkpath(m_captureDirectory)) {
+        setError(tr("Cannot create capture folder: %1").arg(m_captureDirectory));
+        return;
+    }
+    if (!QFileInfo(m_captureDirectory).isWritable()) {
+        setError(tr("Cannot write to capture folder: %1").arg(m_captureDirectory));
+        return;
+    }
+
+    QString base = QFileInfo(m_source.path()).completeBaseName();
+    static const QRegularExpression unsafe(QStringLiteral("[\\x00-\\x1f\\x7f/\\\\:*?\"<>|]"));
+    base.replace(unsafe, QStringLiteral("_"));
+    base = base.trimmed();
+    while (base.toUtf8().size() > 100)
+        base.chop(base.back().isLowSurrogate() && base.size() >= 2
+                      && base.at(base.size() - 2).isHighSurrogate() ? 2 : 1);
+    while (base.endsWith('.') || base.endsWith(' '))
+        base.chop(1);
+    if (base.isEmpty())
+        base = QStringLiteral("frame");
+
+    const qint64 milliseconds = qRound64(std::max(0.0, m_position) * 1000);
+    const QString position = QStringLiteral("%1-%2-%3.%4")
+        .arg(milliseconds / 3600000, 2, 10, QLatin1Char('0'))
+        .arg(milliseconds / 60000 % 60, 2, 10, QLatin1Char('0'))
+        .arg(milliseconds / 1000 % 60, 2, 10, QLatin1Char('0'))
+        .arg(milliseconds % 1000, 3, 10, QLatin1Char('0'));
+    const QString prefix = base + QLatin1Char('_') + position + QLatin1Char('_')
+        + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss-zzz"));
+    QString path;
+    do {
+        path = QDir(m_captureDirectory).filePath(prefix + QLatin1Char('_')
+            + QUuid::createUuid().toString(QUuid::Id128) + QStringLiteral(".png"));
+    } while (QFileInfo::exists(path));
+    captureFrame(QUrl::fromLocalFile(path));
+}
+
 void MpvVideo::captureFrame(const QUrl &file)
 {
     if (!m_mpv || !m_mediaLoaded || !file.isLocalFile() || !m_captureFile.isEmpty())
         return;
     const QByteArray path = file.toLocalFile().toUtf8();
     const char *command[] = {"screenshot-to-file", path.constData(), "subtitles", nullptr};
+    setError({});
     const int result = mpv_command_async(m_mpv.get(), 1001, command);
     if (result < 0)
-        setError(MpvErrors::description(result));
+        setError(tr("Cannot capture frame to %1: %2")
+                     .arg(file.toLocalFile(), MpvErrors::description(result)));
     else
         m_captureFile = file;
 }
@@ -1217,6 +1309,10 @@ void MpvVideo::processEvents()
             const QUrl file = std::exchange(m_captureFile, QUrl{});
             if (event->error >= 0)
                 emit frameCaptured(file);
+            else
+                setError(tr("Cannot capture frame to %1: %2")
+                             .arg(file.toLocalFile(), MpvErrors::description(event->error)));
+            continue;
         }
         if ((event->event_id == MPV_EVENT_COMMAND_REPLY
              || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY) && event->error < 0)

@@ -99,6 +99,27 @@ Window {
         && !hasSliderFocus()
     readonly property bool activationShortcutsEnabled: playbackShortcutsEnabled
         && !hasButtonFocus()
+    readonly property bool applicationShortcutsEnabled: !advancedSettings.visible
+        && !mediaDialog.visible && !folderDialog.visible && !subtitleDialog.visible
+        && !infoDialog.visible && !videoAdjustments.visible
+
+    function shortcutSequences(command: string): var {
+        // Reading entries keeps these bindings live when shortcuts are saved.
+        const entries = shortcutStore.entries
+        return shortcutStore.sequences(command)
+    }
+    function applicationShortcutSequences(command: string): var {
+        const sequences = shortcutSequences(command)
+        for (let item = window.activeFocusItem; item !== null; item = item.parent) {
+            if (item instanceof TextInput || item instanceof TextEdit) {
+                // Keep typing and cursor movement available after rebinding an action.
+                return sequences.filter(sequence => sequence.includes("Ctrl+")
+                    || sequence.includes("Alt+") || sequence.includes("Meta+")
+                    || /^F\d{1,2}$/.test(sequence))
+            }
+        }
+        return sequences
+    }
 
     function hasInteractiveFocus(): bool {
         // Focus scopes can give their delegate or content item the active focus.
@@ -279,6 +300,7 @@ Window {
         persistent: true
     }
     Favorites { id: favorites; objectName: "favorites" }
+    ShortcutBindings { id: shortcutStore; objectName: "shortcutBindings" }
     Settings {
         id: playbackPreferences
         objectName: "playbackPreferences"
@@ -326,6 +348,10 @@ Window {
         maximumSpeed: videoStage.maximumSpeed
         playbackSpeed: videoStage.speed
         previewEnabled: playbackPreferences.previewEnabled
+        player: videoStage
+        shortcutBindings: shortcutStore
+        captureDirectory: videoStage.captureDirectory
+        onCaptureDirectorySaved: (directory) => videoStage.captureDirectory = directory
         onPreviewSaved: (enabled) => playbackPreferences.previewEnabled = enabled
         onSpeedSaved: (speed, maximum) => {
             videoStage.maximumSpeed = maximum
@@ -454,6 +480,7 @@ Window {
         }
     }
     SubtitleMenu {
+        shortcutBindings: shortcutStore
         id: subtitleMenu
         objectName: "subtitleSelectionMenu"
         preferredLanguages: videoStage.defaultSubtitleLanguage
@@ -472,19 +499,16 @@ Window {
     Action {
         id: openMediaAction
         text: qsTr("開啟檔案…")
-        shortcut: "F3"
         onTriggered: window.openMedia(true)
     }
     Action {
         id: searchPlaylistAction
         text: qsTr("搜尋播放清單")
-        shortcut: "Ctrl+F"
         onTriggered: window.focusPlaylistSearch()
     }
     Action {
         id: showPlaylistAction
         text: qsTr("播放清單…")
-        shortcut: "F6"
         checkable: true
         checked: window.playlistVisible
         onTriggered: window.playlistVisible = !window.playlistVisible
@@ -506,20 +530,17 @@ Window {
     Action {
         id: closeMediaAction
         text: qsTr("關閉檔案")
-        shortcut: "F4"
         enabled: window.playbackPlaylist.count > 0
         onTriggered: videoStage.stop()
     }
     Action {
         id: preferencesAction
         text: qsTr("進階設定…")
-        shortcut: "F5"
         onTriggered: window.showAdvancedSettings()
     }
     Action {
         id: controlsAction
         text: qsTr("控制面版…")
-        shortcut: "F7"
         checkable: true
         checked: window.controlsVisible
         onTriggered: window.controlsVisible = !window.controlsVisible
@@ -527,23 +548,21 @@ Window {
     Action {
         id: mediaInfoAction
         text: qsTr("媒體資訊…")
-        shortcut: "Ctrl+F1"
         enabled: window.playbackPlaylist.count > 0
         onTriggered: window.showInformation(false)
     }
     Action {
         id: aboutAction
         text: qsTr("程式資訊…")
-        shortcut: "F1"
         onTriggered: window.showInformation(true)
     }
     Action {
         id: exitAction
         text: qsTr("結束")
-        shortcut: "Alt+F4"
         onTriggered: window.close()
     }
     AppMenu {
+        shortcutBindings: shortcutStore
         preferredSubtitleLanguages: videoStage.defaultSubtitleLanguage
         preferredSubtitleTrackNumber: videoStage.defaultSubtitleTrack
         preferredSubtitleTrackName: videoStage.defaultSubtitleTrackName
@@ -638,21 +657,60 @@ Window {
             color: Theme.textPrimary
         }
     }
-    Shortcut { sequence: "Ctrl+O"; onActivated: openMediaAction.trigger() }
-    Shortcut { sequence: "Ctrl+L"; onActivated: showPlaylistAction.trigger() }
     Shortcut {
-        sequence: "Return"
-        enabled: window.activationShortcutsEnabled
-        onActivated: window.toggleFullscreen()
+        sequences: window.applicationShortcutSequences("openMedia")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: openMediaAction.trigger()
     }
     Shortcut {
-        sequence: "Enter"
+        sequences: window.applicationShortcutSequences("searchPlaylist")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: searchPlaylistAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("showPlaylist")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: showPlaylistAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("closeMedia")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: closeMediaAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("preferences")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: preferencesAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("controls")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: controlsAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("mediaInfo")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: mediaInfoAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("about")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: aboutAction.trigger()
+    }
+    Shortcut {
+        sequences: window.applicationShortcutSequences("exit")
+        enabled: window.applicationShortcutsEnabled
+        onActivated: exitAction.trigger()
+    }
+
+    Shortcut {
+        sequences: window.shortcutSequences("fullscreen")
         enabled: window.activationShortcutsEnabled
         onActivated: window.toggleFullscreen()
     }
 
     Shortcut {
-        sequence: "Escape"
+        sequences: window.shortcutSequences("exitFullscreen")
         enabled: window.visibility === Window.FullScreen
             && !controlPanel.active
             && !playlist.editingSearch && !playlist.menuOpen
@@ -664,159 +722,165 @@ Window {
         onActivated: window.toggleFullscreen()
     }
     Shortcut {
-        sequence: "Space"
+        sequences: window.shortcutSequences("playPause")
         enabled: window.activationShortcutsEnabled
         onActivated: window.togglePlayback()
     }
     Shortcut {
-        sequence: "M"
+        sequences: window.shortcutSequences("mute")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.muted = !videoStage.muted
     }
     Shortcut {
-        sequence: "Left"
+        sequences: window.shortcutSequences("captureFrame")
+        autoRepeat: false
+        enabled: window.trackNavigationShortcutsEnabled && videoStage.mediaLoaded
+        onActivated: videoStage.captureCurrentFrame()
+    }
+    Shortcut {
+        sequences: window.shortcutSequences("seekBackward")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seekRelative(-10)
     }
     Shortcut {
-        sequence: "Right"
+        sequences: window.shortcutSequences("seekForward")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seekRelative(10)
     }
     Shortcut {
-        sequence: "Up"
+        sequences: window.shortcutSequences("volumeUp")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustVolume(5)
     }
     Shortcut {
-        sequence: "Down"
+        sequences: window.shortcutSequences("volumeDown")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustVolume(-5)
     }
 
     Shortcut {
-        sequence: "Z"
+        sequences: window.shortcutSequences("toggleSpeed")
         autoRepeat: false
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.toggleSpeed()
     }
     Shortcut {
-        sequences: ["Num+5", "Num+Clear"]
+        sequences: window.shortcutSequences("resetFrame")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.resetFrameSize()
     }
     Shortcut {
-        sequences: ["Num+4", "Num+Left"]
+        sequences: window.shortcutSequences("frameNarrower")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(-1, 0)
     }
     Shortcut {
-        sequences: ["Num+6", "Num+Right"]
+        sequences: window.shortcutSequences("frameWider")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(1, 0)
     }
     Shortcut {
-        sequences: ["Num+8", "Num+Up"]
+        sequences: window.shortcutSequences("frameTaller")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(0, 1)
     }
     Shortcut {
-        sequences: ["Num+2", "Num+Down"]
+        sequences: window.shortcutSequences("frameShorter")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(0, -1)
     }
     Shortcut {
-        sequences: ["Num+9", "Num+PgUp"]
+        sequences: window.shortcutSequences("frameLarger")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(1, 1)
     }
     Shortcut {
-        sequences: ["Num+1", "Num+End"]
+        sequences: window.shortcutSequences("frameSmaller")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.adjustFrameSize(-1, -1)
     }
     Shortcut {
-        sequence: "X"
+        sequences: window.shortcutSequences("speedDown")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.speed = Math.round((videoStage.speed - 0.1) * 10) / 10
     }
     Shortcut {
-        sequence: "C"
+        sequences: window.shortcutSequences("speedUp")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.speed = Math.round((videoStage.speed + 0.1) * 10) / 10
     }
     Shortcut {
-        sequence: "PgUp"
+        sequences: window.shortcutSequences("previousTrack")
         enabled: window.trackNavigationShortcutsEnabled
         onActivated: window.skipTrack(-1)
     }
     Shortcut {
-        sequence: "PgDown"
+        sequences: window.shortcutSequences("nextTrack")
         enabled: window.trackNavigationShortcutsEnabled
         onActivated: window.skipTrack(1)
     }
     Shortcut {
-        sequence: "Alt+H"
+        sequences: window.shortcutSequences("subtitlesVisible")
         enabled: window.playbackShortcutsEnabled
         onActivated: videoStage.subtitlesVisible = !videoStage.subtitlesVisible
     }
     Shortcut {
-        sequence: "Alt+L"
+        sequences: window.shortcutSequences("cycleSubtitle")
         enabled: window.playbackShortcutsEnabled && videoStage.mediaLoaded
         onActivated: videoStage.cycleSubtitle()
     }
     Shortcut {
-        sequence: "Alt+O"
+        sequences: window.shortcutSequences("openSubtitles")
         enabled: window.playbackShortcutsEnabled && videoStage.mediaLoaded
         onActivated: window.openSubtitles()
     }
     Shortcut {
-        sequence: "L"
+        sequences: window.shortcutSequences("subtitleMenu")
         enabled: window.playbackShortcutsEnabled
         onActivated: subtitleMenu.popup(32, 64)
     }
     Shortcut {
-        sequence: "Backspace"
+        sequences: window.shortcutSequences("seekStart")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seek(0)
     }
     Shortcut {
-        sequence: "Ctrl+Backspace"
+        sequences: window.shortcutSequences("seekMiddle")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seek(videoStage.duration / 2)
     }
     Shortcut {
-        sequence: "Shift+Backspace"
+        sequences: window.shortcutSequences("seekNearEnd")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seek(Math.max(0, videoStage.duration - 30))
     }
     Shortcut {
-        sequence: "Ctrl+Left"
+        sequences: window.shortcutSequences("seekBackward30")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seekRelative(-30)
     }
     Shortcut {
-        sequence: "Ctrl+Right"
+        sequences: window.shortcutSequences("seekForward30")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seekRelative(30)
     }
     Shortcut {
-        sequence: "Shift+Left"
+        sequences: window.shortcutSequences("seekBackward60")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seekRelative(-60)
     }
     Shortcut {
-        sequence: "Shift+Right"
+        sequences: window.shortcutSequences("seekForward60")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.seekRelative(60)
     }
     Shortcut {
-        sequence: "D"
+        sequences: window.shortcutSequences("previousFrame")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.stepFrame(false)
     }
     Shortcut {
-        sequence: "F"
+        sequences: window.shortcutSequences("nextFrame")
         enabled: window.playbackShortcutsEnabled && videoStage.seekable
         onActivated: videoStage.stepFrame(true)
     }
@@ -1001,6 +1065,7 @@ Window {
             }
 
             PlaylistPanel {
+                shortcutBindings: shortcutStore
                 id: playlist
                 anchors.right: parent.right
                 anchors.top: parent.top

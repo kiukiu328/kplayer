@@ -7,6 +7,7 @@ import "SubtitleRules.js" as SubtitleRules
 Column {
     id: root
     spacing: 16
+    required property var shortcutBindings
     property alias language: languageCodes.text
     property alias trackNumber: fallbackNumber.value
     property alias trackName: fallbackName.text
@@ -263,11 +264,17 @@ Column {
                                 Accessible.name: qsTr("Reorder rule %1").arg(row.index + 1)
                                 ToolTip.visible: dragArea.containsMouse || grip.activeFocus
                                 ToolTip.delay: 600
-                                ToolTip.text: qsTr("Drag to reorder. Alt+Up / Alt+Down also moves this rule.")
+                                ToolTip.text: {
+                                    const entries = root.shortcutBindings.entries
+                                    return qsTr("Drag to reorder. %1 / %2 also moves this rule.")
+                                        .arg(root.shortcutBindings.label("subtitleRuleMoveUp"))
+                                        .arg(root.shortcutBindings.label("subtitleRuleMoveDown"))
+                                }
                                 Keys.onPressed: (event) => {
-                                    if ((event.modifiers & Qt.AltModifier)
-                                            && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
-                                        root.moveRule(row.index, row.index + (event.key === Qt.Key_Up ? -1 : 1))
+                                    const up = root.shortcutBindings.matches("subtitleRuleMoveUp", event.key, event.modifiers)
+                                    const down = root.shortcutBindings.matches("subtitleRuleMoveDown", event.key, event.modifiers)
+                                    if (up || down) {
+                                        root.moveRule(row.index, row.index + (up ? -1 : 1))
                                         event.accepted = true
                                     }
                                 }

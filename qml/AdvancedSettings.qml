@@ -2,9 +2,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Dialog {
     id: root
+    required property var player
+    required property var shortcutBindings
+    property string captureDirectory: ""
+    signal captureDirectorySaved(string directory)
     property string subtitleLanguage: ""
     property real maximumSpeed: 16
     property real playbackSpeed: 1
@@ -20,13 +25,18 @@ Dialog {
     property string pendingRuleKind: ""
     signal subtitleSaved(string language, int track, bool overrideStyle, string trackName, string rules)
     property int currentPage: 0
+    onCurrentPageChanged: {
+        const view = settingsScroll.contentItem as Flickable
+        if (view)
+            view.contentY = 0
+    }
     property point dragOffset: Qt.point(0, 0)
     x: Math.max(0, Math.min(parent.width - width,
                            (parent.width - width) / 2 + dragOffset.x))
     y: Math.max(0, Math.min(parent.height - height,
                            (parent.height - height) / 2 + dragOffset.y))
     onAboutToShow: dragOffset = Qt.point(0, 0)
-    readonly property var pageTitles: [qsTr("一般"), qsTr("播放"), qsTr("字幕")]
+    readonly property var pageTitles: [qsTr("一般"), qsTr("播放"), qsTr("字幕"), qsTr("Shortcuts")]
     readonly property string saveButtonText: qsTr("Save")
     readonly property string cancelButtonText: qsTr("Cancel")
     title: qsTr("進階設定")
@@ -47,9 +57,11 @@ Dialog {
         speedLimit.value = Math.round(maximumSpeed * 10)
         customSpeed.value = Math.round(playbackSpeed * 10)
         seekPreview.checked = previewEnabled
+        captureDirectoryInput.text = captureDirectory
         interfaceLanguage.currentIndex = AppLanguage.language === "en" ? 1 : 0
         subtitleSettings.reset(subtitleLanguage, subtitleTrackNumber, subtitleTrackName,
                                subtitleRules, subtitleStyleOverride)
+        shortcutSettings.reset()
         const view = settingsScroll.contentItem as Flickable
         view.contentY = 0
         if (pendingSubtitleTrack) {
@@ -59,6 +71,7 @@ Dialog {
         }
     }
     onClosed: {
+        captureFolderDialog.close()
         pendingSubtitleTrack = null
         pendingRuleKind = ""
     }
@@ -78,12 +91,22 @@ Dialog {
         }
     }
     onAccepted: {
+        if (!shortcutSettings.apply())
+            return
         speedSaved(customSpeed.value / 10, speedLimit.value / 10)
         previewSaved(seekPreview.checked)
+        captureDirectorySaved(captureDirectoryInput.text)
         AppLanguage.language = interfaceLanguage.currentIndex === 1 ? "en" : "zh_TW"
         subtitleSaved(subtitleSettings.normalizedLanguage, subtitleSettings.trackNumber,
                       subtitleSettings.overrideStyle, subtitleSettings.trackName.trim(),
                       subtitleSettings.serializedRules())
+    }
+
+    FolderDialog {
+        id: captureFolderDialog
+        objectName: "captureFolderDialog"
+        title: qsTr("Choose frame capture folder")
+        onAccepted: captureDirectoryInput.text = root.player.capturePathFromUrl(selectedFolder)
     }
 
     padding: 0
@@ -115,7 +138,7 @@ Dialog {
                 id: saveButton
                 objectName: "advancedSettingsSaveButton"
                 text: root.saveButtonText
-                enabled: subtitleSettings.rulesValid
+                enabled: subtitleSettings.rulesValid && shortcutSettings.shortcutsValid
                 implicitWidth: Math.max(96, contentItem.implicitWidth + 32)
                 implicitHeight: 40
                 font.bold: true
@@ -306,6 +329,54 @@ Dialog {
                 }
                 SettingsCard {
                     width: parent.width - parent.padding * 2
+                    visible: root.currentPage === 0
+                    heading: qsTr("Frame capture")
+                    Label {
+                        text: qsTr("Save folder")
+                        color: Theme.textPrimary
+                    }
+                    RowLayout {
+                        width: parent.width
+                        spacing: 10
+                        TextField {
+                            id: captureDirectoryInput
+                            objectName: "captureDirectoryInput"
+                            Layout.fillWidth: true
+                            selectByMouse: true
+                            color: Theme.textPrimary
+                            Accessible.name: qsTr("Save folder")
+                            background: Rectangle {
+                                radius: 6
+                                color: Theme.searchBackground
+                                border.color: captureDirectoryInput.activeFocus
+                                    ? Theme.accent : Theme.buttonBackground
+                            }
+                        }
+                        Button {
+                            id: captureBrowseButton
+                            objectName: "captureDirectoryBrowseButton"
+                            text: qsTr("Browse…")
+                            onClicked: {
+                                captureFolderDialog.currentFolder = root.player.capturePathToUrl(captureDirectoryInput.text)
+                                captureFolderDialog.open()
+                            }
+                            background: Rectangle {
+                                radius: 6
+                                color: captureBrowseButton.hovered ? Theme.buttonHover : Theme.buttonBackground
+                                border.color: captureBrowseButton.activeFocus ? Theme.accent : Theme.transparent
+                            }
+                        }
+                    }
+                    Label {
+                        width: parent.width
+                        text: qsTr("Default: Pictures/KPlayer. Leave blank to restore the default folder.")
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.pixelSize: Theme.smallFontSize
+                    }
+                }
+                SettingsCard {
+                    width: parent.width - parent.padding * 2
                     visible: root.currentPage === 1
                     heading: qsTr("播放速度")
                     GridLayout {
@@ -360,6 +431,7 @@ Dialog {
                     width: parent.width - parent.padding * 2
                     visible: root.currentPage === 2
                     currentSubtitleTrack: root.currentSubtitleTrack
+                    shortcutBindings: root.shortcutBindings
                     viewport: settingsScroll.contentItem as Flickable
                     onRevealRequested: (y, height) => {
                         const view = settingsScroll.contentItem as Flickable
@@ -369,6 +441,13 @@ Dialog {
                         else if (top + height > view.contentY + view.height)
                             view.contentY = top + height - view.height
                     }
+                }
+                ShortcutSettings {
+                    id: shortcutSettings
+                    objectName: "shortcutSettings"
+                    width: parent.width - parent.padding * 2
+                    visible: root.currentPage === 3
+                    bindings: root.shortcutBindings
                 }
             }
         }

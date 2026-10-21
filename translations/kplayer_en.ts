@@ -3,6 +3,26 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>Frame capture</source>
+            <translation>Frame capture</translation>
+        </message>
+        <message>
+            <source>Save folder</source>
+            <translation>Save folder</translation>
+        </message>
+        <message>
+            <source>Browse…</source>
+            <translation>Browse…</translation>
+        </message>
+        <message>
+            <source>Default: Pictures/KPlayer. Leave blank to restore the default folder.</source>
+            <translation>Default: Pictures/KPlayer. Leave blank to restore the default folder.</translation>
+        </message>
+        <message>
+            <source>Choose frame capture folder</source>
+            <translation>Choose frame capture folder</translation>
+        </message>
+        <message>
             <source>時間軸預覽</source>
             <translation>Timeline preview</translation>
         </message>
@@ -183,9 +203,17 @@
             <source>First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.</source>
             <translation>First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.</translation>
         </message>
+        <message>
+            <source>Shortcuts</source>
+            <translation>Shortcuts</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
+        <message>
+            <source>Capture current frame</source>
+            <translation>Capture current frame</translation>
+        </message>
         <message>
             <source>自訂播放速度…</source>
             <translation>Custom playback speed…</translation>
@@ -677,6 +705,18 @@
     <context>
         <name>MpvVideo</name>
         <message>
+            <source>Cannot create capture folder: %1</source>
+            <translation>Cannot create capture folder: %1</translation>
+        </message>
+        <message>
+            <source>Cannot write to capture folder: %1</source>
+            <translation>Cannot write to capture folder: %1</translation>
+        </message>
+        <message>
+            <source>Cannot capture frame to %1: %2</source>
+            <translation>Cannot capture frame to %1: %2</translation>
+        </message>
+        <message>
             <location filename="../src/playback/MpvVideo.cpp" line="485" />
             <source>Subtitle %1</source>
             <translation>Subtitle %1</translation>
@@ -1030,6 +1070,14 @@ Double click to play</translation>
         <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Selected titles: A–Z</source>
+            <translation>Selected titles: A–Z</translation>
+        </message>
+        <message>
+            <source>Selected titles: Z–A</source>
+            <translation>Selected titles: Z–A</translation>
         </message>
     </context>
     <context>
@@ -1770,6 +1818,348 @@ Double click to play</translation>
         <message>
             <source>Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.</source>
             <translation>Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.</translation>
+        </message>
+        <message>
+            <source>Drag to reorder. %1 / %2 also moves this rule.</source>
+            <translation>Drag to reorder. %1 / %2 also moves this rule.</translation>
+        </message>
+    </context>
+    <context>
+        <name>ShortcutSettings</name>
+        <message>
+            <source>Keyboard shortcuts</source>
+            <translation>Keyboard shortcuts</translation>
+        </message>
+        <message>
+            <source>Edit shortcuts below, or record a key combination. Separate alternatives with a semicolon, for example Ctrl+O; F2. Clear an action to leave it unassigned. Changes take effect when you save.</source>
+            <translation>Edit shortcuts below, or record a key combination. Separate alternatives with a semicolon, for example Ctrl+O; F2. Clear an action to leave it unassigned. Changes take effect when you save.</translation>
+        </message>
+        <message>
+            <source>Search actions, categories, or shortcuts</source>
+            <translation>Search actions, categories, or shortcuts</translation>
+        </message>
+        <message>
+            <source>Search keyboard shortcuts</source>
+            <translation>Search keyboard shortcuts</translation>
+        </message>
+        <message>
+            <source>Restore all defaults</source>
+            <translation>Restore all defaults</translation>
+        </message>
+        <message>
+            <source>Restore all keyboard shortcuts to defaults</source>
+            <translation>Restore all keyboard shortcuts to defaults</translation>
+        </message>
+        <message>
+            <source>%1 of %2 actions</source>
+            <translation>%1 of %2 actions</translation>
+        </message>
+        <message>
+            <source>Correct the shortcut assignments before saving.</source>
+            <translation>Correct the shortcut assignments before saving.</translation>
+        </message>
+        <message>
+            <source>No matching actions</source>
+            <translation>No matching actions</translation>
+        </message>
+        <message>
+            <source>Unassigned</source>
+            <translation>Unassigned</translation>
+        </message>
+        <message>
+            <source>Shortcut for %1</source>
+            <translation>Shortcut for %1</translation>
+        </message>
+        <message>
+            <source>Press keys…</source>
+            <translation>Press keys…</translation>
+        </message>
+        <message>
+            <source>Record</source>
+            <translation>Record</translation>
+        </message>
+        <message>
+            <source>Record shortcut for %1</source>
+            <translation>Record shortcut for %1</translation>
+        </message>
+        <message>
+            <source>Press a key combination to replace this action's shortcuts. Escape cancels recording.</source>
+            <translation>Press a key combination to replace this action's shortcuts. Escape cancels recording.</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Clear</translation>
+        </message>
+        <message>
+            <source>Clear shortcut for %1</source>
+            <translation>Clear shortcut for %1</translation>
+        </message>
+        <message>
+            <source>Reset</source>
+            <translation>Reset</translation>
+        </message>
+        <message>
+            <source>Restore default shortcut for %1</source>
+            <translation>Restore default shortcut for %1</translation>
+        </message>
+        <message>
+            <source>Press a key combination. This replaces the current assignment. Esc cancels.</source>
+            <translation>Press a key combination. This replaces the current assignment. Esc cancels.</translation>
+        </message>
+    </context>
+    <context>
+        <name>ShortcutBindings</name>
+        <message>
+            <source>Open media</source>
+            <translation>Open media</translation>
+        </message>
+        <message>
+            <source>Application</source>
+            <translation>Application</translation>
+        </message>
+        <message>
+            <source>Search playlist</source>
+            <translation>Search playlist</translation>
+        </message>
+        <message>
+            <source>Show or hide playlist</source>
+            <translation>Show or hide playlist</translation>
+        </message>
+        <message>
+            <source>Close media</source>
+            <translation>Close media</translation>
+        </message>
+        <message>
+            <source>Advanced settings</source>
+            <translation>Advanced settings</translation>
+        </message>
+        <message>
+            <source>Playback controls</source>
+            <translation>Playback controls</translation>
+        </message>
+        <message>
+            <source>Media information</source>
+            <translation>Media information</translation>
+        </message>
+        <message>
+            <source>About KPlayer</source>
+            <translation>About KPlayer</translation>
+        </message>
+        <message>
+            <source>Exit application</source>
+            <translation>Exit application</translation>
+        </message>
+        <message>
+            <source>Toggle fullscreen</source>
+            <translation>Toggle fullscreen</translation>
+        </message>
+        <message>
+            <source>Video</source>
+            <translation>Video</translation>
+        </message>
+        <message>
+            <source>Leave fullscreen</source>
+            <translation>Leave fullscreen</translation>
+        </message>
+        <message>
+            <source>Play or pause</source>
+            <translation>Play or pause</translation>
+        </message>
+        <message>
+            <source>Playback</source>
+            <translation>Playback</translation>
+        </message>
+        <message>
+            <source>Mute or unmute</source>
+            <translation>Mute or unmute</translation>
+        </message>
+        <message>
+            <source>Audio</source>
+            <translation>Audio</translation>
+        </message>
+        <message>
+            <source>Capture frame</source>
+            <translation>Capture frame</translation>
+        </message>
+        <message>
+            <source>Seek backward 10 seconds</source>
+            <translation>Seek backward 10 seconds</translation>
+        </message>
+        <message>
+            <source>Seek forward 10 seconds</source>
+            <translation>Seek forward 10 seconds</translation>
+        </message>
+        <message>
+            <source>Increase volume</source>
+            <translation>Increase volume</translation>
+        </message>
+        <message>
+            <source>Decrease volume</source>
+            <translation>Decrease volume</translation>
+        </message>
+        <message>
+            <source>Toggle playback speed</source>
+            <translation>Toggle playback speed</translation>
+        </message>
+        <message>
+            <source>Reset video frame</source>
+            <translation>Reset video frame</translation>
+        </message>
+        <message>
+            <source>Make video narrower</source>
+            <translation>Make video narrower</translation>
+        </message>
+        <message>
+            <source>Make video wider</source>
+            <translation>Make video wider</translation>
+        </message>
+        <message>
+            <source>Make video taller</source>
+            <translation>Make video taller</translation>
+        </message>
+        <message>
+            <source>Make video shorter</source>
+            <translation>Make video shorter</translation>
+        </message>
+        <message>
+            <source>Make video larger</source>
+            <translation>Make video larger</translation>
+        </message>
+        <message>
+            <source>Make video smaller</source>
+            <translation>Make video smaller</translation>
+        </message>
+        <message>
+            <source>Decrease playback speed</source>
+            <translation>Decrease playback speed</translation>
+        </message>
+        <message>
+            <source>Increase playback speed</source>
+            <translation>Increase playback speed</translation>
+        </message>
+        <message>
+            <source>Previous track</source>
+            <translation>Previous track</translation>
+        </message>
+        <message>
+            <source>Next track</source>
+            <translation>Next track</translation>
+        </message>
+        <message>
+            <source>Show or hide subtitles</source>
+            <translation>Show or hide subtitles</translation>
+        </message>
+        <message>
+            <source>Subtitles</source>
+            <translation>Subtitles</translation>
+        </message>
+        <message>
+            <source>Next subtitle track</source>
+            <translation>Next subtitle track</translation>
+        </message>
+        <message>
+            <source>Open subtitle file</source>
+            <translation>Open subtitle file</translation>
+        </message>
+        <message>
+            <source>Subtitle menu</source>
+            <translation>Subtitle menu</translation>
+        </message>
+        <message>
+            <source>Seek to start</source>
+            <translation>Seek to start</translation>
+        </message>
+        <message>
+            <source>Seek to middle</source>
+            <translation>Seek to middle</translation>
+        </message>
+        <message>
+            <source>Seek near end</source>
+            <translation>Seek near end</translation>
+        </message>
+        <message>
+            <source>Seek backward 30 seconds</source>
+            <translation>Seek backward 30 seconds</translation>
+        </message>
+        <message>
+            <source>Seek forward 30 seconds</source>
+            <translation>Seek forward 30 seconds</translation>
+        </message>
+        <message>
+            <source>Seek backward 60 seconds</source>
+            <translation>Seek backward 60 seconds</translation>
+        </message>
+        <message>
+            <source>Seek forward 60 seconds</source>
+            <translation>Seek forward 60 seconds</translation>
+        </message>
+        <message>
+            <source>Previous frame</source>
+            <translation>Previous frame</translation>
+        </message>
+        <message>
+            <source>Next frame</source>
+            <translation>Next frame</translation>
+        </message>
+        <message>
+            <source>Play selected item</source>
+            <translation>Play selected item</translation>
+        </message>
+        <message>
+            <source>Playlist</source>
+            <translation>Playlist</translation>
+        </message>
+        <message>
+            <source>Remove selected items</source>
+            <translation>Remove selected items</translation>
+        </message>
+        <message>
+            <source>Select all items</source>
+            <translation>Select all items</translation>
+        </message>
+        <message>
+            <source>Move selected items up</source>
+            <translation>Move selected items up</translation>
+        </message>
+        <message>
+            <source>Move selected items down</source>
+            <translation>Move selected items down</translation>
+        </message>
+        <message>
+            <source>Move subtitle rule up</source>
+            <translation>Move subtitle rule up</translation>
+        </message>
+        <message>
+            <source>Subtitle rule editor</source>
+            <translation>Subtitle rule editor</translation>
+        </message>
+        <message>
+            <source>Move subtitle rule down</source>
+            <translation>Move subtitle rule down</translation>
+        </message>
+        <message>
+            <source>Unknown shortcut command: %1</source>
+            <translation>Unknown shortcut command: %1</translation>
+        </message>
+        <message>
+            <source>Shortcuts for %1 must be text.</source>
+            <translation>Shortcuts for %1 must be text.</translation>
+        </message>
+        <message>
+            <source>Shortcuts for %1 must be a list of keys.</source>
+            <translation>Shortcuts for %1 must be a list of keys.</translation>
+        </message>
+        <message>
+            <source>Invalid shortcut '%1' for %2. Use a single key combination.</source>
+            <translation>Invalid shortcut '%1' for %2. Use a single key combination.</translation>
+        </message>
+        <message>
+            <source>Shortcut %1 is listed more than once for %2.</source>
+            <translation>Shortcut %1 is listed more than once for %2.</translation>
+        </message>
+        <message>
+            <source>Shortcut %1 is used by both %2 and %3.</source>
+            <translation>Shortcut %1 is used by both %2 and %3.</translation>
         </message>
     </context>
 </TS>

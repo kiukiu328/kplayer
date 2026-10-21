@@ -36,6 +36,8 @@ public:
     Q_INVOKABLE bool moveTrack(int from, int to);
     Q_INVOKABLE QList<int> moveTracks(const QList<int> &rows, int destination);
     Q_INVOKABLE int sortByTitle(bool ascending = true, int selectedIndex = -1);
+    Q_INVOKABLE int sortSelectedByTitle(const QList<int> &rows, bool ascending = true,
+                                      int selectedIndex = -1);
     Q_INVOKABLE void clear();
     static QString sourceKey(const QUrl &url);
 
@@ -47,6 +49,7 @@ signals:
 private:
     friend class PlaylistCollection;
     int appendUrlsImpl(const QList<QUrl> &urls, bool unique);
+    int sortRowsByTitle(const QList<int> &rows, bool ascending, int selectedIndex);
     struct Track { QUrl source; QString title; QString key; };
     QList<Track> m_tracks;
     QHash<QString, int> m_sourceCounts;

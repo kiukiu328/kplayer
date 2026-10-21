@@ -17,6 +17,11 @@ PlayerMenu {
     required property Action searchAction
     required property Action associateVideosAction
     required property var player
+    required property var shortcutBindings
+    function shortcutLabel(command: string): string {
+        const entries = shortcutBindings.entries
+        return shortcutBindings.label(command)
+    }
     property string preferredSubtitleLanguages: ""
     property int preferredSubtitleTrackNumber: 0
     property string preferredSubtitleTrackName: ""
@@ -49,11 +54,11 @@ PlayerMenu {
     objectName: "appMenu"
     onOpened: currentIndex = 0
 
-    PlayerMenuItem { objectName: "openMediaMenuItem"; action: root.openAction }
+    PlayerMenuItem { objectName: "openMediaMenuItem"; shortcutLabel: root.shortcutLabel("openMedia"); action: root.openAction }
     PlayerMenu {
         objectName: "openSubmenu"
         title: qsTr("開啟")
-        PlayerMenuItem { action: root.openAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("openMedia"); action: root.openAction }
         PlayerMenuItem {
             objectName: "addMediaMenuItem"
             text: qsTr("新增至播放清單…")
@@ -68,9 +73,9 @@ PlayerMenu {
     }
     PlayerMenu {
         title: qsTr("工具列")
-        PlayerMenuItem { action: root.controlsAction }
-        PlayerMenuItem { action: root.playlistAction }
-        PlayerMenuItem { action: root.searchAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("controls"); action: root.controlsAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("showPlaylist"); action: root.playlistAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("searchPlaylist"); action: root.searchAction }
     }
     PlayerMenu {
         id: favoritesMenu
@@ -104,7 +109,7 @@ PlayerMenu {
             onObjectRemoved: (index, object) => favoritesMenu.removeItem(object)
         }
     }
-    PlayerMenuItem { objectName: "closeMediaMenuItem"; action: root.closeAction }
+    PlayerMenuItem { objectName: "closeMediaMenuItem"; shortcutLabel: root.shortcutLabel("closeMedia"); action: root.closeAction }
     PlayerMenuSeparator {}
     PlayerMenu {
         objectName: "playbackSubmenu"
@@ -112,7 +117,7 @@ PlayerMenu {
         PlayerMenuItem {
             objectName: "playPauseMenuItem"
             text: root.playing ? qsTr("暫停") : qsTr("播放")
-            shortcutLabel: "Space"
+            shortcutLabel: root.shortcutLabel("playPause")
             onTriggered: root.playPauseRequested()
         }
         PlayerMenuItem {
@@ -122,13 +127,13 @@ PlayerMenu {
         }
         PlayerMenuItem {
             text: qsTr("上一個檔案")
-            shortcutLabel: "PgUp"
+            shortcutLabel: root.shortcutLabel("previousTrack")
             enabled: root.hasMedia
             onTriggered: root.skipTrackRequested(-1)
         }
         PlayerMenuItem {
             text: qsTr("下一個檔案")
-            shortcutLabel: "PgDown"
+            shortcutLabel: root.shortcutLabel("nextTrack")
             enabled: root.hasMedia
             onTriggered: root.skipTrackRequested(1)
         }
@@ -137,17 +142,17 @@ PlayerMenu {
             title: qsTr("播放速度") + " (" + root.player.speed.toFixed(1) + "×)"
             PlayerMenuItem {
                 text: qsTr("切換正常 / 上次速度")
-                shortcutLabel: "Z"
+                shortcutLabel: root.shortcutLabel("toggleSpeed")
                 onTriggered: root.player.toggleSpeed()
             }
             PlayerMenuItem {
                 text: qsTr("減速")
-                shortcutLabel: "X"
+                shortcutLabel: root.shortcutLabel("speedDown")
                 onTriggered: root.player.speed = Math.round((root.player.speed - 0.1) * 10) / 10
             }
             PlayerMenuItem {
                 text: qsTr("加速")
-                shortcutLabel: "C"
+                shortcutLabel: root.shortcutLabel("speedUp")
                 onTriggered: root.player.speed = Math.round((root.player.speed + 0.1) * 10) / 10
             }
             PlayerMenuItem {
@@ -179,6 +184,7 @@ PlayerMenu {
         }
     }
     SubtitleMenu {
+        shortcutBindings: root.shortcutBindings
         objectName: "subtitleSubmenu"
         player: root.player
         preferredLanguages: root.preferredSubtitleLanguages
@@ -193,7 +199,14 @@ PlayerMenu {
     }
     PlayerMenu {
         title: qsTr("視訊")
-        PlayerMenuItem { action: root.fullscreenAction; shortcutLabel: "Return" }
+        PlayerMenuItem {
+            objectName: "captureFrameMenuItem"
+            text: qsTr("Capture current frame")
+            shortcutLabel: root.shortcutLabel("captureFrame")
+            enabled: root.player.mediaLoaded
+            onTriggered: root.player.captureCurrentFrame()
+        }
+        PlayerMenuItem { action: root.fullscreenAction; shortcutLabel: root.shortcutLabel("fullscreen") }
         PlayerMenuItem { action: root.pinAction }
     }
     PlayerMenu {
@@ -202,7 +215,7 @@ PlayerMenu {
         PlayerMenuItem {
             objectName: "muteMenuItem"
             text: qsTr("靜音")
-            shortcutLabel: "M"
+            shortcutLabel: root.shortcutLabel("mute")
             checkable: true
             checked: root.muted
             onTriggered: root.muteRequested()
@@ -224,16 +237,16 @@ PlayerMenu {
     }
     PlayerMenu {
         title: qsTr("面板")
-        PlayerMenuItem { action: root.playlistAction }
-        PlayerMenuItem { action: root.controlsAction }
-        PlayerMenuItem { action: root.searchAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("showPlaylist"); action: root.playlistAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("controls"); action: root.controlsAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("searchPlaylist"); action: root.searchAction }
     }
     PlayerMenu {
         title: qsTr("配置/語言/其他")
-        PlayerMenuItem { action: root.preferencesAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("preferences"); action: root.preferencesAction }
         PlayerMenuItem { objectName: "associateVideosMenuItem"; action: root.associateVideosAction }
         PlayerMenuItem { action: root.pinAction }
-        PlayerMenuItem { action: root.aboutAction }
+        PlayerMenuItem { shortcutLabel: root.shortcutLabel("about"); action: root.aboutAction }
     }
     PlayerMenuSeparator {}
     PlayerMenu {
@@ -269,14 +282,14 @@ PlayerMenu {
     PlayerMenuItem {
         objectName: "fullscreenMenuItem"
         action: root.fullscreenAction
-        shortcutLabel: "Return"
+        shortcutLabel: root.shortcutLabel("fullscreen")
     }
     PlayerMenuSeparator {}
-    PlayerMenuItem { action: root.preferencesAction }
-    PlayerMenuItem { objectName: "playlistMenuItem"; action: root.playlistAction }
-    PlayerMenuItem { objectName: "controlsMenuItem"; action: root.controlsAction }
-    PlayerMenuItem { action: root.mediaInfoAction }
-    PlayerMenuItem { action: root.aboutAction }
+    PlayerMenuItem { shortcutLabel: root.shortcutLabel("preferences"); action: root.preferencesAction }
+    PlayerMenuItem { objectName: "playlistMenuItem"; shortcutLabel: root.shortcutLabel("showPlaylist"); action: root.playlistAction }
+    PlayerMenuItem { objectName: "controlsMenuItem"; shortcutLabel: root.shortcutLabel("controls"); action: root.controlsAction }
+    PlayerMenuItem { shortcutLabel: root.shortcutLabel("mediaInfo"); action: root.mediaInfoAction }
+    PlayerMenuItem { shortcutLabel: root.shortcutLabel("about"); action: root.aboutAction }
     PlayerMenuSeparator {}
-    PlayerMenuItem { action: root.exitAction }
+    PlayerMenuItem { shortcutLabel: root.shortcutLabel("exit"); action: root.exitAction }
 }

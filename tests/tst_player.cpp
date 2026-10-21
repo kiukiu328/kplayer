@@ -8,6 +8,7 @@
 #include "VideoFormats.h"
 #include "AppLanguage.h"
 #include "FullscreenCursor.h"
+#include "ShortcutBindings.h"
 #include <QDesktopServices>
 
 #include <QAbstractItemModelTester>
@@ -23,6 +24,7 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
+#include <QImageReader>
 #include <QKeyEvent>
 #include <QMimeData>
 #include <QOpenGLContext>
@@ -31,6 +33,7 @@
 #include <QQmlComponent>
 #include <QQuickWindow>
 #include <QScopedPointer>
+#include <QSet>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTemporaryDir>
@@ -52,6 +55,7 @@
 #endif
 
 #include <clocale>
+#include <algorithm>
 #include <atomic>
 #include <utility>
 
@@ -173,6 +177,100 @@ private slots:
     void init()
     {
         QSettings().clear();
+    }
+
+    void shortcutBindingsValidateAtomicallyAndPersistDefaults()
+    {
+        ShortcutBindings bindings;
+        QVariantMap defaults;
+        QSet<QString> ids;
+        for (const QVariant &value : bindings.entries()) {
+            const QVariantMap entry = value.toMap();
+            const QString id = entry.value("id").toString();
+            QVERIFY(!id.isEmpty());
+            QVERIFY(!ids.contains(id));
+            ids.insert(id);
+            QVERIFY(!entry.value("title").toString().isEmpty());
+            QVERIFY(!entry.value("category").toString().isEmpty());
+            defaults.insert(id, entry.value("defaults"));
+            QCOMPARE(bindings.sequences(id), entry.value("defaults").toStringList());
+        }
+        for (const QString &id : {QStringLiteral("openMedia"), QStringLiteral("mute"),
+                                  QStringLiteral("fullscreen"), QStringLiteral("nextTrack"),
+                                  QStringLiteral("playlistPlay"), QStringLiteral("playlistRemove")})
+            QVERIFY(ids.contains(id));
+        QVERIFY(bindings.validate(defaults).value("valid").toBool());
+        QSignalSpy changes(&bindings, &ShortcutBindings::bindingsChanged);
+        QVERIFY(bindings.save({{"mute", QStringLiteral("Ctrl+M")}}));
+        QCOMPARE(bindings.sequences("mute"), QStringList{"Ctrl+M"});
+        QCOMPARE(bindings.sequences("speedUp"), QStringList{"C"});
+        QCOMPARE(changes.count(), 1);
+        const int savedRevision = bindings.revision();
+        const QList<QVariantMap> invalidDrafts = {
+            {{"mute", QStringLiteral("Ctrl+N")}, {"speedUp", QStringLiteral("Ctrl+")}},
+            {{"mute", QStringLiteral("Ctrl+O")}},
+            {{"mute", QStringList{"Ctrl+M", "ctrl+m"}}},
+            {{"mute", QStringLiteral("Ctrl+K, Ctrl+C")}},
+            {{"mute", 42}},
+            {{"unknownAction", QStringLiteral("F2")}}
+        };
+        for (const QVariantMap &draft : invalidDrafts) {
+            const QVariantMap validation = bindings.validate(draft);
+            QVERIFY(!validation.value("valid").toBool());
+            QVERIFY(!validation.value("error").toString().isEmpty());
+            QVERIFY(!bindings.save(draft));
+            QCOMPARE(bindings.sequences("mute"), QStringList{"Ctrl+M"});
+            QCOMPARE(bindings.sequences("speedUp"), QStringList{"C"});
+            QCOMPARE(bindings.revision(), savedRevision);
+            QCOMPARE(changes.count(), 1);
+            ShortcutBindings persisted;
+            QCOMPARE(persisted.sequences("mute"), QStringList{"Ctrl+M"});
+            QCOMPARE(persisted.sequences("speedUp"), QStringList{"C"});
+        }
+        QVERIFY(bindings.save({{"mute", QStringList{}}}));
+        QVERIFY(bindings.sequences("mute").isEmpty());
+        QVERIFY(QSettings().contains("shortcuts/mute"));
+        ShortcutBindings disabled;
+        QVERIFY(disabled.sequences("mute").isEmpty());
+        QVERIFY(!disabled.matches("mute", Qt::Key_M, Qt::NoModifier));
+        QVERIFY(!disabled.matches("mute", Qt::Key_M, Qt::ControlModifier));
+        QVERIFY(disabled.save(defaults));
+        ShortcutBindings restored;
+        QCOMPARE(restored.sequences("mute"), QStringList{"M"});
+        QVERIFY(restored.matches("mute", Qt::Key_M, Qt::NoModifier));
+        QVERIFY(restored.validate({}).value("valid").toBool());
+    }
+
+    void shortcutBindingsCanonicalizeAliasesAndCheckOverlappingContexts()
+    {
+        ShortcutBindings bindings;
+        QCOMPARE(bindings.parse(" ctrl+m ; F2 "), (QStringList{"Ctrl+M", "F2"}));
+        QVERIFY(bindings.parse("  ").isEmpty());
+        QCOMPARE(bindings.fromKeyEvent(Qt::Key_M, Qt::ControlModifier), QStringLiteral("Ctrl+M"));
+        QCOMPARE(bindings.fromKeyEvent(Qt::Key_5, Qt::KeypadModifier), QStringLiteral("Num+5"));
+        QVERIFY(bindings.fromKeyEvent(Qt::Key_Control, Qt::ControlModifier).isEmpty());
+        const QStringList punctuation{"Ctrl+;", "Ctrl+\\", "F2"};
+        QCOMPARE(bindings.parse(bindings.format(punctuation)), punctuation);
+        QVERIFY(bindings.matches("fullscreen", Qt::Key_Return, Qt::NoModifier));
+        QVERIFY(bindings.matches("fullscreen", Qt::Key_Enter, Qt::NoModifier));
+        QVERIFY(bindings.matches("playlistPlay", Qt::Key_Enter, Qt::KeypadModifier));
+        QVERIFY(!bindings.validate({{"playlistPlay", QStringList{"Enter", "Num+Enter"}}})
+                     .value("valid").toBool());
+        QVERIFY(bindings.matches("resetFrame", Qt::Key_5, Qt::KeypadModifier));
+        QVERIFY(bindings.matches("resetFrame", Qt::Key_Clear, Qt::KeypadModifier));
+        QVERIFY(!bindings.matches("resetFrame", Qt::Key_5, Qt::NoModifier));
+        QVERIFY(bindings.matches("frameNarrower", Qt::Key_4, Qt::KeypadModifier));
+        QVERIFY(bindings.matches("frameNarrower", Qt::Key_Left, Qt::KeypadModifier));
+        // Playback keys are inactive while the playlist handles its own keys.
+        QVERIFY(bindings.validate({{"mute", QStringLiteral("Del")}}).value("valid").toBool());
+        // Application actions and leaving fullscreen remain available in the playlist.
+        QVERIFY(!bindings.validate({{"playlistRemove", QStringLiteral("Ctrl+F")}})
+                     .value("valid").toBool());
+        QVERIFY(!bindings.validate({{"playlistRemove", QStringLiteral("Escape")}})
+                     .value("valid").toBool());
+        QVERIFY(!bindings.validate({{"playlistMoveDown", QStringLiteral("Ctrl+Up")}})
+                     .value("valid").toBool());
+        QVERIFY(!bindings.validate({{"mute", QStringLiteral("C")}}).value("valid").toBool());
     }
 
     void savedPlaylistsPreserveQueuesAcrossRestarts()
@@ -825,7 +923,18 @@ private slots:
             };
             QCOMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("zh_TW"));
             QCOMPARE(dialog->property("pageTitles").value<QJSValue>().toVariant().toStringList(),
-                     QStringList({"一般", "播放", "字幕"}));
+                     QStringList({"一般", "播放", "字幕", "快捷鍵"}));
+            auto *shortcuts = window->findChild<ShortcutBindings *>("shortcutBindings");
+            QVERIFY(shortcuts);
+            const auto muteTitle = [shortcuts] {
+                for (const QVariant &entry : shortcuts->entries()) {
+                    const QVariantMap command = entry.toMap();
+                    if (command.value("id").toString() == "mute")
+                        return command.value("title").toString();
+                }
+                return QString{};
+            };
+            QCOMPARE(muteTitle(), QStringLiteral("靜音／取消靜音"));
             QCOMPARE(MpvErrors::description(MPV_ERROR_LOADING_FAILED), QStringLiteral("無法載入媒體"));
             QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
             QTRY_VERIFY(dialog->property("opened").toBool());
@@ -844,7 +953,8 @@ private slots:
             QTRY_COMPARE(window->property("interfaceLanguage").toString(), QStringLiteral("en"));
             QCOMPARE(dialog->property("title").toString(), QStringLiteral("Advanced settings"));
             QCOMPARE(dialog->property("pageTitles").value<QJSValue>().toVariant().toStringList(),
-                     QStringList({"General", "Playback", "Subtitles"}));
+                     QStringList({"General", "Playback", "Subtitles", "Shortcuts"}));
+            QCOMPARE(muteTitle(), QStringLiteral("Mute or unmute"));
             QCOMPARE(MpvErrors::description(MPV_ERROR_LOADING_FAILED), QStringLiteral("Could not load media"));
             QCOMPARE(MpvErrors::description(-999), QStringLiteral("Unknown player error (-999)"));
             QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
@@ -1414,6 +1524,187 @@ private slots:
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
     }
 
+    void shortcutSettingsRecordValidateCancelAndPersist()
+    {
+        QSettings().setValue("interface/language", "en");
+        QList<QQmlError> warnings;
+        {
+            QQmlApplicationEngine engine;
+            connect(&engine, &QQmlEngine::warnings, this,
+                    [&](const QList<QQmlError> &items) { warnings.append(items); });
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto item = [window](const char *name) { return findItem(window->contentItem(), name); };
+            auto *video = window->findChild<MpvVideo *>();
+            auto *bindings = window->findChild<ShortcutBindings *>("shortcutBindings");
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            QVERIFY(video && bindings && dialog);
+            video->setMuted(false);
+            QSignalSpy muteChanges(video, &MpvVideo::mutedChanged);
+            click(window, item("videoStage"));
+            QTest::keyClick(window, Qt::Key_F5);
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            click(window, item("settingsPage3"));
+            QCOMPARE(dialog->property("currentPage").toInt(), 3);
+            auto *settings = item("shortcutSettings");
+            auto *search = item("shortcutsSearchInput");
+            auto *save = item("advancedSettingsSaveButton");
+            auto *cancel = item("advancedSettingsCancelButton");
+            auto *input = item("shortcutInput_mute");
+            auto *record = item("shortcutRecord_mute");
+            auto *scroll = item("advancedSettingsScroll");
+            QVERIFY(settings && search && save && cancel && input && record && scroll);
+            auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
+            QVERIFY(flickable);
+            const auto reveal = [flickable](QQuickItem *target) {
+                const qreal top = target->mapToItem(flickable, QPointF{}).y();
+                const qreal maximum = std::max(0.0,
+                    flickable->property("contentHeight").toReal() - flickable->height());
+                const qreal centered = flickable->property("contentY").toReal() + top
+                    - std::max(0.0, (flickable->height() - target->height()) / 2);
+                flickable->setProperty("contentY", std::clamp(centered, 0.0, maximum));
+                const QRectF bounds(target->mapToItem(flickable, QPointF{}), target->size());
+                return target->isVisible() && bounds.top() >= 0 && bounds.bottom() <= flickable->height();
+            };
+            const auto setText = [settings](const QString &id, const QString &text) {
+                return QMetaObject::invokeMethod(settings, "setText",
+                        Q_ARG(QVariant, QVariant(id)), Q_ARG(QVariant, QVariant(text)));
+            };
+            QVERIFY(settings->property("shortcutsValid").toBool());
+            QVERIFY(save->isEnabled());
+            QVERIFY(search->setProperty("text", QStringLiteral("mute")));
+            QTRY_COMPARE(settings->property("matchingCount").toInt(), 1);
+            QTRY_VERIFY(reveal(record));
+            click(window, record);
+            QTRY_COMPARE(settings->property("recordingId").toString(), QStringLiteral("mute"));
+            // Recording an active player shortcut must not activate its action.
+            QTest::keyClick(window, Qt::Key_M);
+            QTRY_VERIFY(settings->property("recordingId").toString().isEmpty());
+            QVERIFY(!video->muted());
+            QCOMPARE(muteChanges.count(), 0);
+            click(window, record);
+            QTest::keyClick(window, Qt::Key_Escape);
+            QTRY_VERIFY(settings->property("recordingId").toString().isEmpty());
+            QVERIFY(dialog->property("opened").toBool());
+            click(window, record);
+            QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+            QTRY_COMPARE(input->property("text").toString(), QStringLiteral("Ctrl+M"));
+            QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
+            QVERIFY(!video->muted());
+            const QString capturePath = qEnvironmentVariable("KPLAYER_TEST_CAPTURE");
+            if (!capturePath.isEmpty()) {
+                QSignalSpy frames(window, &QQuickWindow::frameSwapped);
+                window->update();
+                QTRY_VERIFY(!frames.isEmpty());
+                QVERIFY(window->grabWindow().save(capturePath));
+            }
+            click(window, cancel);
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
+
+            QTest::keyClick(window, Qt::Key_F5);
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QCOMPARE(search->property("text").toString(), QString{});
+            QCOMPARE(input->property("text").toString(), QStringLiteral("M"));
+            QVERIFY(search->setProperty("text", QStringLiteral("mute")));
+            QTRY_VERIFY(reveal(input));
+            input->forceActiveFocus();
+            QVERIFY(input->setProperty("text", QStringLiteral("Ctrl+O")));
+            QTRY_VERIFY(!settings->property("shortcutsValid").toBool());
+            QVERIFY(!save->isEnabled());
+            auto *message = item("shortcutValidationMessage");
+            QVERIFY(message && message->isVisible());
+            QVERIFY(!message->property("text").toString().isEmpty());
+            QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
+            QVERIFY(!video->muted());
+            QVERIFY(setText("mute", "Ctrl+M"));
+            QVERIFY(setText("openMedia", "Ctrl+K; F2"));
+            QTRY_VERIFY(save->isEnabled());
+            click(window, save);
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(bindings->sequences("mute"), QStringList{"Ctrl+M"});
+            QCOMPARE(bindings->sequences("openMedia"), (QStringList{"Ctrl+K", "F2"}));
+            auto *muteMenu = window->findChild<QObject *>("muteMenuItem");
+            auto *openMenu = window->findChild<QObject *>("openMediaMenuItem");
+            QVERIFY(muteMenu && openMenu);
+            QTRY_COMPARE(muteMenu->property("shortcutLabel").toString(), bindings->label("mute"));
+            QTRY_COMPARE(openMenu->property("shortcutLabel").toString(), bindings->label("openMedia"));
+            QVERIFY(openMenu->property("shortcutLabel").toString().contains("F2"));
+            click(window, item("videoStage"));
+            QTRY_VERIFY(window->property("playbackShortcutsEnabled").toBool());
+            QTest::keyClick(window, Qt::Key_M);
+            QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+            QTRY_VERIFY(video->muted());
+            QCOMPARE(muteChanges.count(), 1);
+            QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+            QTRY_VERIFY(!video->muted());
+            QCOMPARE(muteChanges.count(), 2);
+        }
+        {
+            QQmlApplicationEngine engine;
+            connect(&engine, &QQmlEngine::warnings, this,
+                    [&](const QList<QQmlError> &items) { warnings.append(items); });
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            auto *bindings = window->findChild<ShortcutBindings *>("shortcutBindings");
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            QVERIFY(video && bindings && dialog);
+            QCOMPARE(bindings->sequences("mute"), QStringList{"Ctrl+M"});
+            QCOMPARE(bindings->sequences("openMedia"), (QStringList{"Ctrl+K", "F2"}));
+            QSignalSpy muteChanges(video, &MpvVideo::mutedChanged);
+            click(window, findItem(window->contentItem(), "videoStage"));
+            QTest::keyClick(window, Qt::Key_M);
+            QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+            QTRY_VERIFY(video->muted());
+            QCOMPARE(muteChanges.count(), 1);
+            QTest::keyClick(window, Qt::Key_F5);
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            dialog->setProperty("currentPage", 3);
+            auto *settings = findItem(window->contentItem(), "shortcutSettings");
+            QVERIFY(settings);
+            QVERIFY(QMetaObject::invokeMethod(settings, "restoreDefaults"));
+            QCOMPARE(bindings->sequences("mute"), QStringList{"Ctrl+M"});
+            QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
+            QCOMPARE(bindings->sequences("openMedia"), (QStringList{"F3", "Ctrl+O"}));
+        }
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void remappedApplicationShortcutAllowsPlaylistSearchTyping()
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *bindings = window->findChild<ShortcutBindings *>("shortcutBindings");
+        auto *dialog = window->findChild<QObject *>("mediaDialog");
+        auto *search = findItem(window->contentItem(), "playlistSearch");
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        QVERIFY(bindings && dialog && search && stage);
+        QVERIFY(bindings->save({{"openMedia", QStringLiteral("Q")}}));
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        QTRY_VERIFY(search->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_Q);
+        QTRY_COMPARE(search->property("text").toString(), QStringLiteral("q"));
+        QVERIFY(!dialog->property("visible").toBool());
+        // The same assignment remains active when the user leaves the text editor.
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_Q);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        QTRY_VERIFY(QGuiApplication::modalWindow() == nullptr);
+    }
+
     void advancedSettingsPersistAndCancel()
     {
         QSettings().clear();
@@ -1440,9 +1731,24 @@ private slots:
             auto *scroll = findItem(window->contentItem(), "advancedSettingsScroll");
             auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
             QVERIFY(flickable);
+            // Page changes settle in the next layout pass. The outgoing General
+            // page can also be scrollable, so contentHeight alone is not enough.
+            QSignalSpy layoutFrames(window, &QQuickWindow::frameSwapped);
+            window->update();
+            QTRY_VERIFY(!layoutFrames.isEmpty());
             QTRY_VERIFY(flickable->property("contentHeight").toReal() > flickable->height());
-            flickable->setProperty("contentY", std::max(0.0,
-                flickable->property("contentHeight").toReal() - flickable->height()));
+            const auto revealLanguageInput = [&] {
+                const qreal top = codes->mapToItem(flickable, QPointF{}).y();
+                const qreal maximum = std::max(0.0,
+                    flickable->property("contentHeight").toReal() - flickable->height());
+                const qreal centered = flickable->property("contentY").toReal() + top
+                    - std::max(0.0, (flickable->height() - codes->height()) / 2);
+                flickable->setProperty("contentY", std::clamp(centered, 0.0, maximum));
+                const QRectF bounds(codes->mapToItem(flickable, QPointF{}), codes->size());
+                return codes->isVisible() && bounds.top() >= 0
+                    && bounds.bottom() <= flickable->height();
+            };
+            QTRY_VERIFY(revealLanguageInput());
             click(window, codes);
             QTRY_VERIFY(codes->hasActiveFocus());
             QTest::keyClick(window, Qt::Key_X);
@@ -1510,6 +1816,178 @@ private slots:
         }
         QSettings().clear();
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void captureDirectorySettingsPersistAndCancel()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString savedPath = directory.filePath(QStringLiteral("Pictures with spaces/動畫 #1"));
+        const QString discardedPath = directory.filePath("discarded");
+        const QString defaultPath = QDir(QStandardPaths::writableLocation(
+            QStandardPaths::PicturesLocation)).filePath("KPlayer");
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            auto *folderDialog = window->findChild<QObject *>("captureFolderDialog");
+            QVERIFY(video && dialog && folderDialog);
+            QCOMPARE(video->captureDirectory(), defaultPath);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            auto *path = findItem(window->contentItem(), "captureDirectoryInput");
+            auto *browse = findItem(window->contentItem(), "captureDirectoryBrowseButton");
+            QVERIFY(path && browse);
+            QCOMPARE(path->property("text").toString(), video->captureDirectory());
+
+            // Browse initializes the picker; selection stays independent of its UI layout.
+            QVERIFY(QDir().mkpath(savedPath));
+            click(window, browse);
+            QTRY_VERIFY(folderDialog->property("visible").toBool());
+            QVERIFY(folderDialog->setProperty("selectedFolder", QUrl::fromLocalFile(savedPath)));
+            QCOMPARE(folderDialog->property("selectedFolder").toUrl(), QUrl::fromLocalFile(savedPath));
+            QVERIFY(QMetaObject::invokeMethod(folderDialog, "accept"));
+            QTRY_VERIFY(!folderDialog->property("visible").toBool());
+            QTRY_COMPARE(QDir::fromNativeSeparators(path->property("text").toString()), savedPath);
+            QVERIFY(video->captureDirectory() != savedPath);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(video->captureDirectory(), savedPath);
+            QCOMPARE(QSettings().value("capture/directory").toString(), savedPath);
+
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QCOMPARE(QDir::fromNativeSeparators(path->property("text").toString()), savedPath);
+            QVERIFY(path->setProperty("text", discardedPath));
+            QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(video->captureDirectory(), savedPath);
+            QCOMPARE(QSettings().value("capture/directory").toString(), savedPath);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            QCOMPARE(QDir::fromNativeSeparators(path->property("text").toString()), savedPath);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+        }
+        {
+            QQmlApplicationEngine engine;
+            engine.loadFromModule("KPlayer", "Main");
+            QVERIFY(!engine.rootObjects().isEmpty());
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            QVERIFY(exposeWindow(window));
+            auto *video = window->findChild<MpvVideo *>();
+            auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+            QVERIFY(video && dialog);
+            QCOMPARE(video->captureDirectory(), savedPath);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            auto *path = findItem(window->contentItem(), "captureDirectoryInput");
+            QVERIFY(path);
+            QVERIFY(path->setProperty("text", QStringLiteral("   ")));
+            QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+            QTRY_VERIFY(!dialog->property("visible").toBool());
+            QCOMPARE(video->captureDirectory(), defaultPath);
+            QCOMPARE(QSettings().value("capture/directory").toString(), defaultPath);
+        }
+    }
+
+    void currentFrameCaptureUsesShortcutAndUniqueImages()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString output = directory.filePath("missing/nested captures");
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *video = window->findChild<MpvVideo *>();
+        auto *stage = findItem(window->contentItem(), "videoStage");
+        auto *menuItem = window->findChild<QObject *>("captureFrameMenuItem");
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        QVERIFY(video && stage && menuItem && dialog);
+        video->setCaptureDirectory(output);
+        QSignalSpy captures(video, &MpvVideo::frameCaptured);
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_E, Qt::ControlModifier);
+        QTest::qWait(100);
+        QCOMPARE(captures.count(), 0);
+        QVERIFY(!QDir(output).exists());
+        QVERIFY(!menuItem->property("enabled").toBool());
+
+        video->setSource(makeVideo(directory.filePath("capture.y4m")));
+        video->play();
+        QTRY_VERIFY(video->mediaLoaded() && video->seekable());
+        video->togglePause();
+        click(window, stage);
+        QTest::keyPress(window, Qt::Key_E, Qt::ControlModifier);
+        QTRY_COMPARE(captures.count(), 1);
+        for (int repeat = 0; repeat < 3; ++repeat) {
+            QKeyEvent release(QEvent::KeyRelease, Qt::Key_E, Qt::ControlModifier,
+                              QStringLiteral("e"), true);
+            QCoreApplication::sendEvent(window, &release);
+            QKeyEvent press(QEvent::KeyPress, Qt::Key_E, Qt::ControlModifier,
+                            QStringLiteral("e"), true);
+            QCoreApplication::sendEvent(window, &press);
+        }
+        QTest::keyRelease(window, Qt::Key_E, Qt::ControlModifier);
+        QTest::qWait(100);
+        QCOMPARE(captures.count(), 1);
+        QVERIFY(QDir(output).exists());
+        const QUrl first = captures.first().first().toUrl();
+        QCOMPARE(QFileInfo(first.toLocalFile()).absolutePath(), output);
+        QCOMPARE(QImageReader::imageFormat(first.toLocalFile()), QByteArray("png"));
+        QCOMPARE(QImage(first.toLocalFile()).size(), QSize(64, 36));
+
+        // Capture remains available after scrubbing leaves the timeline focused.
+        auto *seek = findItem(window->contentItem(), "positionSlider");
+        QVERIFY(seek);
+        seek->forceActiveFocus();
+        QTRY_VERIFY(seek->hasActiveFocus());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QVERIFY(window->property("trackNavigationShortcutsEnabled").toBool());
+        QTest::keyClick(window, Qt::Key_E, Qt::ControlModifier);
+        QTRY_COMPARE(captures.count(), 2);
+        QVERIFY(captures.at(1).first().toUrl() != first);
+        QVERIFY(menuItem->property("enabled").toBool());
+        QVERIFY(QMetaObject::invokeMethod(menuItem, "triggered"));
+        QTRY_COMPARE(captures.count(), 3);
+        QCOMPARE(QDir(output).entryList({"*.png"}, QDir::Files).size(), 3);
+
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        auto *search = findItem(window->contentItem(), "playlistSearch");
+        QVERIFY(search);
+        QTRY_VERIFY(search->hasActiveFocus());
+        QVERIFY(!window->property("playbackShortcutsEnabled").toBool());
+        QTest::keyClick(window, Qt::Key_E, Qt::ControlModifier);
+        QTest::qWait(100);
+        QCOMPARE(captures.count(), 3);
+        click(window, stage);
+        QTest::keyClick(window, Qt::Key_F5);
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        auto *path = findItem(window->contentItem(), "captureDirectoryInput");
+        QVERIFY(path);
+        path->forceActiveFocus();
+        QTRY_VERIFY(path->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_E, Qt::ControlModifier);
+        QTest::qWait(100);
+        QCOMPARE(captures.count(), 3);
+        QCOMPARE(QDir(output).entryList({"*.png"}, QDir::Files).size(), 3);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+
+        // A file in the directory path must report failure without a success signal.
+        QFile blocker(directory.filePath("not-a-directory"));
+        QVERIFY(blocker.open(QIODevice::WriteOnly));
+        blocker.close();
+        video->setCaptureDirectory(blocker.fileName() + "/nested");
+        video->captureCurrentFrame();
+        QTRY_VERIFY(!video->errorString().isEmpty());
+        QCOMPARE(captures.count(), 3);
+        QVERIFY(!QFileInfo(blocker.fileName() + "/nested").exists());
     }
 
     void playerPreferencesSurviveRestart()
@@ -2854,6 +3332,55 @@ private slots:
         QCOMPARE(playlist.sortByTitle(true, 0), -1);
     }
 
+    void playlistSelectedSortPreservesUnselectedRowsAndIdentity()
+    {
+        PlaylistModel playlist;
+        QAbstractItemModelTester modelTester(&playlist,
+                QAbstractItemModelTester::FailureReportingMode::QtTest);
+        const QUrl episode12("https://example.com/episode12.wav");
+        const QUrl episode2("https://example.com/episode2.wav");
+        const QUrl betaFirst("https://first.example/beta.wav");
+        const QUrl betaSecond("https://second.example/BETA.wav");
+        const QUrl fixedZ("https://example.com/fixed-z.wav");
+        const QUrl fixedA("https://example.com/fixed-a.wav");
+        const QUrl fixedB("https://example.com/fixed-b.wav");
+        QCOMPARE(playlist.appendUrls({episode12, fixedZ, episode2, fixedA,
+                                      betaFirst, fixedB, betaSecond}), 7);
+        QSignalSpy sourceChanges(&playlist, &PlaylistModel::currentSourceChanged);
+        QSignalSpy countChanges(&playlist, &PlaylistModel::countChanged);
+        QSignalSpy indexChanges(&playlist, &PlaylistModel::currentIndexChanged);
+        QSignalSpy resets(&playlist, &QAbstractItemModel::modelReset);
+        // Normalize duplicate and unordered row inputs; equal titles retain row identity.
+        const QList<int> selected{6, 0, 4, 2, 4};
+        QCOMPARE(playlist.sortSelectedByTitle(selected, true, 6), 2);
+        const QList<QUrl> ascending{betaFirst, fixedZ, betaSecond, fixedA,
+                                    episode2, fixedB, episode12};
+        for (int row = 0; row < ascending.size(); ++row)
+            QCOMPARE(playlist.data(playlist.index(row), PlaylistModel::SourceRole).toUrl(),
+                     ascending.at(row));
+        QCOMPARE(playlist.currentIndex(), 6);
+        QCOMPARE(playlist.currentSource(), episode12);
+        QCOMPARE(indexChanges.count(), 1);
+        QCOMPARE(playlist.sortSelectedByTitle(selected, false, 2), 6);
+        const QList<QUrl> descending{episode12, fixedZ, episode2, fixedA,
+                                     betaFirst, fixedB, betaSecond};
+        for (int row = 0; row < descending.size(); ++row)
+            QCOMPARE(playlist.data(playlist.index(row), PlaylistModel::SourceRole).toUrl(),
+                     descending.at(row));
+        QCOMPARE(playlist.currentIndex(), 0);
+        QCOMPARE(playlist.currentSource(), episode12);
+        QCOMPARE(indexChanges.count(), 2);
+        QCOMPARE(resets.count(), 2);
+        QCOMPARE(playlist.sortSelectedByTitle(selected, false, 6), 6);
+        QCOMPARE(playlist.sortSelectedByTitle({}, true, 0), 0);
+        QCOMPARE(playlist.sortSelectedByTitle({0}, true, 0), 0);
+        QCOMPARE(playlist.sortSelectedByTitle({-1, 2}, true, 0), -1);
+        QCOMPARE(playlist.sortSelectedByTitle({0, 7}, true, 0), -1);
+        QCOMPARE(resets.count(), 2);
+        QCOMPARE(sourceChanges.count(), 0);
+        QCOMPARE(countChanges.count(), 0);
+    }
+
     void playlistSearchMapsRowsWithoutChangingQueue()
     {
         PlaylistModel playlist;
@@ -3376,6 +3903,77 @@ private slots:
         video->stop();
     }
 
+    void playlistSelectedSortKeepsFilteredSelectionAndPlayback()
+    {
+        QTemporaryDir directory;
+        const QUrl episode12 = makeAudio(directory.filePath("episode12.wav"));
+        const QUrl fixedZ = makeAudio(directory.filePath("fixed-z.wav"));
+        const QUrl episode2 = makeAudio(directory.filePath("episode2.wav"));
+        const QUrl fixedA = makeAudio(directory.filePath("fixed-a.wav"));
+        const QUrl episode1 = makeAudio(directory.filePath("episode1.wav"));
+        QVERIFY(!episode12.isEmpty() && !fixedZ.isEmpty() && !episode2.isEmpty()
+                && !fixedA.isEmpty() && !episode1.isEmpty());
+        QQmlApplicationEngine engine;
+        engine.setInitialProperties({{"mediaSource", episode12}});
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto item = [window](const char *name) { return findItem(window->contentItem(), name); };
+        auto *playlist = window->findChild<PlaylistModel *>();
+        auto *video = window->findChild<MpvVideo *>();
+        auto *panel = item("playlistPanel");
+        auto *list = item("trackList");
+        auto *search = item("playlistSearch");
+        QVERIFY(playlist && video && panel && list && search);
+        QCOMPARE(playlist->appendUrls({fixedZ, episode2, fixedA, episode1}), 4);
+        click(window, item("playButton"));
+        QTRY_VERIFY_WITH_TIMEOUT(video->playing() && video->seekable(), 10000);
+        QSignalSpy sourceChanges(video, &MpvVideo::sourceChanged);
+        QVERIFY(search->setProperty("text", QStringLiteral("episode")));
+        QTRY_COMPARE(list->property("count").toInt(), 3);
+        QTRY_VERIFY(item("track2"));
+        click(window, item("track0"));
+        auto *ascendingItem = window->findChild<QQuickItem *>("sortSelectedAscendingMenuItem");
+        auto *descendingItem = window->findChild<QQuickItem *>("sortSelectedDescendingMenuItem");
+        QVERIFY(ascendingItem && descendingItem);
+        QVERIFY(!ascendingItem->isEnabled());
+        QVERIFY(!descendingItem->isEnabled());
+        const auto center = [](QQuickItem *row) {
+            return row->mapToScene(QPointF(row->width() / 2, row->height() / 2)).toPoint();
+        };
+        QTest::mouseClick(window, Qt::LeftButton, Qt::ControlModifier, center(item("track2")));
+        QCOMPARE(panel->property("selectedRows").value<QJSValue>().toVariant().toList(),
+                 QVariantList({0, 4}));
+        QVERIFY(ascendingItem->isEnabled());
+        QVERIFY(descendingItem->isEnabled());
+        click(window, item("sortPlaylistButton"));
+        QTRY_VERIFY(ascendingItem->isVisible());
+        click(window, ascendingItem);
+        QTRY_COMPARE(playlist->currentIndex(), 4);
+        QCOMPARE(playlist->currentSource(), episode12);
+        QCOMPARE(playlist->data(playlist->index(0), PlaylistModel::SourceRole).toUrl(), episode1);
+        QCOMPARE(playlist->data(playlist->index(1), PlaylistModel::SourceRole).toUrl(), fixedZ);
+        QCOMPARE(playlist->data(playlist->index(2), PlaylistModel::SourceRole).toUrl(), episode2);
+        QCOMPARE(playlist->data(playlist->index(3), PlaylistModel::SourceRole).toUrl(), fixedA);
+        QCOMPARE(panel->property("selectedRows").value<QJSValue>().toVariant().toList(),
+                 QVariantList({0, 4}));
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), 0);
+        QCOMPARE(list->property("currentIndex").toInt(), 0);
+        QCOMPARE(list->property("count").toInt(), 3);
+        click(window, item("sortPlaylistButton"));
+        QTRY_VERIFY(descendingItem->isVisible());
+        click(window, descendingItem);
+        QTRY_COMPARE(playlist->currentIndex(), 0);
+        QCOMPARE(panel->property("selectedSourceIndex").toInt(), 4);
+        QCOMPARE(panel->property("selectedRows").value<QJSValue>().toVariant().toList(),
+                 QVariantList({0, 4}));
+        QCOMPARE(video->source(), episode12);
+        QVERIFY(video->playing());
+        QCOMPARE(sourceChanges.count(), 0);
+        video->stop();
+    }
+
     void playlistDividerCursorWorksOutsideFullscreen()
     {
         QQmlApplicationEngine engine;
@@ -3732,6 +4330,28 @@ private slots:
         QTRY_VERIFY(!video->playing());
         QTRY_VERIFY(previewBrightness(window, video) > 160);
         click(window, stage);
+        // Inspect the rendered picture, not just the exposed scale properties.
+        auto pictureSize = [window, video]() {
+            const QImage image = window->grabWindow();
+            if (image.isNull())
+                return QSize{};
+            const qreal sx = qreal(image.width()) / window->width();
+            const qreal sy = qreal(image.height()) / window->height();
+            const QPointF origin = video->mapToScene({0, 0});
+            const QRect area(qRound(origin.x() * sx), qRound(origin.y() * sy),
+                             qRound(video->width() * sx), qRound(video->height() * sy));
+            if (!image.rect().contains(area))
+                return QSize{};
+            int width = 0, height = 0;
+            for (int x = area.left(); x <= area.right(); ++x)
+                width += qGray(image.pixel(x, area.center().y())) > 140;
+            for (int y = area.top(); y <= area.bottom(); ++y)
+                height += qGray(image.pixel(area.center().x(), y)) > 140;
+            return QSize(width, height);
+        };
+        const QSize originalPicture = pictureSize();
+        QVERIFY(originalPicture.width() > 100 && originalPicture.height() > 100);
+
         const QSize windowSize = window->size();
         auto press = [window](Qt::Key key) {
             QTest::keyClick(window, key, Qt::KeypadModifier);
@@ -3759,27 +4379,8 @@ private slots:
         QTRY_COMPARE(video->frameWidthScale(), 1.0);
         QTRY_COMPARE(video->frameHeightScale(), 1.0);
 
-        // Inspect the rendered picture, not just the exposed scale properties.
-        auto pictureSize = [window, video]() {
-            const QImage image = window->grabWindow();
-            if (image.isNull())
-                return QSize{};
-            const qreal sx = qreal(image.width()) / window->width();
-            const qreal sy = qreal(image.height()) / window->height();
-            const QPointF origin = video->mapToScene({0, 0});
-            const QRect area(qRound(origin.x() * sx), qRound(origin.y() * sy),
-                             qRound(video->width() * sx), qRound(video->height() * sy));
-            if (!image.rect().contains(area))
-                return QSize{};
-            int width = 0, height = 0;
-            for (int x = area.left(); x <= area.right(); ++x)
-                width += qGray(image.pixel(x, area.center().y())) > 140;
-            for (int y = area.top(); y <= area.bottom(); ++y)
-                height += qGray(image.pixel(area.center().x(), y)) > 140;
-            return QSize(width, height);
-        };
-        const QSize originalPicture = pictureSize();
-        QVERIFY(originalPicture.width() > 100 && originalPicture.height() > 100);
+        // The scale properties change before mpv renders the reset frame.
+        QTRY_COMPARE(pictureSize(), originalPicture);
         for (int i = 0; i < 10; ++i)
             press(Qt::Key_4);
         QTRY_COMPARE(video->frameWidthScale(), 0.8);

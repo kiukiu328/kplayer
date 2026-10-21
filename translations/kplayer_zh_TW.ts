@@ -3,6 +3,26 @@
     <context>
         <name>AdvancedSettings</name>
         <message>
+            <source>Frame capture</source>
+            <translation>擷取畫面</translation>
+        </message>
+        <message>
+            <source>Save folder</source>
+            <translation>儲存資料夾</translation>
+        </message>
+        <message>
+            <source>Browse…</source>
+            <translation>瀏覽…</translation>
+        </message>
+        <message>
+            <source>Default: Pictures/KPlayer. Leave blank to restore the default folder.</source>
+            <translation>預設為系統圖片資料夾中的 KPlayer 資料夾。留空即可恢復預設資料夾。</translation>
+        </message>
+        <message>
+            <source>Choose frame capture folder</source>
+            <translation>選擇畫面擷取資料夾</translation>
+        </message>
+        <message>
             <source>時間軸預覽</source>
             <translation>時間軸預覽</translation>
         </message>
@@ -183,9 +203,17 @@
             <source>First matching rule wins. Names match track titles or subtitle filenames, ignoring case. If none match, use the preferences below.</source>
             <translation>優先使用第一條相符的規則。名稱比對字幕軌標題或字幕檔名，不區分大小寫。若沒有符合的規則，則使用下方偏好設定。</translation>
         </message>
+        <message>
+            <source>Shortcuts</source>
+            <translation>快捷鍵</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
+        <message>
+            <source>Capture current frame</source>
+            <translation>擷取目前畫面</translation>
+        </message>
         <message>
             <location filename="../qml/AppMenu.qml" line="53" />
             <source>開啟</source>
@@ -677,6 +705,18 @@
     <context>
         <name>MpvVideo</name>
         <message>
+            <source>Cannot create capture folder: %1</source>
+            <translation>無法建立畫面擷取資料夾：%1</translation>
+        </message>
+        <message>
+            <source>Cannot write to capture folder: %1</source>
+            <translation>無法寫入畫面擷取資料夾：%1</translation>
+        </message>
+        <message>
+            <source>Cannot capture frame to %1: %2</source>
+            <translation>無法將擷取畫面儲存至 %1：%2</translation>
+        </message>
+        <message>
             <location filename="../src/playback/MpvVideo.cpp" line="485" />
             <source>Subtitle %1</source>
             <translation>字幕 %1</translation>
@@ -1030,6 +1070,14 @@ Double click to play</source>
         <message>
             <source>Cancel</source>
             <translation>取消</translation>
+        </message>
+        <message>
+            <source>Selected titles: A–Z</source>
+            <translation>所選項目標題：A–Z</translation>
+        </message>
+        <message>
+            <source>Selected titles: Z–A</source>
+            <translation>所選項目標題：Z–A</translation>
         </message>
     </context>
     <context>
@@ -1770,6 +1818,348 @@ Double click to play</source>
         <message>
             <source>Names match titles or filenames, ignoring case. Language aliases such as en and eng match; scripts such as zh-hans and zh-hant stay separate. Blank rules are skipped.</source>
             <translation>名稱比對字幕軌標題或檔名，不區分大小寫。en 與 eng 等語言別名視為相同；zh-hans（簡體）與 zh-hant（繁體）等文字系統分開比對。空白規則會略過。</translation>
+        </message>
+        <message>
+            <source>Drag to reorder. %1 / %2 also moves this rule.</source>
+            <translation>拖曳以調整順序，也可按 %1／%2 移動此規則。</translation>
+        </message>
+    </context>
+    <context>
+        <name>ShortcutSettings</name>
+        <message>
+            <source>Keyboard shortcuts</source>
+            <translation>鍵盤快捷鍵</translation>
+        </message>
+        <message>
+            <source>Edit shortcuts below, or record a key combination. Separate alternatives with a semicolon, for example Ctrl+O; F2. Clear an action to leave it unassigned. Changes take effect when you save.</source>
+            <translation>在下方編輯快捷鍵，或錄製按鍵組合。多組快捷鍵請以分號分隔，例如 Ctrl+O; F2。清除操作的快捷鍵即可取消指派。變更會在儲存後生效。</translation>
+        </message>
+        <message>
+            <source>Search actions, categories, or shortcuts</source>
+            <translation>搜尋操作、類別或快捷鍵</translation>
+        </message>
+        <message>
+            <source>Search keyboard shortcuts</source>
+            <translation>搜尋鍵盤快捷鍵</translation>
+        </message>
+        <message>
+            <source>Restore all defaults</source>
+            <translation>全部還原預設值</translation>
+        </message>
+        <message>
+            <source>Restore all keyboard shortcuts to defaults</source>
+            <translation>將所有鍵盤快捷鍵還原為預設值</translation>
+        </message>
+        <message>
+            <source>%1 of %2 actions</source>
+            <translation>顯示 %1／%2 個操作</translation>
+        </message>
+        <message>
+            <source>Correct the shortcut assignments before saving.</source>
+            <translation>請先修正快捷鍵指派，再儲存。</translation>
+        </message>
+        <message>
+            <source>No matching actions</source>
+            <translation>沒有符合的操作</translation>
+        </message>
+        <message>
+            <source>Unassigned</source>
+            <translation>未指派</translation>
+        </message>
+        <message>
+            <source>Shortcut for %1</source>
+            <translation>%1的快捷鍵</translation>
+        </message>
+        <message>
+            <source>Press keys…</source>
+            <translation>請按下按鍵…</translation>
+        </message>
+        <message>
+            <source>Record</source>
+            <translation>錄製</translation>
+        </message>
+        <message>
+            <source>Record shortcut for %1</source>
+            <translation>錄製%1的快捷鍵</translation>
+        </message>
+        <message>
+            <source>Press a key combination to replace this action's shortcuts. Escape cancels recording.</source>
+            <translation>按下按鍵組合以取代此操作的快捷鍵。按 Esc 取消錄製。</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>清除</translation>
+        </message>
+        <message>
+            <source>Clear shortcut for %1</source>
+            <translation>清除%1的快捷鍵</translation>
+        </message>
+        <message>
+            <source>Reset</source>
+            <translation>還原</translation>
+        </message>
+        <message>
+            <source>Restore default shortcut for %1</source>
+            <translation>還原%1的預設快捷鍵</translation>
+        </message>
+        <message>
+            <source>Press a key combination. This replaces the current assignment. Esc cancels.</source>
+            <translation>請按下按鍵組合以取代目前的指派。按 Esc 取消。</translation>
+        </message>
+    </context>
+    <context>
+        <name>ShortcutBindings</name>
+        <message>
+            <source>Open media</source>
+            <translation>開啟媒體</translation>
+        </message>
+        <message>
+            <source>Application</source>
+            <translation>應用程式</translation>
+        </message>
+        <message>
+            <source>Search playlist</source>
+            <translation>搜尋播放清單</translation>
+        </message>
+        <message>
+            <source>Show or hide playlist</source>
+            <translation>顯示／隱藏播放清單</translation>
+        </message>
+        <message>
+            <source>Close media</source>
+            <translation>關閉媒體</translation>
+        </message>
+        <message>
+            <source>Advanced settings</source>
+            <translation>進階設定</translation>
+        </message>
+        <message>
+            <source>Playback controls</source>
+            <translation>播放控制面板</translation>
+        </message>
+        <message>
+            <source>Media information</source>
+            <translation>媒體資訊</translation>
+        </message>
+        <message>
+            <source>About KPlayer</source>
+            <translation>關於 KPlayer</translation>
+        </message>
+        <message>
+            <source>Exit application</source>
+            <translation>結束應用程式</translation>
+        </message>
+        <message>
+            <source>Toggle fullscreen</source>
+            <translation>切換全螢幕</translation>
+        </message>
+        <message>
+            <source>Video</source>
+            <translation>視訊</translation>
+        </message>
+        <message>
+            <source>Leave fullscreen</source>
+            <translation>離開全螢幕</translation>
+        </message>
+        <message>
+            <source>Play or pause</source>
+            <translation>播放／暫停</translation>
+        </message>
+        <message>
+            <source>Playback</source>
+            <translation>播放</translation>
+        </message>
+        <message>
+            <source>Mute or unmute</source>
+            <translation>靜音／取消靜音</translation>
+        </message>
+        <message>
+            <source>Audio</source>
+            <translation>音訊</translation>
+        </message>
+        <message>
+            <source>Capture frame</source>
+            <translation>擷取畫面</translation>
+        </message>
+        <message>
+            <source>Seek backward 10 seconds</source>
+            <translation>向後跳轉 10 秒</translation>
+        </message>
+        <message>
+            <source>Seek forward 10 seconds</source>
+            <translation>向前跳轉 10 秒</translation>
+        </message>
+        <message>
+            <source>Increase volume</source>
+            <translation>提高音量</translation>
+        </message>
+        <message>
+            <source>Decrease volume</source>
+            <translation>降低音量</translation>
+        </message>
+        <message>
+            <source>Toggle playback speed</source>
+            <translation>切換播放速度</translation>
+        </message>
+        <message>
+            <source>Reset video frame</source>
+            <translation>重設視訊畫面大小</translation>
+        </message>
+        <message>
+            <source>Make video narrower</source>
+            <translation>縮窄視訊畫面</translation>
+        </message>
+        <message>
+            <source>Make video wider</source>
+            <translation>加寬視訊畫面</translation>
+        </message>
+        <message>
+            <source>Make video taller</source>
+            <translation>增加視訊畫面高度</translation>
+        </message>
+        <message>
+            <source>Make video shorter</source>
+            <translation>縮減視訊畫面高度</translation>
+        </message>
+        <message>
+            <source>Make video larger</source>
+            <translation>放大視訊畫面</translation>
+        </message>
+        <message>
+            <source>Make video smaller</source>
+            <translation>縮小視訊畫面</translation>
+        </message>
+        <message>
+            <source>Decrease playback speed</source>
+            <translation>降低播放速度</translation>
+        </message>
+        <message>
+            <source>Increase playback speed</source>
+            <translation>提高播放速度</translation>
+        </message>
+        <message>
+            <source>Previous track</source>
+            <translation>上一個檔案</translation>
+        </message>
+        <message>
+            <source>Next track</source>
+            <translation>下一個檔案</translation>
+        </message>
+        <message>
+            <source>Show or hide subtitles</source>
+            <translation>顯示／隱藏字幕</translation>
+        </message>
+        <message>
+            <source>Subtitles</source>
+            <translation>字幕</translation>
+        </message>
+        <message>
+            <source>Next subtitle track</source>
+            <translation>下一個字幕軌</translation>
+        </message>
+        <message>
+            <source>Open subtitle file</source>
+            <translation>開啟字幕檔案</translation>
+        </message>
+        <message>
+            <source>Subtitle menu</source>
+            <translation>字幕選單</translation>
+        </message>
+        <message>
+            <source>Seek to start</source>
+            <translation>跳至開頭</translation>
+        </message>
+        <message>
+            <source>Seek to middle</source>
+            <translation>跳至中間</translation>
+        </message>
+        <message>
+            <source>Seek near end</source>
+            <translation>跳至接近結尾</translation>
+        </message>
+        <message>
+            <source>Seek backward 30 seconds</source>
+            <translation>向後跳轉 30 秒</translation>
+        </message>
+        <message>
+            <source>Seek forward 30 seconds</source>
+            <translation>向前跳轉 30 秒</translation>
+        </message>
+        <message>
+            <source>Seek backward 60 seconds</source>
+            <translation>向後跳轉 60 秒</translation>
+        </message>
+        <message>
+            <source>Seek forward 60 seconds</source>
+            <translation>向前跳轉 60 秒</translation>
+        </message>
+        <message>
+            <source>Previous frame</source>
+            <translation>上一個影格</translation>
+        </message>
+        <message>
+            <source>Next frame</source>
+            <translation>下一個影格</translation>
+        </message>
+        <message>
+            <source>Play selected item</source>
+            <translation>播放所選項目</translation>
+        </message>
+        <message>
+            <source>Playlist</source>
+            <translation>播放清單</translation>
+        </message>
+        <message>
+            <source>Remove selected items</source>
+            <translation>移除所選項目</translation>
+        </message>
+        <message>
+            <source>Select all items</source>
+            <translation>選取所有項目</translation>
+        </message>
+        <message>
+            <source>Move selected items up</source>
+            <translation>上移所選項目</translation>
+        </message>
+        <message>
+            <source>Move selected items down</source>
+            <translation>下移所選項目</translation>
+        </message>
+        <message>
+            <source>Move subtitle rule up</source>
+            <translation>上移字幕規則</translation>
+        </message>
+        <message>
+            <source>Subtitle rule editor</source>
+            <translation>字幕規則編輯器</translation>
+        </message>
+        <message>
+            <source>Move subtitle rule down</source>
+            <translation>下移字幕規則</translation>
+        </message>
+        <message>
+            <source>Unknown shortcut command: %1</source>
+            <translation>未知的快捷鍵指令：%1</translation>
+        </message>
+        <message>
+            <source>Shortcuts for %1 must be text.</source>
+            <translation>%1的快捷鍵必須是文字。</translation>
+        </message>
+        <message>
+            <source>Shortcuts for %1 must be a list of keys.</source>
+            <translation>%1的快捷鍵必須是按鍵清單。</translation>
+        </message>
+        <message>
+            <source>Invalid shortcut '%1' for %2. Use a single key combination.</source>
+            <translation>%2的快捷鍵「%1」無效。請使用單一按鍵組合。</translation>
+        </message>
+        <message>
+            <source>Shortcut %1 is listed more than once for %2.</source>
+            <translation>%2的快捷鍵 %1 重複列出。</translation>
+        </message>
+        <message>
+            <source>Shortcut %1 is used by both %2 and %3.</source>
+            <translation>快捷鍵 %1 同時指派給%2與%3。</translation>
         </message>
     </context>
 </TS>

@@ -4,6 +4,7 @@ import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
+    required property var shortcutBindings
     objectName: "playlistPanel"
     required property PlaylistModel playlistModel
     required property PlaylistCollection playlistCollection
@@ -160,6 +161,20 @@ Rectangle {
         const selected = playlistModel.sortByTitle(ascending, selectedSourceIndex)
         editingQueue = false
         selectSource(selected)
+    }
+
+    function sortSelectedTracks(ascending: bool) {
+        if (selectedRows.length < 2)
+            return
+        const rows = selectedRows.slice()
+        editingQueue = true
+        const selected = playlistModel.sortSelectedByTitle(rows, ascending, selectedSourceIndex)
+        editingQueue = false
+        selectedRows = rows
+        trackList.currentIndex = filteredTracks.filteredIndex(selected)
+        selectionAnchor = trackList.currentIndex
+        if (trackList.currentIndex >= 0)
+            trackList.positionViewAtIndex(trackList.currentIndex, ListView.Contain)
     }
 
     function editPlaylistName(create: bool, saveCurrent: bool) {
@@ -369,34 +384,30 @@ Rectangle {
         }
         activeFocusOnTab: true
         interactive: !root.draggingTracks
-        Keys.onReturnPressed: root.trackRequested(root.selectedSourceIndex)
-        Keys.onEnterPressed: root.trackRequested(root.selectedSourceIndex)
-        Keys.onSpacePressed: root.trackRequested(root.selectedSourceIndex)
-        Keys.onDeletePressed: root.removeSelected()
         Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
-                if (!(event.modifiers & Qt.ControlModifier)) {
-                    const next = Math.max(0, Math.min(trackList.count - 1,
-                        trackList.currentIndex + (event.key === Qt.Key_Up ? -1 : 1)))
-                    root.selectRow(next, event.modifiers)
-                    trackList.positionViewAtIndex(next, ListView.Contain)
-                    event.accepted = true
-                    return
-                }
-            }
-            if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+            const matches = command => root.shortcutBindings.matches(command, event.key, event.modifiers)
+            if (matches("playlistPlay")) {
+                root.trackRequested(root.selectedSourceIndex)
+            } else if (matches("playlistRemove")) {
+                root.removeSelected()
+            } else if (matches("playlistSelectAll")) {
                 let rows = []
                 for (let i = 0; i < trackList.count; ++i)
                     rows.push(filteredTracks.sourceIndex(i))
                 root.selectedRows = rows
-                event.accepted = true
+            } else if (matches("playlistMoveUp") || matches("playlistMoveDown")) {
+                root.moveSelected(root.selectedSourceIndex + (matches("playlistMoveUp") ? -1 : 1))
+            } else if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)
+                       && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+                const next = Math.max(0, Math.min(trackList.count - 1,
+                    trackList.currentIndex + (event.key === Qt.Key_Up ? -1 : 1)))
+                root.selectRow(next, event.modifiers)
+                trackList.positionViewAtIndex(next, ListView.Contain)
+            } else {
+                event.accepted = false
+                return
             }
-            if (event.modifiers & Qt.ControlModifier) {
-                if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
-                    root.moveSelected(root.selectedSourceIndex + (event.key === Qt.Key_Up ? -1 : 1))
-                    event.accepted = true
-                }
-            }
+            event.accepted = true
         }
         Accessible.role: Accessible.List
         Accessible.name: qsTr("Playlist items")
@@ -922,5 +933,18 @@ Rectangle {
         }
         MenuItem { text: qsTr("Title: A–Z"); onTriggered: root.sortTracks(true) }
         MenuItem { text: qsTr("Title: Z–A"); onTriggered: root.sortTracks(false) }
+        MenuSeparator {}
+        MenuItem {
+            objectName: "sortSelectedAscendingMenuItem"
+            text: qsTr("Selected titles: A–Z")
+            enabled: root.selectedRows.length > 1
+            onTriggered: root.sortSelectedTracks(true)
+        }
+        MenuItem {
+            objectName: "sortSelectedDescendingMenuItem"
+            text: qsTr("Selected titles: Z–A")
+            enabled: root.selectedRows.length > 1
+            onTriggered: root.sortSelectedTracks(false)
+        }
     }
 }

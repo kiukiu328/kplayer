@@ -44,6 +44,7 @@ Rectangle {
     property alias subtitleTracks: video.subtitleTracks
     property alias subtitleTrack: video.subtitleTrack
     property alias mediaLoaded: video.mediaLoaded
+    property alias captureDirectory: video.captureDirectory
     property bool hintsReady: false
     Component.onCompleted: hintsReady = true
     function showHint(message: string) {
@@ -64,6 +65,9 @@ Rectangle {
     function setLoopPoint(end: bool, seconds: real) { video.setLoopPoint(end, seconds) }
     function clearLoop() { video.clearLoop() }
     function captureFrame(file: url) { video.captureFrame(file) }
+    function captureCurrentFrame() { video.captureCurrentFrame() }
+    function capturePathFromUrl(folder: url): string { return video.capturePathFromUrl(folder) }
+    function capturePathToUrl(directory: string): url { return video.capturePathToUrl(directory) }
     signal moveRequested()
     signal fullscreenRequested()
     signal playPauseRequested()
@@ -88,7 +92,7 @@ Rectangle {
         anchors.fill: parent
         onEndOfFile: root.endOfFile()
         onSeekCompleted: (seconds) => root.showHint(root.formatTime(seconds) + " / " + root.formatTime(video.duration))
-        onFrameCaptured: (file) => root.showHint(qsTr("Frame saved: %1").arg(file.toString()))
+        onFrameCaptured: (file) => root.showHint(qsTr("Frame saved: %1").arg(video.capturePathFromUrl(file)))
         onSpeedChanged: root.showHint(speed.toFixed(1) + "x")
         onAspectRatioChanged: root.showHint(aspectRatio === "no"
             ? qsTr("Original aspect ratio") : qsTr("Aspect ratio: %1").arg(aspectRatio))

@@ -31,8 +31,8 @@ native Windows build, runtime deployment, and Windows file associations.
 - **Timeline previews:** hover or drag to preview a frame without interrupting
   the current playback.
 - **Playlists and favorites:** drag and drop files or folders, search and reorder
-  the queue, save the current queue as a named playlist, and save favorite files
-  or URLs.
+  the queue, sort the full queue or only selected tracks, save the current queue
+  as a named playlist, and save favorite files or URLs.
 - **Audio and video adjustments:** equalizer presets, picture controls, aspect
   ratios, and PNG frame capture.
 - **Desktop interface:** fullscreen, always on top, a resizable playlist, and
@@ -71,6 +71,17 @@ available after restarting KPlayer.
 The default interface language is Traditional Chinese. To switch to English,
 press `F5`, choose **General > Interface language**, and save. The change applies
 immediately and is remembered for the next launch.
+
+Open **Advanced Settings > Shortcuts** (`F5` by default) to view, search, and edit
+application, playback, playlist, and subtitle rule shortcuts. Type key names or
+use **Record**; separate alternative bindings with semicolons. Conflicting
+assignments must be corrected before saving. **Clear** disables a command's
+shortcut, and **Reset** restores its defaults. Changes apply on **Save** and
+remain available after restarting.
+
+To sort part of a playlist, select tracks with Ctrl-click or Shift-click, open
+the playlist's **Sort** menu, and choose **Selected titles: A–Z** or
+**Selected titles: Z–A**. Unselected tracks keep their positions.
 
 ## Build and run
 
@@ -231,6 +242,7 @@ playlist selections keep their own keyboard behavior.
 | `X` / `C` | Decrease / increase playback speed by 0.1× |
 | `Z` | Switch between normal speed and the last adjusted speed |
 | `D` / `F` | Previous / next frame, pausing playback |
+| `Ctrl+E` | Capture the current frame as a PNG image |
 | `L` | Open subtitle selection |
 | `Alt+O` | Load external subtitles |
 | `Alt+H` | Show or hide subtitles |
@@ -249,6 +261,11 @@ playlist selections keep their own keyboard behavior.
 - Left-click Previous/Next to seek 10 seconds; right-click to change playlist items.
 - Use the bottom settings button to open the floating **Control Panel** for audio,
   video, subtitle, and playback adjustments.
+
+Frame captures save to **KPlayer** inside your system Pictures folder. KPlayer
+creates the folder when needed. Change the destination in **Advanced Settings →
+General → Frame capture**; the saved folder is restored on startup. Leave the
+folder field blank to restore the default destination.
 
 In **Advanced Settings → Subtitles**, enter a preferred subtitle track name
 (an embedded track title or an external subtitle filename). Names match exactly,
@@ -275,7 +292,7 @@ KPlayer automatically stores these locally using Qt settings:
 | Subtitles | Preferred track name, number and languages, visibility, font, size, position, alignment, ASS style override |
 | Audio and video | Equalizer bands, preamp and enable state; aspect ratio, color adjustments, soften/sharpen/deblock filters |
 | Window | Normal size, maximized state, always on top, playlist width and normal playlist/control visibility |
-| Library and interface | Playlists and selected items, favorites, interface language |
+| Library and interface | Playlists and selected items, favorites, interface language, frame capture folder |
 
 Closing in fullscreen preserves the normal window layout; the next launch opens
 windowed or maximized. New windows start at 1× speed; press `Z` to restore the

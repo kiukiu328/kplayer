@@ -58,6 +58,7 @@ class MpvVideo : public QQuickFramebufferObject
     Q_PROPERTY(QVariantList subtitleTracks READ subtitleTracks NOTIFY subtitleTracksChanged)
     Q_PROPERTY(int subtitleTrack READ subtitleTrack WRITE setSubtitleTrack NOTIFY subtitleTrackChanged)
     Q_PROPERTY(bool mediaLoaded READ mediaLoaded NOTIFY mediaLoadedChanged)
+    Q_PROPERTY(QString captureDirectory READ captureDirectory WRITE setCaptureDirectory NOTIFY captureDirectoryChanged)
 
 public:
     explicit MpvVideo(QQuickItem *parent = nullptr);
@@ -134,6 +135,11 @@ public:
     double loopB() const { return m_loopB; }
     Q_INVOKABLE void setLoopPoint(bool end, double seconds);
     Q_INVOKABLE void clearLoop();
+    QString captureDirectory() const { return m_captureDirectory; }
+    void setCaptureDirectory(const QString &directory);
+    Q_INVOKABLE QString capturePathFromUrl(const QUrl &folder) const;
+    Q_INVOKABLE QUrl capturePathToUrl(const QString &directory) const;
+    Q_INVOKABLE void captureCurrentFrame();
     Q_INVOKABLE void captureFrame(const QUrl &file);
     Q_INVOKABLE void resetVideoAdjustments();
     Q_INVOKABLE void toggleSpeed();
@@ -181,6 +187,7 @@ signals:
     void subtitleBottomInsetChanged();
     void seekCompleted(double seconds);
     void loopPointsChanged();
+    void captureDirectoryChanged();
     void frameCaptured(const QUrl &file);
     void defaultSubtitleLanguageChanged();
     void subtitlesVisibleChanged();
@@ -258,6 +265,7 @@ private:
     double m_subtitleDelay = 0;
     double m_loopA = -1;
     double m_loopB = -1;
+    QString m_captureDirectory;
     QUrl m_captureFile;
     bool m_persistent = false;
     bool m_restoringPreferences = false;

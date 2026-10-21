@@ -50,6 +50,7 @@ set(KPLAYER_QML_FILES
     qml/SubtitleMenu.qml
     qml/AdvancedSettings.qml
     qml/SubtitleSettings.qml
+    qml/ShortcutSettings.qml
     qml/SubtitleRules.js
     qml/ControlPanel.qml
     qml/VideoAdjustments.qml
@@ -89,6 +90,8 @@ set(KPLAYER_SOURCES
     src/integration/WindowResizeCursor.cpp
     src/integration/AppLanguage.h
     src/integration/AppLanguage.cpp
+    src/integration/ShortcutBindings.h
+    src/integration/ShortcutBindings.cpp
     src/playback/MpvVideo.h
     src/playback/MpvVideo.cpp
     src/playback/MpvErrors.h

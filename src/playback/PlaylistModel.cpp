@@ -216,15 +216,36 @@ QList<int> PlaylistModel::moveTracks(const QList<int> &rows, int destination)
 
 int PlaylistModel::sortByTitle(bool ascending, int selectedIndex)
 {
+    QList<int> rows(count());
+    std::iota(rows.begin(), rows.end(), 0);
+    return sortRowsByTitle(rows, ascending, selectedIndex);
+}
+
+int PlaylistModel::sortSelectedByTitle(const QList<int> &rows, bool ascending, int selectedIndex)
+{
+    QList<int> selected = rows;
+    std::sort(selected.begin(), selected.end());
+    selected.erase(std::unique(selected.begin(), selected.end()), selected.end());
+    if (!selected.isEmpty() && (selected.first() < 0 || selected.last() >= count()))
+        return -1;
+    return sortRowsByTitle(selected, ascending, selectedIndex);
+}
+
+int PlaylistModel::sortRowsByTitle(const QList<int> &rows, bool ascending, int selectedIndex)
+{
     QList<int> order(count());
     std::iota(order.begin(), order.end(), 0);
+    QList<int> sortedRows = rows;
     QCollator collator(QLocale(QLocale::English, QLocale::UnitedStates));
     collator.setCaseSensitivity(Qt::CaseInsensitive);
     collator.setNumericMode(true);
-    std::stable_sort(order.begin(), order.end(), [&](int left, int right) {
+    std::stable_sort(sortedRows.begin(), sortedRows.end(), [&](int left, int right) {
         const int comparison = collator.compare(m_tracks.at(left).title, m_tracks.at(right).title);
         return ascending ? comparison < 0 : comparison > 0;
     });
+    // Selected tracks trade places only within their original row slots.
+    for (int i = 0; i < rows.size(); ++i)
+        order[rows.at(i)] = sortedRows.at(i);
     const int newSelection = static_cast<int>(order.indexOf(selectedIndex));
     if (std::is_sorted(order.begin(), order.end()))
         return newSelection;
