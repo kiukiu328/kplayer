@@ -1552,22 +1552,13 @@ private slots:
             auto *search = item("shortcutsSearchInput");
             auto *save = item("advancedSettingsSaveButton");
             auto *cancel = item("advancedSettingsCancelButton");
+            QVERIFY(settings && search && save && cancel);
+            QVERIFY(search->setProperty("text", QStringLiteral("mute")));
+            QTRY_COMPARE(settings->property("selectedId").toString(), QStringLiteral("mute"));
             auto *input = item("shortcutInput_mute");
             auto *record = item("shortcutRecord_mute");
-            auto *scroll = item("advancedSettingsScroll");
-            QVERIFY(settings && search && save && cancel && input && record && scroll);
-            auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
-            QVERIFY(flickable);
-            const auto reveal = [flickable](QQuickItem *target) {
-                const qreal top = target->mapToItem(flickable, QPointF{}).y();
-                const qreal maximum = std::max(0.0,
-                    flickable->property("contentHeight").toReal() - flickable->height());
-                const qreal centered = flickable->property("contentY").toReal() + top
-                    - std::max(0.0, (flickable->height() - target->height()) / 2);
-                flickable->setProperty("contentY", std::clamp(centered, 0.0, maximum));
-                const QRectF bounds(target->mapToItem(flickable, QPointF{}), target->size());
-                return target->isVisible() && bounds.top() >= 0 && bounds.bottom() <= flickable->height();
-            };
+            QVERIFY(input && record);
+            const auto reveal = [](QQuickItem *target) { return target->isVisible(); };
             const auto setText = [settings](const QString &id, const QString &text) {
                 return QMetaObject::invokeMethod(settings, "setText",
                         Q_ARG(QVariant, QVariant(id)), Q_ARG(QVariant, QVariant(text)));
@@ -1673,6 +1664,162 @@ private slots:
             QTRY_VERIFY(!dialog->property("visible").toBool());
             QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
             QCOMPARE(bindings->sequences("openMedia"), (QStringList{"F3", "Ctrl+O"}));
+        }
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void shortcutSettingsBrowseFilterAndEditAlternatives()
+    {
+        QSettings().setValue("interface/language", "en");
+        QList<QQmlError> warnings;
+        QQmlApplicationEngine engine;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&](const QList<QQmlError> &items) { warnings.append(items); });
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        const auto item = [window](const char *name) { return findItem(window->contentItem(), name); };
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        auto *bindings = window->findChild<ShortcutBindings *>("shortcutBindings");
+        QVERIFY(dialog && bindings);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        click(window, item("settingsPage3"));
+        auto *settings = item("shortcutSettings");
+        auto *search = item("shortcutsSearchInput");
+        auto *list = item("shortcutsActionList");
+        auto *category = item("shortcutsCategoryChoice");
+        QVERIFY(settings && search && list && category);
+        const auto setText = [settings](const QString &id, const QString &text) {
+            return QMetaObject::invokeMethod(settings, "setText",
+                    Q_ARG(QVariant, QVariant(id)), Q_ARG(QVariant, QVariant(text)));
+        };
+        QCOMPARE(settings->property("customizedCount").toInt(), 0);
+        list->forceActiveFocus();
+        QTest::keyClick(window, Qt::Key_Down);
+        QTRY_COMPARE(settings->property("selectedId").toString(), QStringLiteral("searchPlaylist"));
+        const qreal searchY = search->mapToScene({}).y();
+        QVERIFY(QMetaObject::invokeMethod(list, "positionViewAtEnd"));
+        QTRY_VERIFY(list->property("contentY").toReal() > 0);
+        QCOMPARE(search->mapToScene({}).y(), searchY);
+        int audioIndex = -1;
+        const QVariantList categories = settings->property("categories").toList();
+        for (int index = 0; index < categories.size(); ++index) {
+            if (categories[index].toString() == "Audio")
+                audioIndex = index;
+        }
+        QVERIFY(audioIndex > 0);
+        category->setProperty("currentIndex", audioIndex);
+        QTRY_COMPARE(settings->property("matchingCount").toInt(), 3);
+        search->setProperty("text", "mute");
+        QTRY_COMPARE(settings->property("matchingCount").toInt(), 1);
+        QTRY_COMPARE(settings->property("selectedId").toString(), QStringLiteral("mute"));
+        auto *input = item("shortcutInput_mute");
+        QVERIFY(input);
+        click(window, item("shortcutAdd_mute"));
+        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QTRY_COMPARE(input->property("text").toString(), QStringLiteral("M; Ctrl+M"));
+        QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
+        QCOMPARE(settings->property("customizedCount").toInt(), 1);
+        click(window, item("shortcutsCustomizedOnly"));
+        search->setProperty("text", "");
+        QTRY_COMPARE(settings->property("matchingCount").toInt(), 1);
+        click(window, item("shortcutClear_mute"));
+        QTRY_COMPARE(input->property("text").toString(), QString{});
+        click(window, item("shortcutReset_mute"));
+        QTRY_COMPARE(input->property("text").toString(), QStringLiteral("M"));
+        QTRY_COMPARE(settings->property("matchingCount").toInt(), 0);
+        QVERIFY(item("shortcutsEmptyMessage")->isVisible());
+        click(window, item("shortcutsCustomizedOnly"));
+        category->setProperty("currentIndex", 0);
+        QVERIFY(setText("mute", "Ctrl+O"));
+        QTRY_VERIFY(!settings->property("shortcutsValid").toBool());
+        const QVariantMap issue = bindings->validate({{"mute", QStringLiteral("Ctrl+O")}});
+        QCOMPARE(issue.value("commandId").toString(), QStringLiteral("mute"));
+        QCOMPARE(issue.value("conflictingId").toString(), QStringLiteral("openMedia"));
+        auto *conflict = item("shortcutIssue_openMedia");
+        QTRY_VERIFY(conflict && conflict->isVisible());
+        click(window, conflict);
+        QTRY_COMPARE(settings->property("selectedId").toString(), QStringLiteral("openMedia"));
+        QVERIFY(setText("mute", "Ctrl+M"));
+        QTRY_VERIFY(settings->property("shortcutsValid").toBool());
+        click(window, item("shortcutsResetButton"));
+        QVERIFY(settings->property("confirmingReset").toBool());
+        QCOMPARE(settings->property("customizedCount").toInt(), 1);
+        click(window, item("shortcutsConfirmReset"));
+        QTRY_COMPARE(settings->property("customizedCount").toInt(), 0);
+        QVERIFY(!settings->property("confirmingReset").toBool());
+        QCOMPARE(bindings->sequences("mute"), QStringList{"M"});
+        search->setProperty("text", "no matching shortcut anywhere");
+        QTRY_COMPARE(settings->property("matchingCount").toInt(), 0);
+        click(window, item("shortcutsClearSearch"));
+        QTRY_COMPARE(settings->property("matchingCount").toInt(), bindings->entries().size());
+        QVERIFY(search->hasActiveFocus());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
+    }
+
+    void shortcutSettingsFitInBothLanguages()
+    {
+        QList<QQmlError> warnings;
+        QQmlApplicationEngine engine;
+        connect(&engine, &QQmlEngine::warnings, this,
+                [&](const QList<QQmlError> &items) { warnings.append(items); });
+        engine.loadFromModule("KPlayer", "Main");
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(exposeWindow(window));
+        auto *dialog = window->findChild<QObject *>("advancedSettingsDialog");
+        auto *language = engine.singletonInstance<AppLanguage *>("KPlayer", "AppLanguage");
+        QVERIFY(dialog && language);
+        const QString captureDirectory = qEnvironmentVariable("KPLAYER_SETTINGS_CAPTURE");
+        for (const QString &code : {QStringLiteral("en"), QStringLiteral("zh_TW")}) {
+            language->setLanguage(code);
+            QVERIFY(QMetaObject::invokeMethod(dialog, "open"));
+            QTRY_VERIFY(dialog->property("opened").toBool());
+            dialog->setProperty("currentPage", 3);
+            for (const QSize size : {QSize(1000, 740), QSize(640, 740), QSize(1000, 500), QSize(640, 500)}) {
+                window->resize(size);
+                QSignalSpy frames(window, &QQuickWindow::frameSwapped);
+                window->update();
+                QTRY_VERIFY(!frames.isEmpty());
+                auto *settings = findItem(window->contentItem(), "shortcutSettings");
+                auto *list = findItem(window->contentItem(), "shortcutsActionList");
+                QVERIFY(settings && list);
+                QVERIFY2(list->height() >= 50, qPrintable(QString::number(list->height())));
+                for (const char *name : {"shortcutSettings", "shortcutsSearchInput", "shortcutsCategoryChoice",
+                                         "shortcutsActionList", "advancedSettingsSaveButton"}) {
+                    auto *target = findItem(window->contentItem(), name);
+                    QVERIFY(target && target->isVisible());
+                    const QRectF bounds(target->mapToScene({}), target->size());
+                    QVERIFY2(bounds.left() >= 0 && bounds.right() <= window->width(), name);
+                    QVERIFY2(bounds.top() >= 0 && bounds.bottom() <= window->height(), name);
+                    if (target != settings && QByteArray(name) != "advancedSettingsSaveButton") {
+                        const QRectF page(settings->mapToScene({}), settings->size());
+                        QVERIFY2(bounds.bottom() <= page.bottom() + 1, name);
+                    }
+                }
+                auto *editor = findItem(window->contentItem(), "shortcutsEditorScroll");
+                auto *input = findItem(window->contentItem(), "shortcutInput_openMedia");
+                QVERIFY(editor && input);
+                const QRectF inputBounds(input->mapToScene({}), input->size());
+                const QRectF editorBounds(editor->mapToScene({}), editor->size());
+                QVERIFY(inputBounds.top() >= editorBounds.top());
+                QVERIFY(inputBounds.bottom() <= editorBounds.bottom());
+                auto *choice = findItem(window->contentItem(), "shortcutsCategoryChoice");
+                QTRY_COMPARE(choice->property("displayText").toString(), code == "en"
+                    ? QStringLiteral("All categories") : QStringLiteral("所有類別"));
+                if (!captureDirectory.isEmpty()) {
+                    auto grab = window->contentItem()->grabToImage();
+                    QVERIFY(grab);
+                    QSignalSpy ready(grab.data(), &QQuickItemGrabResult::ready);
+                    QTRY_VERIFY(!ready.isEmpty());
+                    QVERIFY(grab->saveToFile(QDir(captureDirectory).filePath(
+                        QStringLiteral("shortcuts-%1-%2x%3.png").arg(code).arg(size.width()).arg(size.height()))));
+                }
+            }
+            QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
         }
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.isEmpty() ? QString{} : warnings.first().toString()));
     }

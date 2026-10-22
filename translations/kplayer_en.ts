@@ -207,6 +207,34 @@
             <source>Shortcuts</source>
             <translation>Shortcuts</translation>
         </message>
+        <message>
+            <source>Choose your language and where captured frames are saved.</source>
+            <translation>Choose your language and where captured frames are saved.</translation>
+        </message>
+        <message>
+            <source>Adjust playback speed and timeline previews.</source>
+            <translation>Adjust playback speed and timeline previews.</translation>
+        </message>
+        <message>
+            <source>Choose subtitle preferences and automatic selection rules.</source>
+            <translation>Choose subtitle preferences and automatic selection rules.</translation>
+        </message>
+        <message>
+            <source>Select an action to edit its keys. Changes apply when you save.</source>
+            <translation>Select an action to edit its keys. Changes apply when you save.</translation>
+        </message>
+        <message>
+            <source>Resolve shortcut conflicts before saving.</source>
+            <translation>Resolve shortcut conflicts before saving.</translation>
+        </message>
+        <message>
+            <source>%1 shortcut actions changed. Save to apply.</source>
+            <translation>%1 shortcut actions changed. Save to apply.</translation>
+        </message>
+        <message>
+            <source>Changes apply when you save.</source>
+            <translation>Changes apply when you save.</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
@@ -1905,6 +1933,82 @@ Double click to play</translation>
         <message>
             <source>Press a key combination. This replaces the current assignment. Esc cancels.</source>
             <translation>Press a key combination. This replaces the current assignment. Esc cancels.</translation>
+        </message>
+        <message>
+            <source>All categories</source>
+            <translation>All categories</translation>
+        </message>
+        <message>
+            <source>Search actions or keys…</source>
+            <translation>Search actions or keys…</translation>
+        </message>
+        <message>
+            <source>Clear search</source>
+            <translation>Clear search</translation>
+        </message>
+        <message>
+            <source>Shortcut category</source>
+            <translation>Shortcut category</translation>
+        </message>
+        <message>
+            <source>Customized only</source>
+            <translation>Customized only</translation>
+        </message>
+        <message>
+            <source>Restore every shortcut? Changes are kept as a draft until you save.</source>
+            <translation>Restore every shortcut? Changes are kept as a draft until you save.</translation>
+        </message>
+        <message>
+            <source>Restore defaults</source>
+            <translation>Restore defaults</translation>
+        </message>
+        <message>
+            <source>Keep changes</source>
+            <translation>Keep changes</translation>
+        </message>
+        <message>
+            <source>Action / Shortcut</source>
+            <translation>Action / Shortcut</translation>
+        </message>
+        <message>
+            <source>Customized</source>
+            <translation>Customized</translation>
+        </message>
+        <message>
+            <source>No matching actions. Try another search or category.</source>
+            <translation>No matching actions. Try another search or category.</translation>
+        </message>
+        <message>
+            <source>Assigned shortcuts</source>
+            <translation>Assigned shortcuts</translation>
+        </message>
+        <message>
+            <source>Add another</source>
+            <translation>Add another</translation>
+        </message>
+        <message>
+            <source>Record an alternative without replacing existing shortcuts</source>
+            <translation>Record an alternative without replacing existing shortcuts</translation>
+        </message>
+        <message>
+            <source>Press a key combination to add. Esc cancels.</source>
+            <translation>Press a key combination to add. Esc cancels.</translation>
+        </message>
+        <message>
+            <source>Press a key combination to replace the assignment. Esc cancels.</source>
+            <translation>Press a key combination to replace the assignment. Esc cancels.</translation>
+        </message>
+        <message>
+            <source>Record a combination, or type keys separated by semicolons: Ctrl+O; F2.</source>
+            <translation>Record a combination, or type keys separated by semicolons: Ctrl+O; F2.</translation>
+        </message>
+        <message>
+            <source>Default: %1</source>
+            <translation>Default: %1</translation>
+        </message>
+        <message>
+            <source>Shortcut actions</source>
+            <translation>Shortcut actions</translation>
         </message>
     </context>
     <context>

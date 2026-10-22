@@ -207,6 +207,34 @@
             <source>Shortcuts</source>
             <translation>快捷鍵</translation>
         </message>
+        <message>
+            <source>Choose your language and where captured frames are saved.</source>
+            <translation>選擇介面語言與畫面擷取的儲存位置。</translation>
+        </message>
+        <message>
+            <source>Adjust playback speed and timeline previews.</source>
+            <translation>調整播放速度與時間軸預覽。</translation>
+        </message>
+        <message>
+            <source>Choose subtitle preferences and automatic selection rules.</source>
+            <translation>設定字幕偏好與自動選擇規則。</translation>
+        </message>
+        <message>
+            <source>Select an action to edit its keys. Changes apply when you save.</source>
+            <translation>選擇操作來編輯快捷鍵，儲存後即可套用。</translation>
+        </message>
+        <message>
+            <source>Resolve shortcut conflicts before saving.</source>
+            <translation>請先解決快捷鍵衝突再儲存。</translation>
+        </message>
+        <message>
+            <source>%1 shortcut actions changed. Save to apply.</source>
+            <translation>已修改 %1 項快捷鍵，儲存後即可套用。</translation>
+        </message>
+        <message>
+            <source>Changes apply when you save.</source>
+            <translation>儲存後即可套用變更。</translation>
+        </message>
     </context>
     <context>
         <name>AppMenu</name>
@@ -1905,6 +1933,82 @@ Double click to play</source>
         <message>
             <source>Press a key combination. This replaces the current assignment. Esc cancels.</source>
             <translation>請按下按鍵組合以取代目前的指派。按 Esc 取消。</translation>
+        </message>
+        <message>
+            <source>All categories</source>
+            <translation>所有類別</translation>
+        </message>
+        <message>
+            <source>Search actions or keys…</source>
+            <translation>搜尋操作或快捷鍵…</translation>
+        </message>
+        <message>
+            <source>Clear search</source>
+            <translation>清除搜尋</translation>
+        </message>
+        <message>
+            <source>Shortcut category</source>
+            <translation>快捷鍵類別</translation>
+        </message>
+        <message>
+            <source>Customized only</source>
+            <translation>僅顯示自訂項目</translation>
+        </message>
+        <message>
+            <source>Restore every shortcut? Changes are kept as a draft until you save.</source>
+            <translation>要恢復所有快捷鍵嗎？儲存前，變更只會保留為草稿。</translation>
+        </message>
+        <message>
+            <source>Restore defaults</source>
+            <translation>恢復預設值</translation>
+        </message>
+        <message>
+            <source>Keep changes</source>
+            <translation>保留變更</translation>
+        </message>
+        <message>
+            <source>Action / Shortcut</source>
+            <translation>操作／快捷鍵</translation>
+        </message>
+        <message>
+            <source>Customized</source>
+            <translation>已自訂</translation>
+        </message>
+        <message>
+            <source>No matching actions. Try another search or category.</source>
+            <translation>找不到符合的操作，請嘗試其他關鍵字或類別。</translation>
+        </message>
+        <message>
+            <source>Assigned shortcuts</source>
+            <translation>已指派的快捷鍵</translation>
+        </message>
+        <message>
+            <source>Add another</source>
+            <translation>新增快捷鍵</translation>
+        </message>
+        <message>
+            <source>Record an alternative without replacing existing shortcuts</source>
+            <translation>錄製另一組快捷鍵，保留現有的指派</translation>
+        </message>
+        <message>
+            <source>Press a key combination to add. Esc cancels.</source>
+            <translation>按下要新增的按鍵組合，按 Esc 取消。</translation>
+        </message>
+        <message>
+            <source>Press a key combination to replace the assignment. Esc cancels.</source>
+            <translation>按下按鍵組合以取代目前指派，按 Esc 取消。</translation>
+        </message>
+        <message>
+            <source>Record a combination, or type keys separated by semicolons: Ctrl+O; F2.</source>
+            <translation>錄製按鍵組合，或以分號分隔輸入：Ctrl+O; F2。</translation>
+        </message>
+        <message>
+            <source>Default: %1</source>
+            <translation>預設值：%1</translation>
+        </message>
+        <message>
+            <source>Shortcut actions</source>
+            <translation>快捷鍵操作清單</translation>
         </message>
     </context>
     <context>

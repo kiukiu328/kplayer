@@ -344,7 +344,7 @@ Window {
         objectName: "advancedSettingsDialog"
         parent: window.contentItem
         width: Math.min(900, window.width - 32)
-        height: Math.min(600, window.height - 32)
+        height: Math.min(700, window.height - 32)
         maximumSpeed: videoStage.maximumSpeed
         playbackSpeed: videoStage.speed
         previewEnabled: playbackPreferences.previewEnabled

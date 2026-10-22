@@ -37,6 +37,12 @@ Dialog {
                            (parent.height - height) / 2 + dragOffset.y))
     onAboutToShow: dragOffset = Qt.point(0, 0)
     readonly property var pageTitles: [qsTr("一般"), qsTr("播放"), qsTr("字幕"), qsTr("Shortcuts")]
+    readonly property var pageDescriptions: [
+        qsTr("Choose your language and where captured frames are saved."),
+        qsTr("Adjust playback speed and timeline previews."),
+        qsTr("Choose subtitle preferences and automatic selection rules."),
+        qsTr("Select an action to edit its keys. Changes apply when you save.")
+    ]
     readonly property string saveButtonText: qsTr("Save")
     readonly property string cancelButtonText: qsTr("Cancel")
     title: qsTr("進階設定")
@@ -116,10 +122,27 @@ Dialog {
         radius: 12
     }
     footer: Item {
-        implicitHeight: 72
+        implicitHeight: 68
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.tabBackground
+        }
         RowLayout {
             anchors { fill: parent; margins: 16 }
             spacing: 10
+            Label {
+                Layout.fillWidth: true
+                Layout.maximumWidth: 400
+                visible: root.width >= 650
+                text: !shortcutSettings.shortcutsValid ? qsTr("Resolve shortcut conflicts before saving.")
+                    : shortcutSettings.changedCount > 0
+                        ? qsTr("%1 shortcut actions changed. Save to apply.").arg(shortcutSettings.changedCount)
+                        : qsTr("Changes apply when you save.")
+                color: shortcutSettings.shortcutsValid ? Theme.textMuted : Theme.accent
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
             Item { Layout.fillWidth: true }
             Button {
                 id: cancelButton
@@ -153,7 +176,7 @@ Dialog {
         }
     }
     header: Item {
-        implicitHeight: 60
+        implicitHeight: 56
         MouseArea {
             objectName: "settingsDragHandle"
             anchors.fill: parent
@@ -184,6 +207,15 @@ Dialog {
             color: Theme.textPrimary
             font.pixelSize: 20
             font.bold: true
+        }
+        IconButton {
+            objectName: "advancedSettingsCloseButton"
+            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            width: 36; height: 36
+            iconName: "close"
+            iconSize: 18
+            label: root.cancelButtonText
+            onClicked: root.reject()
         }
     }
 
@@ -233,7 +265,7 @@ Dialog {
     contentItem: RowLayout {
         spacing: 0
         Rectangle {
-            Layout.preferredWidth: root.width < 650 ? 130 : 190
+            Layout.preferredWidth: root.width < 650 ? 120 : 156
             Layout.fillHeight: true
             color: Theme.searchBackground
             Column {
@@ -245,7 +277,7 @@ Dialog {
                     font.pixelSize: 22
                     font.bold: true
                     leftPadding: 12
-                    bottomPadding: 20
+                    bottomPadding: 12
                     topPadding: 8
                 }
                 Repeater {
@@ -256,17 +288,17 @@ Dialog {
                         required property int index
                         required property string modelData
                         width: parent.width
-                        height: 48
+                        height: 44
                         text: modelData
                         checkable: true
                         checked: root.currentPage === navigationButton.index
                         onClicked: root.currentPage = navigationButton.index
                         contentItem: Label {
                             text: navigationButton.text
-                            leftPadding: 16
+                            leftPadding: 12
                             verticalAlignment: Text.AlignVCenter
                             color: root.currentPage === navigationButton.index ? Theme.accent : Theme.textPrimary
-                            font.pixelSize: 16
+                            font.pixelSize: 14
                         }
                         background: Rectangle {
                             radius: 8
@@ -286,168 +318,185 @@ Dialog {
                 }
             }
         }
-        ScrollView {
-            id: settingsScroll
-            objectName: "advancedSettingsScroll"
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            contentWidth: availableWidth
-            clip: true
-            Column {
-                width: settingsScroll.availableWidth
-                padding: root.width < 650 ? 16 : 28
-                spacing: 20
-                Label {
-                    text: root.pageTitles[root.currentPage]
-                    color: Theme.textPrimary
-                    font.pixelSize: 28
-                    font.bold: true
-                }
-                SettingsCard {
-                    width: parent.width - parent.padding * 2
-                    visible: root.currentPage === 0
-                    heading: qsTr("語言")
-                    GridLayout {
-                        width: parent.width
-                        columns: root.width < 650 ? 1 : 2
-                        columnSpacing: 20
-                        rowSpacing: 18
+            Layout.margins: root.width < 650 || root.height < 550 ? 16 : 24
+            spacing: 8
+            Label {
+                text: root.pageTitles[root.currentPage]
+                color: Theme.textPrimary
+                font.pixelSize: 26
+                font.bold: true
+            }
+            Label {
+                Layout.fillWidth: true
+                text: root.pageDescriptions[root.currentPage]
+                visible: root.height >= 550
+                color: Theme.textMuted
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+                Layout.bottomMargin: 8
+            }
+            ShortcutSettings {
+                id: shortcutSettings
+                objectName: "shortcutSettings"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: root.currentPage === 3
+                bindings: root.shortcutBindings
+            }
+            ScrollView {
+                id: settingsScroll
+                objectName: "advancedSettingsScroll"
+                visible: root.currentPage !== 3
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentWidth: availableWidth
+                clip: true
+                Column {
+                    width: settingsScroll.availableWidth
+                    padding: 0
+                    spacing: 20
+                    SettingsCard {
+                        width: parent.width - parent.padding * 2
+                        visible: root.currentPage === 0
+                        heading: qsTr("語言")
+                        GridLayout {
+                            width: parent.width
+                            columns: root.width < 650 ? 1 : 2
+                            columnSpacing: 20
+                            rowSpacing: 18
+                            Label {
+                                text: qsTr("介面語言")
+                                color: Theme.textPrimary
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                            }
+                            SettingsComboBox {
+                                id: interfaceLanguage
+                                objectName: "interfaceLanguageChoice"
+                                Layout.preferredWidth: root.width < 650 ? 150 : 220
+                                model: ["中文", "English"]
+                                Accessible.name: qsTr("介面語言")
+                            }
+                        }
+                    }
+                    SettingsCard {
+                        width: parent.width - parent.padding * 2
+                        visible: root.currentPage === 0
+                        heading: qsTr("Frame capture")
                         Label {
-                            text: qsTr("介面語言")
+                            text: qsTr("Save folder")
                             color: Theme.textPrimary
-                            Layout.fillWidth: true
+                        }
+                        RowLayout {
+                            width: parent.width
+                            spacing: 10
+                            TextField {
+                                id: captureDirectoryInput
+                                objectName: "captureDirectoryInput"
+                                Layout.fillWidth: true
+                                selectByMouse: true
+                                color: Theme.textPrimary
+                                Accessible.name: qsTr("Save folder")
+                                background: Rectangle {
+                                    radius: 6
+                                    color: Theme.searchBackground
+                                    border.color: captureDirectoryInput.activeFocus
+                                        ? Theme.accent : Theme.buttonBackground
+                                }
+                            }
+                            Button {
+                                id: captureBrowseButton
+                                objectName: "captureDirectoryBrowseButton"
+                                text: qsTr("Browse…")
+                                onClicked: {
+                                    captureFolderDialog.currentFolder = root.player.capturePathToUrl(captureDirectoryInput.text)
+                                    captureFolderDialog.open()
+                                }
+                                background: Rectangle {
+                                    radius: 6
+                                    color: captureBrowseButton.hovered ? Theme.buttonHover : Theme.buttonBackground
+                                    border.color: captureBrowseButton.activeFocus ? Theme.accent : Theme.transparent
+                                }
+                            }
+                        }
+                        Label {
+                            width: parent.width
+                            text: qsTr("Default: Pictures/KPlayer. Leave blank to restore the default folder.")
                             wrapMode: Text.WordWrap
-                        }
-                        SettingsComboBox {
-                            id: interfaceLanguage
-                            objectName: "interfaceLanguageChoice"
-                            Layout.preferredWidth: root.width < 650 ? 150 : 220
-                            model: ["中文", "English"]
-                            Accessible.name: qsTr("介面語言")
+                            color: Theme.textMuted
+                            font.pixelSize: Theme.smallFontSize
                         }
                     }
-                }
-                SettingsCard {
-                    width: parent.width - parent.padding * 2
-                    visible: root.currentPage === 0
-                    heading: qsTr("Frame capture")
-                    Label {
-                        text: qsTr("Save folder")
-                        color: Theme.textPrimary
-                    }
-                    RowLayout {
-                        width: parent.width
-                        spacing: 10
-                        TextField {
-                            id: captureDirectoryInput
-                            objectName: "captureDirectoryInput"
-                            Layout.fillWidth: true
-                            selectByMouse: true
-                            color: Theme.textPrimary
-                            Accessible.name: qsTr("Save folder")
-                            background: Rectangle {
-                                radius: 6
-                                color: Theme.searchBackground
-                                border.color: captureDirectoryInput.activeFocus
-                                    ? Theme.accent : Theme.buttonBackground
+                    SettingsCard {
+                        width: parent.width - parent.padding * 2
+                        visible: root.currentPage === 1
+                        heading: qsTr("播放速度")
+                        GridLayout {
+                            width: parent.width
+                            columns: root.width < 650 ? 1 : 2
+                            columnSpacing: 20
+                            rowSpacing: 18
+                            Label { text: qsTr("最高播放速度 (×)"); color: Theme.textPrimary; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            SpinBox {
+                                id: speedLimit
+                                objectName: "maximumSpeedInput"
+                                Layout.preferredWidth: root.width < 650 ? 150 : 220
+                                from: 10
+                                to: 1000
+                                stepSize: 10
+                                editable: true
+                                validator: DoubleValidator { bottom: 1; top: 100; decimals: 1; locale: speedLimit.locale.name }
+                                textFromValue: (value, locale) => Number(value / 10).toLocaleString(locale, 'f', 1)
+                                valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * 10)
+                                Accessible.name: qsTr("最高播放速度 (×)")
                             }
-                        }
-                        Button {
-                            id: captureBrowseButton
-                            objectName: "captureDirectoryBrowseButton"
-                            text: qsTr("Browse…")
-                            onClicked: {
-                                captureFolderDialog.currentFolder = root.player.capturePathToUrl(captureDirectoryInput.text)
-                                captureFolderDialog.open()
-                            }
-                            background: Rectangle {
-                                radius: 6
-                                color: captureBrowseButton.hovered ? Theme.buttonHover : Theme.buttonBackground
-                                border.color: captureBrowseButton.activeFocus ? Theme.accent : Theme.transparent
+                            Label { text: qsTr("播放速度 (×)"); color: Theme.textPrimary; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            SpinBox {
+                                id: customSpeed
+                                objectName: "customSpeedInput"
+                                Layout.preferredWidth: root.width < 650 ? 150 : 220
+                                from: 2
+                                to: speedLimit.value
+                                stepSize: 1
+                                editable: true
+                                validator: DoubleValidator { bottom: 0.2; top: speedLimit.value / 10; decimals: 1; locale: customSpeed.locale.name }
+                                textFromValue: (value, locale) => Number(value / 10).toLocaleString(locale, 'f', 1)
+                                valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * 10)
+                                Accessible.name: qsTr("播放速度 (×)")
                             }
                         }
                     }
-                    Label {
-                        width: parent.width
-                        text: qsTr("Default: Pictures/KPlayer. Leave blank to restore the default folder.")
-                        wrapMode: Text.WordWrap
-                        color: Theme.textMuted
-                        font.pixelSize: Theme.smallFontSize
-                    }
-                }
-                SettingsCard {
-                    width: parent.width - parent.padding * 2
-                    visible: root.currentPage === 1
-                    heading: qsTr("播放速度")
-                    GridLayout {
-                        width: parent.width
-                        columns: root.width < 650 ? 1 : 2
-                        columnSpacing: 20
-                        rowSpacing: 18
-                        Label { text: qsTr("最高播放速度 (×)"); color: Theme.textPrimary; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                        SpinBox {
-                            id: speedLimit
-                            objectName: "maximumSpeedInput"
-                            Layout.preferredWidth: root.width < 650 ? 150 : 220
-                            from: 10
-                            to: 1000
-                            stepSize: 10
-                            editable: true
-                            validator: DoubleValidator { bottom: 1; top: 100; decimals: 1; locale: speedLimit.locale.name }
-                            textFromValue: (value, locale) => Number(value / 10).toLocaleString(locale, 'f', 1)
-                            valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * 10)
-                            Accessible.name: qsTr("最高播放速度 (×)")
-                        }
-                        Label { text: qsTr("播放速度 (×)"); color: Theme.textPrimary; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                        SpinBox {
-                            id: customSpeed
-                            objectName: "customSpeedInput"
-                            Layout.preferredWidth: root.width < 650 ? 150 : 220
-                            from: 2
-                            to: speedLimit.value
-                            stepSize: 1
-                            editable: true
-                            validator: DoubleValidator { bottom: 0.2; top: speedLimit.value / 10; decimals: 1; locale: customSpeed.locale.name }
-                            textFromValue: (value, locale) => Number(value / 10).toLocaleString(locale, 'f', 1)
-                            valueFromText: (text, locale) => Math.round(Number.fromLocaleString(locale, text) * 10)
-                            Accessible.name: qsTr("播放速度 (×)")
+                    SettingsCard {
+                        width: parent.width - parent.padding * 2
+                        visible: root.currentPage === 1
+                        heading: qsTr("時間軸預覽")
+                        CheckBox {
+                            id: seekPreview
+                            objectName: "seekPreviewInput"
+                            width: parent.width
+                            text: qsTr("顯示時間軸影片預覽")
                         }
                     }
-                }
-                SettingsCard {
-                    width: parent.width - parent.padding * 2
-                    visible: root.currentPage === 1
-                    heading: qsTr("時間軸預覽")
-                    CheckBox {
-                        id: seekPreview
-                        objectName: "seekPreviewInput"
-                        width: parent.width
-                        text: qsTr("顯示時間軸影片預覽")
+                    SubtitleSettings {
+                        id: subtitleSettings
+                        objectName: "subtitleSettings"
+                        width: parent.width - parent.padding * 2
+                        visible: root.currentPage === 2
+                        currentSubtitleTrack: root.currentSubtitleTrack
+                        shortcutBindings: root.shortcutBindings
+                        viewport: settingsScroll.contentItem as Flickable
+                        onRevealRequested: (y, height) => {
+                            const view = settingsScroll.contentItem as Flickable
+                            const top = subtitleSettings.mapToItem(view.contentItem, 0, y).y
+                            if (top < view.contentY)
+                                view.contentY = top
+                            else if (top + height > view.contentY + view.height)
+                                view.contentY = top + height - view.height
+                        }
                     }
-                }
-                SubtitleSettings {
-                    id: subtitleSettings
-                    objectName: "subtitleSettings"
-                    width: parent.width - parent.padding * 2
-                    visible: root.currentPage === 2
-                    currentSubtitleTrack: root.currentSubtitleTrack
-                    shortcutBindings: root.shortcutBindings
-                    viewport: settingsScroll.contentItem as Flickable
-                    onRevealRequested: (y, height) => {
-                        const view = settingsScroll.contentItem as Flickable
-                        const top = subtitleSettings.mapToItem(view.contentItem, 0, y).y
-                        if (top < view.contentY)
-                            view.contentY = top
-                        else if (top + height > view.contentY + view.height)
-                            view.contentY = top + height - view.height
-                    }
-                }
-                ShortcutSettings {
-                    id: shortcutSettings
-                    objectName: "shortcutSettings"
-                    width: parent.width - parent.padding * 2
-                    visible: root.currentPage === 3
-                    bindings: root.shortcutBindings
                 }
             }
         }

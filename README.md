@@ -72,12 +72,14 @@ The default interface language is Traditional Chinese. To switch to English,
 press `F5`, choose **General > Interface language**, and save. The change applies
 immediately and is remembered for the next launch.
 
-Open **Advanced Settings > Shortcuts** (`F5` by default) to view, search, and edit
-application, playback, playlist, and subtitle rule shortcuts. Type key names or
-use **Record**; separate alternative bindings with semicolons. Conflicting
-assignments must be corrected before saving. **Clear** disables a command's
-shortcut, and **Reset** restores its defaults. Changes apply on **Save** and
-remain available after restarting.
+Open **Advanced Settings > Shortcuts** (`F5` by default) to browse or search
+application, playback, playlist, and subtitle rule shortcuts. Filter by category
+or choose **Customized only**, then select an action to edit it in the adjacent
+pane. Use **Record** to replace an assignment or **Add another** to keep the
+existing keys and record an alternative. You can also type key names separated
+by semicolons. Conflict messages link to the affected actions. **Clear** disables
+a command's shortcut, and **Reset** restores its defaults. Changes apply on
+**Save** and remain available after restarting; **Cancel** discards the draft.
 
 To sort part of a playlist, select tracks with Ctrl-click or Shift-click, open
 the playlist's **Sort** menu, and choose **Selected titles: A–Z** or

@@ -36,7 +36,8 @@ protected:
 
 private:
     using BindingMap = QMap<QString, QStringList>;
-    bool normalizedDraft(const QVariantMap &draft, BindingMap *result, QString *error) const;
+    bool normalizedDraft(const QVariantMap &draft, BindingMap *result, QString *error,
+                         QVariantMap *issue = nullptr) const;
     BindingMap m_bindings;
     int m_revision = 0;
 };

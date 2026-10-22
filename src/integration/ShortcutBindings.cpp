@@ -179,11 +179,13 @@ QString ShortcutBindings::label(const QString &id) const
 }
 
 bool ShortcutBindings::normalizedDraft(const QVariantMap &draft, BindingMap *result,
-                                       QString *error) const
+                                       QString *error, QVariantMap *issue) const
 {
     *result = m_bindings;
     for (auto entry = draft.cbegin(); entry != draft.cend(); ++entry) {
         const Command *command = findCommand(entry.key());
+        if (issue)
+            issue->insert(QStringLiteral("commandId"), entry.key());
         if (!command) {
             *error = tr("Unknown shortcut command: %1").arg(entry.key());
             return false;
@@ -236,6 +238,10 @@ bool ShortcutBindings::normalizedDraft(const QVariantMap &draft, BindingMap *res
                 const bool playlistAndPlayer = (command.scope == Scope::Playlist && owner->scope == Scope::Player)
                     || (command.scope == Scope::Player && owner->scope == Scope::Playlist);
                 if (!separateModal && !playlistAndPlayer) {
+                    if (issue) {
+                        issue->insert(QStringLiteral("commandId"), QString::fromLatin1(command.id));
+                        issue->insert(QStringLiteral("conflictingId"), QString::fromLatin1(owner->id));
+                    }
                     *error = tr("Shortcut %1 is used by both %2 and %3.")
                                  .arg(sequence, translated(owner->title), translated(command.title));
                     return false;
@@ -251,8 +257,13 @@ QVariantMap ShortcutBindings::validate(const QVariantMap &draft) const
 {
     BindingMap normalized;
     QString error;
-    const bool valid = normalizedDraft(draft, &normalized, &error);
-    return {{QStringLiteral("valid"), valid}, {QStringLiteral("error"), error}};
+    QVariantMap issue;
+    const bool valid = normalizedDraft(draft, &normalized, &error, &issue);
+    if (valid)
+        issue.clear();
+    issue.insert(QStringLiteral("valid"), valid);
+    issue.insert(QStringLiteral("error"), error);
+    return issue;
 }
 
 bool ShortcutBindings::save(const QVariantMap &draft)
