@@ -2,6 +2,8 @@
 #include "MpvPreview.h"
 #include "MpvErrors.h"
 #include "PlaylistModel.h"
+#include "PlaylistCollection.h"
+#include "PlaylistFilterModel.h"
 #include "Favorites.h"
 #include "VideoLibrary.h"
 #include "FileAssociations.h"

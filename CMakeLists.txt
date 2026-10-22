@@ -100,6 +100,10 @@ set(KPLAYER_SOURCES
     src/playback/MpvPreview.cpp
     src/playback/PlaylistModel.h
     src/playback/PlaylistModel.cpp
+    src/playback/PlaylistCollection.h
+    src/playback/PlaylistCollection.cpp
+    src/playback/PlaylistFilterModel.h
+    src/playback/PlaylistFilterModel.cpp
     src/integration/VideoFormats.h
     src/integration/VideoLibrary.h
     src/integration/VideoLibrary.cpp

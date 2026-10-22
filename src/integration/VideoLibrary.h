@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PlaylistModel.h"
+#include "PlaylistCollection.h"
 
 #include <QObject>
 #include <QtQml/qqmlregistration.h>
